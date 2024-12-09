@@ -46,7 +46,7 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
     }
 
     constructor(address _p2pSigner) {
-        i_referenceP2pLendingProxy = new P2pLendingProxy(this);
+        i_referenceP2pLendingProxy = new P2pLendingProxy(address(this));
 
         s_p2pSigner = _p2pSigner;
     }
@@ -149,29 +149,33 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
             Rule memory rule = rules[i];
 
             RuleType ruleType = rule.ruleType;
-            uint32 bytesCount = rule.allowedBytes.length;
+            uint32 bytesCount = uint32(rule.allowedBytes.length);
 
             if (ruleType == RuleType.None) {
                 return false;
             } else if (ruleType == RuleType.AnyCalldata) {
-                return true;
+                continue; // skip further checks for this rule
             } else if (ruleType == RuleType.StartsWith) {
                 // Ensure the calldata is at least as long as the range defined by startIndex and bytesCount
                 if (_calldataAfterSelector.length < rule.index + bytesCount)
                     return false;
                 // Compare the specified range in the calldata with the allowed bytes
-                return
-                    keccak256(
-                        _calldataAfterSelector[rule.index:rule.index + bytesCount]
-                    ) == keccak256(rule.allowedBytes);
+                bool isAllowed = keccak256(_calldataAfterSelector[rule.index:rule.index + bytesCount]) == keccak256(rule.allowedBytes);
+                if (!isAllowed) {
+                    return false;
+                } else {
+                    continue; // skip further checks for this rule
+                }
             } else if (ruleType == RuleType.EndsWith) {
                 // Ensure the calldata is at least as long as bytesCount
                 if (_calldataAfterSelector.length < bytesCount) return false;
                 // Compare the end of the calldata with the allowed bytes
-                return
-                    keccak256(
-                        _calldataAfterSelector[_calldataAfterSelector.length - bytesCount:]
-                    ) == keccak256(rule.allowedBytes);
+                bool isAllowed = keccak256(_calldataAfterSelector[_calldataAfterSelector.length - bytesCount:]) == keccak256(rule.allowedBytes);
+                if (!isAllowed) {
+                    return false;
+                } else {
+                    continue; // skip further checks for this rule
+                }
             }
 
             return false; // Default to false if none of the conditions are met
@@ -181,7 +185,6 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
     }
 
     /// @notice Creates a new P2pLendingProxy contract instance
-    /// @return P2pLendingProxy The new P2pLendingProxy contract instance
     function _createP2pLendingProxy(uint96 _clientBasisPoints)
     private
     returns (P2pLendingProxy p2pLendingProxy)
@@ -246,7 +249,7 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
     /// @notice Calculates the salt required for deterministic clone creation
     /// depending on client address and client basis points
     /// @param _clientAddress address
-    /// @param _clientBasisPoints
+    /// @param _clientBasisPoints basis points (10000 = 100%)
     /// @return bytes32 salt
     function _getSalt(
         address _clientAddress,
@@ -257,7 +260,7 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
     }
 
     /// @inheritdoc ERC165
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
         return interfaceId == type(IP2pLendingProxyFactory).interfaceId ||
             super.supportsInterface(interfaceId);
     }

@@ -84,7 +84,7 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy {
         );
 
         SafeERC20.safeApprove(
-            permitSingleForP2pLendingProxy.details.token,
+            IERC20(permitSingleForP2pLendingProxy.details.token),
             address(Permit2Lib.PERMIT2),
             type(uint256).max
         );
@@ -93,7 +93,7 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy {
     }
 
     /// @inheritdoc ERC165
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
         return interfaceId == type(IP2pLendingProxy).interfaceId ||
             super.supportsInterface(interfaceId);
     }

@@ -57,13 +57,6 @@ interface IP2pLendingProxyFactory is IERC165 {
         uint96 _clientBasisPoints
     ) external view returns (address);
 
-    /// @notice Deploy P2pLendingProxy instance if not deployed before
-    /// @param _feeDistributorInstance The address of FeeDistributor instance
-    /// @return p2pLendingProxyInstance client P2pLendingProxy instance that has been deployed
-    function createP2pLendingProxy(
-        address _feeDistributorInstance
-    ) external returns(address p2pLendingProxyInstance);
-
     function getHashForP2pSigner(
         address _client,
         uint96 _clientBasisPoints,
