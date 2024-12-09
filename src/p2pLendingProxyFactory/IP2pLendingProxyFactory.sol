@@ -3,7 +3,7 @@
 
 pragma solidity 0.8.27;
 
-import "../../lib/permit2/src/interfaces/IAllowanceTransfer.sol";
+import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "./P2pLendingProxyFactoryStructs.sol";
 

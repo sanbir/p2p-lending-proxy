@@ -3,8 +3,8 @@
 
 pragma solidity 0.8.27;
 
-import "../../lib/permit2/src/interfaces/IAllowanceTransfer.sol";
-import "../../lib/permit2/src/libraries/Permit2Lib.sol";
+import "../@permit2/interfaces/IAllowanceTransfer.sol";
+import "../@permit2/libraries/Permit2Lib.sol";
 import "../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";

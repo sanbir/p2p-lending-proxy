@@ -3,7 +3,7 @@
 
 pragma solidity 0.8.27;
 
-import "../../lib/permit2/src/interfaces/IAllowanceTransfer.sol";
+import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@openzeppelin/contracts/proxy/Clones.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
