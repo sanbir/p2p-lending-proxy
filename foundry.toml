@@ -9,4 +9,4 @@ via_ir = true
 optimizer = true
 optimizer-runs = 2000
 
-rpc_endpoints = { mainnet = "https://rpc.ankr.com/eth", holesky = "https://rpc.ankr.com/eth_holesky" }
+rpc_endpoints = { mainnet = "https://eth.drpc.org", holesky = "https://rpc.ankr.com/eth_holesky" }

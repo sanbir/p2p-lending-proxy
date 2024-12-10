@@ -3,12 +3,14 @@
 
 pragma solidity 0.8.27;
 
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
-import "../@permit2/libraries/Permit2Lib.sol";
+import "../@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import "../@permit2/interfaces/IAllowanceTransfer.sol";
+import "../@permit2/libraries/Permit2Lib.sol";
+import "../@permit2/libraries/SignatureVerification.sol";
 import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
 import "./IP2pLendingProxy.sol";
 
@@ -22,7 +24,7 @@ error P2pLendingProxy__NotFactoryCalled(
     IP2pLendingProxyFactory _actualFactory
 );
 
-contract P2pLendingProxy is ERC165, IP2pLendingProxy {
+contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
 
     IP2pLendingProxyFactory private immutable i_factory;
 
@@ -40,12 +42,6 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy {
     constructor(
         address _factory
     ) {
-        if (!ERC165Checker.supportsInterface(
-            _factory,
-            type(IP2pLendingProxyFactory).interfaceId)
-        ) {
-            revert P2pLendingProxy__NotFactory(_factory);
-        }
         i_factory = IP2pLendingProxyFactory(_factory);
     }
 
@@ -90,6 +86,12 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy {
         );
 
         Address.functionCall(lendingProtocolAddress, lendingProtocolCalldata);
+    }
+
+    function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue) {
+        SignatureVerification.verify(signature, hash, s_client);
+
+        return IERC1271.isValidSignature.selector;
     }
 
     /// @inheritdoc ERC165

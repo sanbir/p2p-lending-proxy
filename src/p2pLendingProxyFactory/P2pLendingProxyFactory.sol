@@ -22,6 +22,9 @@ error P2pLendingProxyFactory__NotP2pOperatorCalled(
     address _msgSender,
     address _actualP2pOperator
 );
+error P2pLendingProxyFactory__P2pSignerSignatureExpired(
+    uint256 _p2pSignerSigDeadline
+);
 
 contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLendingProxyFactory {
     using SafeCast160 for uint256;
@@ -49,6 +52,20 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         i_referenceP2pLendingProxy = new P2pLendingProxy(address(this));
 
         s_p2pSigner = _p2pSigner;
+        s_p2pOperator = msg.sender;
+    }
+
+    // TODO: add 2 step
+    function setP2pOperator(
+        address _newP2pOperator
+    ) external onlyP2pOperator {
+        s_p2pOperator = _newP2pOperator;
+    }
+
+    function setP2pSigner(
+        address _newP2pSigner
+    ) external onlyP2pOperator {
+        s_p2pSigner = _newP2pSigner;
     }
 
     function setAllowedFunctionForContract(
@@ -79,15 +96,20 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
     external
     returns (address p2pLendingProxyAddress)
     {
+        if (block.timestamp > _p2pSignerSigDeadline) {
+            revert P2pLendingProxyFactory__P2pSignerSignatureExpired(_p2pSignerSigDeadline);
+        }
+
         // verify P2P Signer signature
         bytes32 hash = getHashForP2pSigner(
             msg.sender,
             _clientBasisPoints,
             _p2pSignerSigDeadline
         );
+        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(hash);
         bool isValid = SignatureChecker.isValidSignatureNow(
             s_p2pSigner,
-            hash,
+            ethSignedMessageHash,
             _p2pSignerSignature
         );
         if (!isValid) {
