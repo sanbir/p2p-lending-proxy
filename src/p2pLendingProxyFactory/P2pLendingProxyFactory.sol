@@ -268,6 +268,11 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         ));
     }
 
+    /// @notice Creates an EIP-712 typed data hash for Permit2
+    function getPermit2HashTypedData(bytes32 _dataHash) external view returns (bytes32) {
+        return keccak256(abi.encodePacked("\x19\x01", Permit2Lib.PERMIT2.DOMAIN_SEPARATOR(), _dataHash));
+    }
+
     /// @notice Calculates the salt required for deterministic clone creation
     /// depending on client address and client basis points
     /// @param _clientAddress address
