@@ -3,6 +3,7 @@
 
 pragma solidity 0.8.27;
 
+import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../src/mocks/IMorphoEthereumBundlerV2.sol";
 import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
 import "../src/p2pLendingProxyFactory/P2pLendingProxyFactoryStructs.sol";
@@ -26,11 +27,15 @@ contract MainnetIntegration is Test {
     address private nobody;
 
     address constant MorphoEthereumBundlerV2 = 0x4095F064B8d3c3548A3bebfd0Bbfd04750E30077;
-    address constant USDT = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address constant VaultUSDC = 0x8eB67A509616cd6A7c1B3c8C21D48FF57df3d458;
     // address constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
 
     uint256 constant SigDeadline = 1734464723;
     uint96 constant ClientBasisPoints = 8700; // 13% fee
+    uint256 constant DepositAmount = 10000000;
+
+    address proxyAddress;
 
     function setUp() public {
         vm.createSelectFork("mainnet", 21308893);
@@ -40,11 +45,13 @@ contract MainnetIntegration is Test {
         p2pOperatorAddress = makeAddr("p2pOperator");
         nobody = makeAddr("nobody");
 
-        deal(USDT, clientAddress, 10000e18);
+        deal(USDC, clientAddress, 10000e18);
 
         vm.startPrank(p2pOperatorAddress);
         factory = new P2pLendingProxyFactory(p2pSignerAddress);
         vm.stopPrank();
+
+        proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
     }
 
     function test__Mainnet() external {
@@ -73,8 +80,8 @@ contract MainnetIntegration is Test {
 
         // morpho approve2
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
-            token: USDT,
-            amount: 10000000,
+            token: USDC,
+            amount: uint160(DepositAmount),
             expiration: type(uint48).max,
             nonce: 0
         });
@@ -92,13 +99,29 @@ contract MainnetIntegration is Test {
             true
         ));
 
+        // morpho transferFrom2
+        bytes memory transferFrom2CallData = abi.encodeCall(IMorphoEthereumBundlerV2.transferFrom2, (
+            USDC,
+            DepositAmount
+        ));
+
+        // morpho erc4626Deposit
+        uint256 shares = IERC4626(VaultUSDC).convertToShares(DepositAmount);
+        bytes memory erc4626Deposit2CallData = abi.encodeCall(IMorphoEthereumBundlerV2.erc4626Deposit, (
+            VaultUSDC,
+            DepositAmount,
+            (shares * 100) / 102,
+            proxyAddress
+        ));
+
         // morpho multicall
-        bytes[] memory dataForMulticall = new bytes[](1);
+        bytes[] memory dataForMulticall = new bytes[](3);
         dataForMulticall[0] = approve2CallData;
+        dataForMulticall[1] = transferFrom2CallData;
+        dataForMulticall[2] = erc4626Deposit2CallData;
         bytes memory multicallCallData = abi.encodeCall(IMorphoEthereumBundlerV2.multicall, (dataForMulticall));
 
         // data for factory
-        address proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
         IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy = IAllowanceTransfer.PermitSingle({
             details: permitDetails,
             spender: proxyAddress,
@@ -119,7 +142,7 @@ contract MainnetIntegration is Test {
         bytes memory p2pSignerSignature = abi.encodePacked(r2, s2, v2);
 
         vm.startPrank(clientAddress);
-        IERC20(USDT).approve(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(USDC).approve(address(Permit2Lib.PERMIT2), type(uint256).max);
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
