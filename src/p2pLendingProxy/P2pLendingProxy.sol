@@ -16,12 +16,20 @@ import "./IP2pLendingProxy.sol";
 
 error P2pLendingProxy__NotFactory(address _factory);
 
-/// @notice Only factory can call `initialize`.
+/// @notice Called by an address other than factory
 /// @param _msgSender sender address.
-/// @param _actualFactory the actual factory address that can call `initialize`.
+/// @param _actualFactory the actual factory address.
 error P2pLendingProxy__NotFactoryCalled(
     address _msgSender,
     IP2pLendingProxyFactory _actualFactory
+);
+
+/// @notice Called by an address other than client
+/// @param _msgSender sender address.
+/// @param _actualClient the actual client address.
+error P2pLendingProxy__NotClientCalled(
+    address _msgSender,
+    address _actualClient
 );
 
 contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
@@ -35,6 +43,14 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
     modifier onlyFactory() {
         if (msg.sender != address(i_factory)) {
             revert P2pLendingProxy__NotFactoryCalled(msg.sender, i_factory);
+        }
+        _;
+    }
+
+    /// @notice If caller is not client, revert
+    modifier onlyClient() {
+        if (msg.sender != address(s_client)) {
+            revert P2pLendingProxy__NotClientCalled(msg.sender, s_client);
         }
         _;
     }
@@ -57,10 +73,10 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
     }
 
     function deposit(
-        address lendingProtocolAddress,
-        bytes calldata lendingProtocolCalldata,
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy,
-        bytes calldata permit2SignatureForP2pLendingProxy
+        address _lendingProtocolAddress,
+        bytes calldata _lendingProtocolCalldata,
+        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
+        bytes calldata _permit2SignatureForP2pLendingProxy
     )
     external onlyFactory
     {
@@ -69,23 +85,36 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
         // transfer tokens into Proxy
         Permit2Lib.PERMIT2.permit(
             client,
-            permitSingleForP2pLendingProxy,
-            permit2SignatureForP2pLendingProxy
+            _permitSingleForP2pLendingProxy,
+            _permit2SignatureForP2pLendingProxy
         );
         Permit2Lib.PERMIT2.transferFrom(
             client,
             address(this),
-            permitSingleForP2pLendingProxy.details.amount,
-            permitSingleForP2pLendingProxy.details.token
+            _permitSingleForP2pLendingProxy.details.amount,
+            _permitSingleForP2pLendingProxy.details.token
         );
 
         SafeERC20.safeApprove(
-            IERC20(permitSingleForP2pLendingProxy.details.token),
+            IERC20(_permitSingleForP2pLendingProxy.details.token),
             address(Permit2Lib.PERMIT2),
             type(uint256).max
         );
 
-        Address.functionCall(lendingProtocolAddress, lendingProtocolCalldata);
+        Address.functionCall(_lendingProtocolAddress, _lendingProtocolCalldata);
+    }
+
+    function withdraw(
+        address _lendingProtocolAddress,
+        bytes calldata _lendingProtocolCalldata,
+        address _vault,
+        uint256 _shares
+    )
+    external onlyClient
+    {
+        IERC20(_vault).approve(_lendingProtocolAddress, _shares);
+
+        Address.functionCall(_lendingProtocolAddress, _lendingProtocolCalldata);
     }
 
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue) {

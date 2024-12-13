@@ -53,7 +53,7 @@ contract BaseIntegration is Test {
         proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
     }
 
-    function test__Base() external {
+    function test_HappyPath_Base() external {
         // allowed calldata for factory
         bytes4 multicallSelector = IMorphoEthereumBundlerV2.multicall.selector;
         bytes memory allowedBytes = "";
@@ -151,6 +151,32 @@ contract BaseIntegration is Test {
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
+        );
+        vm.stopPrank();
+
+        uint256 sharesBalance = IERC20(VaultUSDC).balanceOf(proxyAddress);
+
+        // morpho erc4626Redeem
+        uint256 assets = IERC4626(VaultUSDC).convertToAssets(sharesBalance);
+        bytes memory erc4626RedeemCallData = abi.encodeCall(IMorphoEthereumBundlerV2.erc4626Redeem, (
+            VaultUSDC,
+            sharesBalance,
+            (assets * 100) / 102,
+            proxyAddress,
+            proxyAddress
+        ));
+
+        // morpho multicall
+        bytes[] memory dataForMulticallWithdrawal = new bytes[](1);
+        dataForMulticallWithdrawal[0] = erc4626RedeemCallData;
+        bytes memory multicallWithdrawalCallData = abi.encodeCall(IMorphoEthereumBundlerV2.multicall, (dataForMulticallWithdrawal));
+
+        vm.startPrank(clientAddress);
+        P2pLendingProxy(proxyAddress).withdraw(
+            MorphoEthereumBundlerV2,
+            multicallWithdrawalCallData,
+            VaultUSDC,
+            sharesBalance
         );
         vm.stopPrank();
     }
