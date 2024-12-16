@@ -13,8 +13,9 @@ import "../@permit2/libraries/Permit2Lib.sol";
 import "../@permit2/libraries/SignatureVerification.sol";
 import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
 import "./IP2pLendingProxy.sol";
+import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-error P2pLendingProxy__NotFactory(address _factory);
+    error P2pLendingProxy__NotFactory(address _factory);
 
 /// @notice Called by an address other than factory
 /// @param _msgSender sender address.
@@ -38,6 +39,9 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
 
     address private s_client;
     uint96 private s_clientBasisPoints;
+
+    uint256 private totalDeposited;
+    uint256 private totalWithdrawn;
 
     /// @notice If caller is not factory, revert
     modifier onlyFactory() {
@@ -115,6 +119,58 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
         IERC20(_vault).approve(_lendingProtocolAddress, _shares);
 
         Address.functionCall(_lendingProtocolAddress, _lendingProtocolCalldata);
+
+
+        IERC4626(_vault).convertToAssets(_shares);
+
+
+        require(assetAmount > 0, "Cannot withdraw zero");
+
+        // In a real ERC4626:
+        // - User would specify shares to redeem.
+        // - Convert shares to underlying asset amount (assetAmount).
+        // For demonstration, we trust `assetAmount` is correct or computed elsewhere.
+
+        // Check how much user deposited vs. will have withdrawn after this withdrawal
+        uint256 userTotalWithdrawnAfter = totalWithdrawn + assetAmount;
+        uint256 userTotalDeposited = totalDeposited;
+
+        // Calculate profit increment
+        // profit = (total withdrawn after this - total deposited)
+        // If it's negative or zero, no profit yet
+        uint256 profit;
+        if (userTotalWithdrawnAfter > userTotalDeposited) {
+            profit = userTotalWithdrawnAfter - userTotalDeposited;
+        } else {
+            profit = 0;
+        }
+
+        // Compute the incremental profit for this withdrawal
+        uint256 previousProfit;
+        if (totalWithdrawn > userTotalDeposited) {
+            previousProfit = totalWithdrawn - userTotalDeposited;
+        }
+
+        uint256 newProfit = profit > previousProfit ? (profit - previousProfit) : 0;
+
+        // Apply fee on the incremental profit portion only
+        uint256 feeAmount = 0;
+        if (newProfit > 0) {
+            feeAmount = (newProfit * feeBps) / 10_000;
+        }
+
+        // Update accounting
+        totalWithdrawn = userTotalWithdrawnAfter;
+
+        // Transfer fee if applicable
+        if (feeAmount > 0) {
+            require(assetToken.transfer(feeRecipient, feeAmount), "Fee transfer failed");
+        }
+
+        // Transfer net amount to user (assetAmount - feeAmount)
+        uint256 userAmount = assetAmount - feeAmount;
+        require(userAmount <= assetAmount, "Fee exceeds withdrawal");
+        require(assetToken.transfer(msg.sender, userAmount), "User transfer failed");
     }
 
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue) {
