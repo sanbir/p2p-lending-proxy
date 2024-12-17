@@ -90,7 +90,7 @@ contract MainnetIntegration is Test {
             spender: MorphoEthereumBundlerV2,
             sigDeadline: SigDeadline
         });
-        bytes32 permitSingleHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingle));
+        bytes32 permitSingleHash = factory.getPermit2HashTypedData(permitSingle);
         (uint8 v0, bytes32 r0, bytes32 s0) = vm.sign(clientPrivateKey, permitSingleHash);
         bytes memory signatureForApprove2 = abi.encodePacked(r0, s0, v0);
         bytes memory approve2CallData = abi.encodeCall(IMorphoEthereumBundlerV2.approve2, (
@@ -127,7 +127,7 @@ contract MainnetIntegration is Test {
             spender: proxyAddress,
             sigDeadline: SigDeadline
         });
-        bytes32 permitSingleForP2pLendingProxyHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingleForP2pLendingProxy));
+        bytes32 permitSingleForP2pLendingProxyHash = factory.getPermit2HashTypedData(permitSingleForP2pLendingProxy);
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(clientPrivateKey, permitSingleForP2pLendingProxyHash);
         bytes memory permit2SignatureForP2pLendingProxy = abi.encodePacked(r1, s1, v1);
 

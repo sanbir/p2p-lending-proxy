@@ -3,11 +3,12 @@
 
 pragma solidity 0.8.27;
 
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@openzeppelin/contracts/proxy/Clones.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import "../@permit2/interfaces/IAllowanceTransfer.sol";
+import "../@permit2/libraries/PermitHash.sol";
 import "../p2pLendingProxy/P2pLendingProxy.sol";
 import "./IP2pLendingProxyFactory.sol";
 import "./P2pLendingProxyFactoryStructs.sol";
@@ -268,9 +269,17 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         ));
     }
 
+    function getPermit2HashTypedData(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32) {
+        return getPermit2HashTypedData(getPermitHash(_permitSingle));
+    }
+
     /// @notice Creates an EIP-712 typed data hash for Permit2
-    function getPermit2HashTypedData(bytes32 _dataHash) external view returns (bytes32) {
+    function getPermit2HashTypedData(bytes32 _dataHash) public view returns (bytes32) {
         return keccak256(abi.encodePacked("\x19\x01", Permit2Lib.PERMIT2.DOMAIN_SEPARATOR(), _dataHash));
+    }
+
+    function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) public pure returns (bytes32) {
+        return PermitHash.hash(_permitSingle);
     }
 
     /// @notice Calculates the salt required for deterministic clone creation

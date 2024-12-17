@@ -40,8 +40,11 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
     address private s_client;
     uint96 private s_clientBasisPoints;
 
-    uint256 private totalDeposited;
-    uint256 private totalWithdrawn;
+    // asset => amount
+    mapping(address => uint256) private s_totalDeposited;
+
+    // asset => amount
+    mapping(address => uint256) private s_totalWithdrawn;
 
     /// @notice If caller is not factory, revert
     modifier onlyFactory() {
@@ -79,11 +82,16 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
     function deposit(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata,
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
+        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
         bytes calldata _permit2SignatureForP2pLendingProxy
     )
     external onlyFactory
     {
+        address asset = _permitSingleForP2pLendingProxy.details.token;
+        uint160 amount = _permitSingleForP2pLendingProxy.details.amount;
+
+        s_totalDeposited[asset] += amount;
+
         address client = s_client;
 
         // transfer tokens into Proxy
@@ -95,12 +103,12 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
         Permit2Lib.PERMIT2.transferFrom(
             client,
             address(this),
-            _permitSingleForP2pLendingProxy.details.amount,
-            _permitSingleForP2pLendingProxy.details.token
+            amount,
+            asset
         );
 
         SafeERC20.safeApprove(
-            IERC20(_permitSingleForP2pLendingProxy.details.token),
+            IERC20(asset),
             address(Permit2Lib.PERMIT2),
             type(uint256).max
         );
@@ -118,59 +126,43 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
     {
         IERC20(_vault).approve(_lendingProtocolAddress, _shares);
 
+        address asset = IERC4626(_vault).asset();
+        uint256 balanceBefore = IERC20(asset).balanceOf(address(this));
+
         Address.functionCall(_lendingProtocolAddress, _lendingProtocolCalldata);
 
+        uint256 balanceAfter = IERC20(asset).balanceOf(address(this));
 
-        IERC4626(_vault).convertToAssets(_shares);
+        uint256 newAssetAmount = balanceAfter - balanceBefore;
 
-
-        require(assetAmount > 0, "Cannot withdraw zero");
-
-        // In a real ERC4626:
-        // - User would specify shares to redeem.
-        // - Convert shares to underlying asset amount (assetAmount).
-        // For demonstration, we trust `assetAmount` is correct or computed elsewhere.
-
-        // Check how much user deposited vs. will have withdrawn after this withdrawal
-        uint256 userTotalWithdrawnAfter = totalWithdrawn + assetAmount;
-        uint256 userTotalDeposited = totalDeposited;
+        uint256 totalWithdrawnBefore = s_totalWithdrawn[asset];
+        uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
+        uint256 totalDeposited = s_totalDeposited[asset];
 
         // Calculate profit increment
         // profit = (total withdrawn after this - total deposited)
         // If it's negative or zero, no profit yet
-        uint256 profit;
-        if (userTotalWithdrawnAfter > userTotalDeposited) {
-            profit = userTotalWithdrawnAfter - userTotalDeposited;
-        } else {
-            profit = 0;
+        uint256 profitBefore;
+        if (totalWithdrawnBefore > totalDeposited) {
+            profitBefore = totalWithdrawnBefore - totalDeposited;
+        }
+        uint256 profitAfter;
+        if (totalWithdrawnAfter > totalDeposited) {
+            profitAfter = totalWithdrawnAfter - totalDeposited;
         }
 
-        // Compute the incremental profit for this withdrawal
-        uint256 previousProfit;
-        if (totalWithdrawn > userTotalDeposited) {
-            previousProfit = totalWithdrawn - userTotalDeposited;
-        }
+        s_totalWithdrawn[asset] = totalWithdrawnAfter;
 
-        uint256 newProfit = profit > previousProfit ? (profit - previousProfit) : 0;
+        uint256 newProfit = profitAfter > profitBefore ? (profitAfter - profitBefore) : 0;
 
-        // Apply fee on the incremental profit portion only
-        uint256 feeAmount = 0;
+        uint256 clientAmount;
         if (newProfit > 0) {
-            feeAmount = (newProfit * feeBps) / 10_000;
+            clientAmount = (newProfit * s_clientBasisPoints) / 10_000;
         }
+        uint256 p2pAmount = newAssetAmount - clientAmount;
 
-        // Update accounting
-        totalWithdrawn = userTotalWithdrawnAfter;
-
-        // Transfer fee if applicable
-        if (feeAmount > 0) {
-            require(assetToken.transfer(feeRecipient, feeAmount), "Fee transfer failed");
-        }
-
-        // Transfer net amount to user (assetAmount - feeAmount)
-        uint256 userAmount = assetAmount - feeAmount;
-        require(userAmount <= assetAmount, "Fee exceeds withdrawal");
-        require(assetToken.transfer(msg.sender, userAmount), "User transfer failed");
+        require(IERC20(asset).transfer(msg.sender, p2pAmount), "P2P transfer failed");
+        require(IERC20(asset).transfer(s_client, clientAmount), "Client transfer failed");
     }
 
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue) {
