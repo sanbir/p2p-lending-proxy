@@ -15,7 +15,7 @@ import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
 import "./IP2pLendingProxy.sol";
 import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-    error P2pLendingProxy__NotFactory(address _factory);
+error P2pLendingProxy__NotFactory(address _factory);
 
 /// @notice Called by an address other than factory
 /// @param _msgSender sender address.
@@ -36,6 +36,7 @@ error P2pLendingProxy__NotClientCalled(
 contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
 
     IP2pLendingProxyFactory private immutable i_factory;
+    address private immutable i_p2pTreasury;
 
     address private s_client;
     uint96 private s_clientBasisPoints;
@@ -63,9 +64,11 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
     }
 
     constructor(
-        address _factory
+        address _factory,
+        address _p2pTreasury
     ) {
         i_factory = IP2pLendingProxyFactory(_factory);
+        i_p2pTreasury = _p2pTreasury;
     }
 
     function initialize(
@@ -124,20 +127,22 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
     )
     external onlyClient
     {
+        // approve shares from Proxy to Protocol
         IERC20(_vault).approve(_lendingProtocolAddress, _shares);
 
         address asset = IERC4626(_vault).asset();
-        uint256 balanceBefore = IERC20(asset).balanceOf(address(this));
 
+        // withdraw assets from Protocol
         Address.functionCall(_lendingProtocolAddress, _lendingProtocolCalldata);
 
-        uint256 balanceAfter = IERC20(asset).balanceOf(address(this));
-
-        uint256 newAssetAmount = balanceAfter - balanceBefore;
+        uint256 newAssetAmount = IERC20(asset).balanceOf(address(this));
 
         uint256 totalWithdrawnBefore = s_totalWithdrawn[asset];
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
         uint256 totalDeposited = s_totalDeposited[asset];
+
+        // update total withdrawn
+        s_totalWithdrawn[asset] = totalWithdrawnAfter;
 
         // Calculate profit increment
         // profit = (total withdrawn after this - total deposited)
@@ -150,25 +155,52 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
         if (totalWithdrawnAfter > totalDeposited) {
             profitAfter = totalWithdrawnAfter - totalDeposited;
         }
-
-        s_totalWithdrawn[asset] = totalWithdrawnAfter;
-
-        uint256 newProfit = profitAfter > profitBefore ? (profitAfter - profitBefore) : 0;
-
-        uint256 clientAmount;
-        if (newProfit > 0) {
-            clientAmount = (newProfit * s_clientBasisPoints) / 10_000;
+        uint256 newProfit;
+        if (profitAfter > profitBefore) {
+            newProfit = profitAfter - profitBefore;
         }
-        uint256 p2pAmount = newAssetAmount - clientAmount;
 
-        require(IERC20(asset).transfer(msg.sender, p2pAmount), "P2P transfer failed");
-        require(IERC20(asset).transfer(s_client, clientAmount), "Client transfer failed");
+        uint256 p2pAmount;
+        if (newProfit > 0) {
+            p2pAmount = (newProfit * (10_000 - s_clientBasisPoints)) / 10_000;
+        }
+        uint256 clientAmount = newAssetAmount - p2pAmount;
+
+        if (p2pAmount > 0) {
+            SafeERC20.safeTransfer(IERC20(asset), i_p2pTreasury, p2pAmount);
+        }
+        // clientAmount must be > 0 at this point
+        SafeERC20.safeTransfer(IERC20(asset), s_client, clientAmount);
     }
 
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue) {
         SignatureVerification.verify(signature, hash, s_client);
 
         return IERC1271.isValidSignature.selector;
+    }
+
+    function getFactory() external view returns (address) {
+        return address(i_factory);
+    }
+
+    function getP2pTreasury() external view returns (address) {
+        return i_p2pTreasury;
+    }
+
+    function getClient() external view returns (address) {
+        return s_client;
+    }
+
+    function getClientBasisPoints() external view returns (uint96) {
+        return s_clientBasisPoints;
+    }
+
+    function getTotalDeposited(address _asset) external view returns (uint256) {
+        return s_totalDeposited[_asset];
+    }
+
+    function getTotalWithdrawn(address _asset) external view returns (uint256) {
+        return s_totalWithdrawn[_asset];
     }
 
     /// @inheritdoc ERC165

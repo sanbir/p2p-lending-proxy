@@ -14,7 +14,10 @@ contract Deploy is Script {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
 
         vm.startBroadcast(deployerKey);
-        factory = new P2pLendingProxyFactory(0x000000005504F0f5CF39b1eD609B892d23028E57);
+        factory = new P2pLendingProxyFactory(
+            0x000000005504F0f5CF39b1eD609B892d23028E57,
+            0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff
+        );
         vm.stopBroadcast();
 
         proxy = P2pLendingProxy(factory.getReferenceP2pLendingProxy());

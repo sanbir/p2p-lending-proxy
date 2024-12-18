@@ -15,6 +15,7 @@ import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
 
 contract BaseIntegration is Test {
+    address constant P2pTreasury = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
     P2pLendingProxyFactory private factory;
 
     address private clientAddress;
@@ -47,7 +48,7 @@ contract BaseIntegration is Test {
         deal(USDC, clientAddress, 10000e18);
 
         vm.startPrank(p2pOperatorAddress);
-        factory = new P2pLendingProxyFactory(p2pSignerAddress);
+        factory = new P2pLendingProxyFactory(p2pSignerAddress, P2pTreasury);
         vm.stopPrank();
 
         proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);

@@ -49,8 +49,8 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         _;
     }
 
-    constructor(address _p2pSigner) {
-        i_referenceP2pLendingProxy = new P2pLendingProxy(address(this));
+    constructor(address _p2pSigner, address _p2pTreasury) {
+        i_referenceP2pLendingProxy = new P2pLendingProxy(address(this), _p2pTreasury);
 
         s_p2pSigner = _p2pSigner;
         s_p2pOperator = msg.sender;
@@ -280,6 +280,18 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
 
     function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) public pure returns (bytes32) {
         return PermitHash.hash(_permitSingle);
+    }
+
+    function getAllowedCalldata(address _contract, bytes4 _selector) external view returns (AllowedCalldata memory) {
+        return s_allowedFunctionsForContracts[_contract][_selector];
+    }
+
+    function getP2pSigner() external view returns (address) {
+        return s_p2pSigner;
+    }
+
+    function getP2pOperator() external view returns (address) {
+        return s_p2pOperator;
     }
 
     /// @notice Calculates the salt required for deterministic clone creation
