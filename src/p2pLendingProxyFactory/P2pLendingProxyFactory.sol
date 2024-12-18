@@ -9,16 +9,12 @@ import "../@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@permit2/libraries/PermitHash.sol";
+import "../common/AllowedCalldataChecker.sol";
 import "../p2pLendingProxy/P2pLendingProxy.sol";
 import "./IP2pLendingProxyFactory.sol";
 import "./P2pLendingProxyFactoryStructs.sol";
 
 error P2pLendingProxyFactory__InvalidP2pSignerSignature();
-error P2pLendingProxyFactory__DataTooShort();
-error P2pLendingProxyFactory__NotAllowedToCall(
-    address _target,
-    bytes4 _selector
-);
 error P2pLendingProxyFactory__NotP2pOperatorCalled(
     address _msgSender,
     address _actualP2pOperator
@@ -27,8 +23,15 @@ error P2pLendingProxyFactory__P2pSignerSignatureExpired(
     uint256 _p2pSignerSigDeadline
 );
 
-contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLendingProxyFactory {
+contract P2pLendingProxyFactory is
+    AllowedCalldataChecker,
+    P2pLendingProxyFactoryStructs,
+    ERC165,
+    IP2pLendingProxyFactory {
+
     using SafeCast160 for uint256;
+    using SignatureChecker for address;
+    using ECDSA for bytes32;
 
     /// @notice Reference P2pLendingProxy contract
     P2pLendingProxy private immutable i_referenceP2pLendingProxy;
@@ -46,6 +49,33 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         if (msg.sender != p2pOperator) {
             revert P2pLendingProxyFactory__NotP2pOperatorCalled(msg.sender, p2pOperator);
         }
+        _;
+    }
+
+    modifier p2pSignerSignatureShouldNotExpire(uint256 _p2pSignerSigDeadline) {
+        require (
+            block.timestamp < _p2pSignerSigDeadline,
+            P2pLendingProxyFactory__P2pSignerSignatureExpired(_p2pSignerSigDeadline)
+        );
+        _;
+    }
+
+    modifier p2pSignerSignatureShouldBeValid(
+        uint96 _clientBasisPoints,
+        uint256 _p2pSignerSigDeadline,
+        bytes calldata _p2pSignerSignature
+    ) {
+        require (
+            s_p2pSigner.isValidSignatureNow(
+            getHashForP2pSigner(
+            msg.sender,
+            _clientBasisPoints,
+            _p2pSignerSigDeadline
+                ).toEthSignedMessageHash(),
+        _p2pSignerSignature
+            ),
+            P2pLendingProxyFactory__InvalidP2pSignerSignature()
+        );
         _;
     }
 
@@ -87,6 +117,7 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
     function deposit(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata,
+
         IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
         bytes calldata _permit2SignatureForP2pLendingProxy,
 
@@ -95,43 +126,13 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         bytes calldata _p2pSignerSignature
     )
     external
+    p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
+    p2pSignerSignatureShouldBeValid(_clientBasisPoints, _p2pSignerSigDeadline, _p2pSignerSignature)
+    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata)
     returns (address p2pLendingProxyAddress)
     {
-        if (block.timestamp > _p2pSignerSigDeadline) {
-            revert P2pLendingProxyFactory__P2pSignerSignatureExpired(_p2pSignerSigDeadline);
-        }
-
-        // verify P2P Signer signature
-        bytes32 hash = getHashForP2pSigner(
-            msg.sender,
-            _clientBasisPoints,
-            _p2pSignerSigDeadline
-        );
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(hash);
-        bool isValid = SignatureChecker.isValidSignatureNow(
-            s_p2pSigner,
-            ethSignedMessageHash,
-            _p2pSignerSignature
-        );
-        if (!isValid) {
-            revert P2pLendingProxyFactory__InvalidP2pSignerSignature();
-        }
-
-        // validate lendingProtocolCalldata for lendingProtocolAddress
-        bytes4 selector = _getFunctionSelector(_lendingProtocolCalldata);
-        bool isAllowed = isAllowedCalldata(
-            _lendingProtocolAddress,
-            selector,
-            _lendingProtocolCalldata[4:],
-            FunctionType.Deposit
-        );
-
-        if (!isAllowed) {
-            revert P2pLendingProxyFactory__NotAllowedToCall(_lendingProtocolAddress, selector);
-        }
-
         // create proxy if not created yet
-        P2pLendingProxy p2pLendingProxy = _createP2pLendingProxy(_clientBasisPoints);
+        P2pLendingProxy p2pLendingProxy = _getOrCreateP2pLendingProxy(_clientBasisPoints);
 
         // deposit via proxy
         p2pLendingProxy.deposit(
@@ -144,24 +145,12 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         p2pLendingProxyAddress = address(p2pLendingProxy);
     }
 
-    /// @notice Returns function selector (first 4 bytes of data)
-    /// @param _data calldata (encoded signature + arguments)
-    /// @return functionSelector function selector
-    function _getFunctionSelector(
-        bytes calldata _data
-    ) private pure returns (bytes4 functionSelector) {
-        if (_data.length < 4) {
-            revert P2pLendingProxyFactory__DataTooShort();
-        }
-        return bytes4(_data[:4]);
-    }
-
     function isAllowedCalldata(
         address _target,
         bytes4 _selector,
         bytes calldata _calldataAfterSelector,
         FunctionType _functionType
-    ) public view returns (bool) {
+    ) public view override(AllowedCalldataChecker, IP2pLendingProxyFactory) returns (bool) {
         AllowedCalldata storage allowedCalldata = s_allowedFunctionsForContracts[_target][_selector];
         if (_functionType != allowedCalldata.functionType) {
             return false;
@@ -207,8 +196,8 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         return true; // If all checks pass, allow
     }
 
-    /// @notice Creates a new P2pLendingProxy contract instance
-    function _createP2pLendingProxy(uint96 _clientBasisPoints)
+    /// @notice Creates a new P2pLendingProxy contract instance if not created yet
+    function _getOrCreateP2pLendingProxy(uint96 _clientBasisPoints)
     private
     returns (P2pLendingProxy p2pLendingProxy)
     {
