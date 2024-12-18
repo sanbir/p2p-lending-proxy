@@ -6,13 +6,12 @@ pragma solidity 0.8.27;
 import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../src/mocks/IMorphoEthereumBundlerV2.sol";
 import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
-import "../src/p2pLendingProxyFactory/P2pLendingProxyFactoryStructs.sol";
+import "../src/common/P2pStructs.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
 import "forge-std/console2.sol";
 import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
-
 
 contract BaseIntegration is Test {
     address constant P2pTreasury = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
@@ -58,15 +57,15 @@ contract BaseIntegration is Test {
         // allowed calldata for factory
         bytes4 multicallSelector = IMorphoEthereumBundlerV2.multicall.selector;
         bytes memory allowedBytes = "";
-        P2pLendingProxyFactoryStructs.Rule memory rule = P2pLendingProxyFactoryStructs.Rule({
-            ruleType: P2pLendingProxyFactoryStructs.RuleType.AnyCalldata,
+        P2pStructs.Rule memory rule = P2pStructs.Rule({
+            ruleType: P2pStructs.RuleType.AnyCalldata,
             index: 0,
             allowedBytes: allowedBytes
         });
-        P2pLendingProxyFactoryStructs.Rule[] memory rules = new P2pLendingProxyFactoryStructs.Rule[](1);
+        P2pStructs.Rule[] memory rules = new P2pStructs.Rule[](1);
         rules[0] = rule;
-        P2pLendingProxyFactoryStructs.AllowedCalldata memory allowedCalldata = P2pLendingProxyFactoryStructs.AllowedCalldata({
-            functionType: P2pLendingProxyFactoryStructs.FunctionType.Deposit,
+        P2pStructs.AllowedCalldata memory allowedCalldata = P2pStructs.AllowedCalldata({
+            functionType: P2pStructs.FunctionType.Deposit,
             rules: rules
         });
 

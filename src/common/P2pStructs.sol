@@ -3,7 +3,7 @@
 
 pragma solidity 0.8.27;
 
-contract P2pLendingProxyFactoryStructs {
+abstract contract P2pStructs {
     /// @title Enum representing the type of rule for allowed calldata
     enum RuleType {
         /// @notice No calldata beyond selector is allowed

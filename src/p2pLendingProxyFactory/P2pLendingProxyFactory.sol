@@ -12,7 +12,7 @@ import "../@permit2/libraries/PermitHash.sol";
 import "../common/AllowedCalldataChecker.sol";
 import "../p2pLendingProxy/P2pLendingProxy.sol";
 import "./IP2pLendingProxyFactory.sol";
-import "./P2pLendingProxyFactoryStructs.sol";
+import "../common/P2pStructs.sol";
 
 error P2pLendingProxyFactory__InvalidP2pSignerSignature();
 error P2pLendingProxyFactory__NotP2pOperatorCalled(
@@ -25,7 +25,7 @@ error P2pLendingProxyFactory__P2pSignerSignatureExpired(
 
 contract P2pLendingProxyFactory is
     AllowedCalldataChecker,
-    P2pLendingProxyFactoryStructs,
+    P2pStructs,
     ERC165,
     IP2pLendingProxyFactory {
 
@@ -102,7 +102,7 @@ contract P2pLendingProxyFactory is
     function setAllowedFunctionForContract(
         address _contract,
         bytes4 _selector,
-        P2pLendingProxyFactoryStructs.AllowedCalldata calldata _allowedCalldata
+        AllowedCalldata calldata _allowedCalldata
     ) external onlyP2pOperator {
         s_allowedFunctionsForContracts[_contract][_selector] = _allowedCalldata;
     }
@@ -150,7 +150,7 @@ contract P2pLendingProxyFactory is
         bytes4 _selector,
         bytes calldata _calldataAfterSelector,
         FunctionType _functionType
-    ) public view override(AllowedCalldataChecker, IP2pLendingProxyFactory) returns (bool) {
+    ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) returns (bool) {
         AllowedCalldata storage allowedCalldata = s_allowedFunctionsForContracts[_target][_selector];
         if (_functionType != allowedCalldata.functionType) {
             return false;

@@ -3,7 +3,8 @@
 
 pragma solidity 0.8.27;
 
-import "../p2pLendingProxyFactory/P2pLendingProxyFactoryStructs.sol";
+import "./IAllowedCalldataChecker.sol";
+import "./P2pStructs.sol";
 
 error AllowedCalldataChecker__DataTooShort();
 error AllowedCalldataChecker__NotAllowedToCall(
@@ -11,7 +12,7 @@ error AllowedCalldataChecker__NotAllowedToCall(
     bytes4 _selector
 );
 
-abstract contract AllowedCalldataChecker {
+abstract contract AllowedCalldataChecker is IAllowedCalldataChecker {
 
     modifier calldataShouldBeAllowed(
         address _lendingProtocolAddress,
@@ -23,7 +24,7 @@ abstract contract AllowedCalldataChecker {
             _lendingProtocolAddress,
             selector,
             _lendingProtocolCalldata[4:],
-            P2pLendingProxyFactoryStructs.FunctionType.Deposit
+            P2pStructs.FunctionType.Deposit
         );
 
         require (isAllowed, AllowedCalldataChecker__NotAllowedToCall(_lendingProtocolAddress, selector));
@@ -44,6 +45,6 @@ abstract contract AllowedCalldataChecker {
         address _target,
         bytes4 _selector,
         bytes calldata _calldataAfterSelector,
-        P2pLendingProxyFactoryStructs.FunctionType _functionType
+        P2pStructs.FunctionType _functionType
     ) public virtual view returns (bool);
 }

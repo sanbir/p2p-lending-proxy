@@ -4,6 +4,7 @@
 pragma solidity 0.8.27;
 
 import "../@openzeppelin/contracts/interfaces/IERC1271.sol";
+import "../@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
@@ -11,11 +12,13 @@ import "../@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@permit2/libraries/Permit2Lib.sol";
 import "../@permit2/libraries/SignatureVerification.sol";
+import "../common/AllowedCalldataChecker.sol";
 import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
+import "../common/P2pStructs.sol";
 import "./IP2pLendingProxy.sol";
 import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-error P2pLendingProxy__NotFactory(address _factory);
+    error P2pLendingProxy__NotFactory(address _factory);
 
 /// @notice Called by an address other than factory
 /// @param _msgSender sender address.
@@ -33,7 +36,16 @@ error P2pLendingProxy__NotClientCalled(
     address _actualClient
 );
 
-contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
+contract P2pLendingProxy is
+    AllowedCalldataChecker,
+    P2pStructs,
+    ReentrancyGuard,
+    ERC165,
+    IP2pLendingProxy,
+    IERC1271 {
+
+    using SafeERC20 for IERC20;
+    using Address for address;
 
     IP2pLendingProxyFactory private immutable i_factory;
     address private immutable i_p2pTreasury;
@@ -74,7 +86,9 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
     function initialize(
         address _client,
         uint96 _clientBasisPoints
-    ) external onlyFactory
+    )
+    external
+    onlyFactory
     {
         s_client = _client;
         s_clientBasisPoints = _clientBasisPoints;
@@ -88,7 +102,8 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
         bytes calldata _permit2SignatureForP2pLendingProxy
     )
-    external onlyFactory
+    external
+    onlyFactory
     {
         address asset = _permitSingleForP2pLendingProxy.details.token;
         uint160 amount = _permitSingleForP2pLendingProxy.details.amount;
@@ -110,13 +125,12 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
             asset
         );
 
-        SafeERC20.safeApprove(
-            IERC20(asset),
+        IERC20(asset).safeApprove(
             address(Permit2Lib.PERMIT2),
             type(uint256).max
         );
 
-        Address.functionCall(_lendingProtocolAddress, _lendingProtocolCalldata);
+        _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
     }
 
     function withdraw(
@@ -125,16 +139,17 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
         address _vault,
         uint256 _shares
     )
-    external onlyClient
+    external
+    onlyClient
+    nonReentrant
     {
         // approve shares from Proxy to Protocol
-        IERC20(_vault).approve(_lendingProtocolAddress, _shares);
-
-        address asset = IERC4626(_vault).asset();
+        IERC20(_vault).safeApprove(_lendingProtocolAddress, _shares);
 
         // withdraw assets from Protocol
-        Address.functionCall(_lendingProtocolAddress, _lendingProtocolCalldata);
+        _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
 
+        address asset = IERC4626(_vault).asset();
         uint256 newAssetAmount = IERC20(asset).balanceOf(address(this));
 
         uint256 totalWithdrawnBefore = s_totalWithdrawn[asset];
@@ -167,10 +182,24 @@ contract P2pLendingProxy is ERC165, IP2pLendingProxy, IERC1271 {
         uint256 clientAmount = newAssetAmount - p2pAmount;
 
         if (p2pAmount > 0) {
-            SafeERC20.safeTransfer(IERC20(asset), i_p2pTreasury, p2pAmount);
+            IERC20(asset).safeTransfer(i_p2pTreasury, p2pAmount);
         }
         // clientAmount must be > 0 at this point
-        SafeERC20.safeTransfer(IERC20(asset), s_client, clientAmount);
+        IERC20(asset).safeTransfer(s_client, clientAmount);
+    }
+
+    function isAllowedCalldata(
+        address _target,
+        bytes4 _selector,
+        bytes calldata _calldataAfterSelector,
+        FunctionType _functionType
+    ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) returns (bool) {
+        return i_factory.isAllowedCalldata(
+            _target,
+            _selector,
+            _calldataAfterSelector,
+            _functionType
+        );
     }
 
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue) {
