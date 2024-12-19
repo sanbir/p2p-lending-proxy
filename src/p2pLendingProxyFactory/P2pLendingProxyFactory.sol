@@ -3,21 +3,18 @@
 
 pragma solidity 0.8.27;
 
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@openzeppelin/contracts/proxy/Clones.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import "../@permit2/interfaces/IAllowanceTransfer.sol";
+import "../@permit2/libraries/PermitHash.sol";
+import "../common/AllowedCalldataChecker.sol";
 import "../p2pLendingProxy/P2pLendingProxy.sol";
 import "./IP2pLendingProxyFactory.sol";
-import "./P2pLendingProxyFactoryStructs.sol";
+import "../common/P2pStructs.sol";
 
 error P2pLendingProxyFactory__InvalidP2pSignerSignature();
-error P2pLendingProxyFactory__DataTooShort();
-error P2pLendingProxyFactory__NotAllowedToCall(
-    address _target,
-    bytes4 _selector
-);
 error P2pLendingProxyFactory__NotP2pOperatorCalled(
     address _msgSender,
     address _actualP2pOperator
@@ -25,16 +22,50 @@ error P2pLendingProxyFactory__NotP2pOperatorCalled(
 error P2pLendingProxyFactory__P2pSignerSignatureExpired(
     uint256 _p2pSignerSigDeadline
 );
+error P2pLendingProxyFactory__NoRulesDefined(
+    P2pStructs.FunctionType _functionType,
+    address _target,
+    bytes4 _selector
+);
+error P2pLendingProxyFactory__NoCalldataAllowed(
+    P2pStructs.FunctionType _functionType,
+    address _target,
+    bytes4 _selector
+);
+error P2pLendingProxyFactory__CalldataTooShortForStartsWithRule(
+    uint256 _calldataAfterSelectorLength,
+    uint32 _ruleIndex,
+    uint32 _bytesCount
+);
+error P2pLendingProxyFactory__CalldataStartsWithRuleViolated(
+    bytes _actual,
+    bytes _expected
+);
+error P2pLendingProxyFactory__CalldataTooShortForEndsWithRule(
+    uint256 _calldataAfterSelectorLength,
+    uint32 _bytesCount
+);
+error P2pLendingProxyFactory__CalldataEndsWithRuleViolated(
+    bytes _actual,
+    bytes _expected
+);
 
-contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLendingProxyFactory {
+contract P2pLendingProxyFactory is
+    AllowedCalldataChecker,
+    P2pStructs,
+    ERC165,
+    IP2pLendingProxyFactory {
+
     using SafeCast160 for uint256;
+    using SignatureChecker for address;
+    using ECDSA for bytes32;
 
     /// @notice Reference P2pLendingProxy contract
     P2pLendingProxy private immutable i_referenceP2pLendingProxy;
 
-    // contract => selector => AllowedCalldata
-    // all rules must be followed
-    mapping(address => mapping(bytes4 => AllowedCalldata)) private s_allowedFunctionsForContracts;
+    // FunctionType => Contract => Selector => Rule[]
+    // all rules must be followed for (FunctionType, Contract, Selector)
+    mapping(FunctionType => mapping(address => mapping(bytes4 => Rule[]))) private s_calldataRules;
 
     address private s_p2pSigner;
     address private s_p2pOperator;
@@ -48,8 +79,35 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         _;
     }
 
-    constructor(address _p2pSigner) {
-        i_referenceP2pLendingProxy = new P2pLendingProxy(address(this));
+    modifier p2pSignerSignatureShouldNotExpire(uint256 _p2pSignerSigDeadline) {
+        require (
+            block.timestamp < _p2pSignerSigDeadline,
+            P2pLendingProxyFactory__P2pSignerSignatureExpired(_p2pSignerSigDeadline)
+        );
+        _;
+    }
+
+    modifier p2pSignerSignatureShouldBeValid(
+        uint96 _clientBasisPoints,
+        uint256 _p2pSignerSigDeadline,
+        bytes calldata _p2pSignerSignature
+    ) {
+        require (
+            s_p2pSigner.isValidSignatureNow(
+            getHashForP2pSigner(
+            msg.sender,
+            _clientBasisPoints,
+            _p2pSignerSigDeadline
+                ).toEthSignedMessageHash(),
+        _p2pSignerSignature
+            ),
+            P2pLendingProxyFactory__InvalidP2pSignerSignature()
+        );
+        _;
+    }
+
+    constructor(address _p2pSigner, address _p2pTreasury) {
+        i_referenceP2pLendingProxy = new P2pLendingProxy(address(this), _p2pTreasury);
 
         s_p2pSigner = _p2pSigner;
         s_p2pOperator = msg.sender;
@@ -68,24 +126,27 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         s_p2pSigner = _newP2pSigner;
     }
 
-    function setAllowedFunctionForContract(
+    function setCalldataRules(
+        FunctionType _functionType,
         address _contract,
         bytes4 _selector,
-        P2pLendingProxyFactoryStructs.AllowedCalldata calldata _allowedCalldata
+        Rule[] calldata _rules
     ) external onlyP2pOperator {
-        s_allowedFunctionsForContracts[_contract][_selector] = _allowedCalldata;
+        s_calldataRules[_functionType][_contract][_selector] = _rules;
     }
 
-    function removeAllowedFunctionForContract(
+    function removeCalldataRules(
+        FunctionType _functionType,
         address _contract,
         bytes4 _selector
     ) external onlyP2pOperator {
-        delete s_allowedFunctionsForContracts[_contract][_selector];
+        delete s_calldataRules[_functionType][_contract][_selector];
     }
 
     function deposit(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata,
+
         IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
         bytes calldata _permit2SignatureForP2pLendingProxy,
 
@@ -94,43 +155,13 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         bytes calldata _p2pSignerSignature
     )
     external
+    p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
+    p2pSignerSignatureShouldBeValid(_clientBasisPoints, _p2pSignerSigDeadline, _p2pSignerSignature)
+    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.Deposit)
     returns (address p2pLendingProxyAddress)
     {
-        if (block.timestamp > _p2pSignerSigDeadline) {
-            revert P2pLendingProxyFactory__P2pSignerSignatureExpired(_p2pSignerSigDeadline);
-        }
-
-        // verify P2P Signer signature
-        bytes32 hash = getHashForP2pSigner(
-            msg.sender,
-            _clientBasisPoints,
-            _p2pSignerSigDeadline
-        );
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(hash);
-        bool isValid = SignatureChecker.isValidSignatureNow(
-            s_p2pSigner,
-            ethSignedMessageHash,
-            _p2pSignerSignature
-        );
-        if (!isValid) {
-            revert P2pLendingProxyFactory__InvalidP2pSignerSignature();
-        }
-
-        // validate lendingProtocolCalldata for lendingProtocolAddress
-        bytes4 selector = _getFunctionSelector(_lendingProtocolCalldata);
-        bool isAllowed = isAllowedCalldata(
-            _lendingProtocolAddress,
-            selector,
-            _lendingProtocolCalldata[4:],
-            FunctionType.Deposit
-        );
-
-        if (!isAllowed) {
-            revert P2pLendingProxyFactory__NotAllowedToCall(_lendingProtocolAddress, selector);
-        }
-
         // create proxy if not created yet
-        P2pLendingProxy p2pLendingProxy = _createP2pLendingProxy(_clientBasisPoints);
+        P2pLendingProxy p2pLendingProxy = _getOrCreateP2pLendingProxy(_clientBasisPoints);
 
         // deposit via proxy
         p2pLendingProxy.deposit(
@@ -143,71 +174,71 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         p2pLendingProxyAddress = address(p2pLendingProxy);
     }
 
-    /// @notice Returns function selector (first 4 bytes of data)
-    /// @param _data calldata (encoded signature + arguments)
-    /// @return functionSelector function selector
-    function _getFunctionSelector(
-        bytes calldata _data
-    ) private pure returns (bytes4 functionSelector) {
-        if (_data.length < 4) {
-            revert P2pLendingProxyFactory__DataTooShort();
-        }
-        return bytes4(_data[:4]);
-    }
-
-    function isAllowedCalldata(
+    function checkCalldata(
         address _target,
         bytes4 _selector,
         bytes calldata _calldataAfterSelector,
         FunctionType _functionType
-    ) public view returns (bool) {
-        AllowedCalldata storage allowedCalldata = s_allowedFunctionsForContracts[_target][_selector];
-        if (_functionType != allowedCalldata.functionType) {
-            return false;
-        }
+    ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) {
+        Rule[] memory rules = s_calldataRules[_functionType][_target][_selector];
+        require (
+            rules.length > 0,
+            P2pLendingProxyFactory__NoRulesDefined(_functionType, _target, _selector)
+        );
 
-        Rule[] memory rules = allowedCalldata.rules;
         for (uint256 i = 0; i < rules.length; i++) {
             Rule memory rule = rules[i];
-
             RuleType ruleType = rule.ruleType;
+
+            require (
+                ruleType != RuleType.None,
+                P2pLendingProxyFactory__NoCalldataAllowed(_functionType, _target, _selector)
+            );
+
             uint32 bytesCount = uint32(rule.allowedBytes.length);
-
-            if (ruleType == RuleType.None) {
-                return false;
-            } else if (ruleType == RuleType.AnyCalldata) {
-                continue; // skip further checks for this rule
-            } else if (ruleType == RuleType.StartsWith) {
+            if (ruleType == RuleType.StartsWith) {
                 // Ensure the calldata is at least as long as the range defined by startIndex and bytesCount
-                if (_calldataAfterSelector.length < rule.index + bytesCount)
-                    return false;
+                require (
+                    _calldataAfterSelector.length >= rule.index + bytesCount,
+                    P2pLendingProxyFactory__CalldataTooShortForStartsWithRule(
+                        _calldataAfterSelector.length,
+                        rule.index,
+                        bytesCount
+                    )
+                );
                 // Compare the specified range in the calldata with the allowed bytes
-                bool isAllowed = keccak256(_calldataAfterSelector[rule.index:rule.index + bytesCount]) == keccak256(rule.allowedBytes);
-                if (!isAllowed) {
-                    return false;
-                } else {
-                    continue; // skip further checks for this rule
-                }
-            } else if (ruleType == RuleType.EndsWith) {
-                // Ensure the calldata is at least as long as bytesCount
-                if (_calldataAfterSelector.length < bytesCount) return false;
-                // Compare the end of the calldata with the allowed bytes
-                bool isAllowed = keccak256(_calldataAfterSelector[_calldataAfterSelector.length - bytesCount:]) == keccak256(rule.allowedBytes);
-                if (!isAllowed) {
-                    return false;
-                } else {
-                    continue; // skip further checks for this rule
-                }
+                require (
+                    keccak256(_calldataAfterSelector[rule.index:rule.index + bytesCount]) == keccak256(rule.allowedBytes),
+                    P2pLendingProxyFactory__CalldataStartsWithRuleViolated(
+                        _calldataAfterSelector[rule.index:rule.index + bytesCount],
+                        rule.allowedBytes
+                    )
+                );
             }
-
-            return false; // Default to false if none of the conditions are met
+            if (ruleType == RuleType.EndsWith) {
+                // Ensure the calldata is at least as long as bytesCount
+                require (
+                    _calldataAfterSelector.length >= bytesCount,
+                    P2pLendingProxyFactory__CalldataTooShortForEndsWithRule(
+                        _calldataAfterSelector.length,
+                        bytesCount
+                    )
+                );
+                // Compare the end of the calldata with the allowed bytes
+                require (
+                    keccak256(_calldataAfterSelector[_calldataAfterSelector.length - bytesCount:]) == keccak256(rule.allowedBytes),
+                    P2pLendingProxyFactory__CalldataEndsWithRuleViolated(
+                        _calldataAfterSelector[_calldataAfterSelector.length - bytesCount:],
+                        rule.allowedBytes
+                    )
+                );
+            }
+            // if (ruleType == RuleType.AnyCalldata) do nothing
         }
-
-        return true; // If all checks pass, allow
     }
 
-    /// @notice Creates a new P2pLendingProxy contract instance
-    function _createP2pLendingProxy(uint96 _clientBasisPoints)
+    /// @notice Creates a new P2pLendingProxy contract instance if not created yet
+    function _getOrCreateP2pLendingProxy(uint96 _clientBasisPoints)
     private
     returns (P2pLendingProxy p2pLendingProxy)
     {
@@ -268,9 +299,33 @@ contract P2pLendingProxyFactory is P2pLendingProxyFactoryStructs, ERC165, IP2pLe
         ));
     }
 
+    function getPermit2HashTypedData(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32) {
+        return getPermit2HashTypedData(getPermitHash(_permitSingle));
+    }
+
     /// @notice Creates an EIP-712 typed data hash for Permit2
-    function getPermit2HashTypedData(bytes32 _dataHash) external view returns (bytes32) {
+    function getPermit2HashTypedData(bytes32 _dataHash) public view returns (bytes32) {
         return keccak256(abi.encodePacked("\x19\x01", Permit2Lib.PERMIT2.DOMAIN_SEPARATOR(), _dataHash));
+    }
+
+    function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) public pure returns (bytes32) {
+        return PermitHash.hash(_permitSingle);
+    }
+
+    function getCalldataRules(
+        FunctionType _functionType,
+        address _contract,
+        bytes4 _selector
+    ) external view returns (Rule[] memory) {
+        return s_calldataRules[_functionType][_contract][_selector];
+    }
+
+    function getP2pSigner() external view returns (address) {
+        return s_p2pSigner;
+    }
+
+    function getP2pOperator() external view returns (address) {
+        return s_p2pOperator;
     }
 
     /// @notice Calculates the salt required for deterministic clone creation

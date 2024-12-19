@@ -3,27 +3,23 @@
 
 pragma solidity 0.8.27;
 
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import "./P2pLendingProxyFactoryStructs.sol";
+import "../@permit2/interfaces/IAllowanceTransfer.sol";
+import "../common/IAllowedCalldataChecker.sol";
+import "../common/P2pStructs.sol";
 
 /// @dev External interface of P2pLendingProxyFactory
-interface IP2pLendingProxyFactory is IERC165 {
+interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
 
-    /// @notice Set allowed calldata for a specific contract and selector
-    /// @param _contract The contract address
-    /// @param _selector The selector of the function
-    /// @param _allowedCalldata The allowed calldata for the function
-    function setAllowedFunctionForContract(
+    function setCalldataRules(
+        P2pStructs.FunctionType _functionType,
         address _contract,
         bytes4 _selector,
-        P2pLendingProxyFactoryStructs.AllowedCalldata calldata _allowedCalldata
+        P2pStructs.Rule[] calldata _rules
     ) external;
 
-    /// @notice Remove allowed calldata for a specific contract and selector
-    /// @param _contract The contract address
-    /// @param _selector The selector of the function
-    function removeAllowedFunctionForContract(
+    function removeCalldataRules(
+        P2pStructs.FunctionType _functionType,
         address _contract,
         bytes4 _selector
     ) external;
@@ -40,13 +36,6 @@ interface IP2pLendingProxyFactory is IERC165 {
     )
     external
     returns (address p2pLendingProxyAddress);
-
-    function isAllowedCalldata(
-        address _target,
-        bytes4 _selector,
-        bytes calldata _calldataAfterSelector,
-        P2pLendingProxyFactoryStructs.FunctionType _functionType
-    ) external view returns (bool);
 
     /// @notice Computes the address of a P2pLendingProxy created by `_createP2pLendingProxy` function
     /// @dev P2pLendingProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same

@@ -32,6 +32,20 @@ interface IMorphoEthereumBundlerV2 {
     external
     payable;
 
+    /// @notice Redeems the given amount of `shares` from the given ERC4626 `vault`, transferring assets to `receiver`.
+    /// @dev Assumes the given `vault` implements EIP-4626.
+    /// @param vault The address of the vault.
+    /// @param shares The amount of shares to redeem. Capped at the owner's shares.
+    /// @param minAssets The minimum amount of assets to withdraw in exchange for `shares`. This parameter is
+    /// proportionally scaled down in case the owner holds fewer shares than `shares`.
+    /// @param receiver The address that will receive the withdrawn assets.
+    /// @param owner The address on behalf of which the shares are redeemed. Can only be the bundler or the initiator.
+    /// If `owner` is the initiator, they must have previously approved the bundler to spend their vault shares.
+    /// Otherwise, they must have previously transferred their vault shares to the bundler.
+    function erc4626Redeem(address vault, uint256 shares, uint256 minAssets, address receiver, address owner)
+    external
+    payable;
+
     /// @notice Executes a series of delegate calls to the contract itself.
     /// @dev Locks the initiator so that the sender can uniquely be identified in callbacks.
     /// @dev All functions delegatecalled must be `payable` if `msg.value` is non-zero.
