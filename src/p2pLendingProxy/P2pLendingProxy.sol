@@ -142,6 +142,7 @@ contract P2pLendingProxy is
     external
     onlyClient
     nonReentrant
+    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.Withdrawal)
     {
         // approve shares from Proxy to Protocol
         IERC20(_vault).safeApprove(_lendingProtocolAddress, _shares);

@@ -128,7 +128,7 @@ contract P2pLendingProxyFactory is
     external
     p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
     p2pSignerSignatureShouldBeValid(_clientBasisPoints, _p2pSignerSigDeadline, _p2pSignerSignature)
-    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata)
+    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.Deposit)
     returns (address p2pLendingProxyAddress)
     {
         // create proxy if not created yet

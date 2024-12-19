@@ -16,7 +16,8 @@ abstract contract AllowedCalldataChecker is IAllowedCalldataChecker {
 
     modifier calldataShouldBeAllowed(
         address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata
+        bytes calldata _lendingProtocolCalldata,
+        P2pStructs.FunctionType _functionType
     ) {
         // validate lendingProtocolCalldata for lendingProtocolAddress
         bytes4 selector = _getFunctionSelector(_lendingProtocolCalldata);
@@ -24,7 +25,7 @@ abstract contract AllowedCalldataChecker is IAllowedCalldataChecker {
             _lendingProtocolAddress,
             selector,
             _lendingProtocolCalldata[4:],
-            P2pStructs.FunctionType.Deposit
+            _functionType
         );
 
         require (isAllowed, AllowedCalldataChecker__NotAllowedToCall(_lendingProtocolAddress, selector));
