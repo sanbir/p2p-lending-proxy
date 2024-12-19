@@ -67,15 +67,15 @@ contract BaseIntegration is Test {
             index: 336,
             allowedBytes: abi.encodePacked(MorphoEthereumBundlerV2)
         });
-//        P2pStructs.Rule memory rule2Deposit = P2pStructs.Rule({
-//            ruleType: P2pStructs.RuleType.AnyCalldata,
-//            index: 0,
-//            allowedBytes: hex"00"
-//        });
-        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](2);
+        P2pStructs.Rule memory rule2Deposit = P2pStructs.Rule({ // transferFrom2
+            ruleType: P2pStructs.RuleType.StartsWith,
+            index: 640,
+            allowedBytes: hex"54c53ef0"
+        });
+        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](3);
         rulesDeposit[0] = rule0Deposit;
         rulesDeposit[1] = rule1Deposit;
-//        rulesDeposit[2] = rule2Deposit;
+        rulesDeposit[2] = rule2Deposit;
 
         vm.startPrank(p2pOperatorAddress);
         factory.setCalldataRules(
