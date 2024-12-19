@@ -64,7 +64,7 @@ contract BaseIntegration is Test {
         });
         P2pStructs.Rule memory rule1Deposit = P2pStructs.Rule({ // spender in approve2 must be MorphoEthereumBundlerV2
             ruleType: P2pStructs.RuleType.StartsWith,
-            index: 673,
+            index: 336,
             allowedBytes: abi.encodePacked(MorphoEthereumBundlerV2)
         });
 //        P2pStructs.Rule memory rule2Deposit = P2pStructs.Rule({
