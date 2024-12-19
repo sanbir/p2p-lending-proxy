@@ -11,20 +11,15 @@ import "../common/P2pStructs.sol";
 /// @dev External interface of P2pLendingProxyFactory
 interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
 
-    /// @notice Set allowed calldata for a specific contract and selector
-    /// @param _contract The contract address
-    /// @param _selector The selector of the function
-    /// @param _allowedCalldata The allowed calldata for the function
-    function setAllowedFunctionForContract(
+    function setCalldataRules(
+        P2pStructs.FunctionType _functionType,
         address _contract,
         bytes4 _selector,
-        P2pStructs.AllowedCalldata calldata _allowedCalldata
+        P2pStructs.Rule[] calldata _rules
     ) external;
 
-    /// @notice Remove allowed calldata for a specific contract and selector
-    /// @param _contract The contract address
-    /// @param _selector The selector of the function
-    function removeAllowedFunctionForContract(
+    function removeCalldataRules(
+        P2pStructs.FunctionType _functionType,
         address _contract,
         bytes4 _selector
     ) external;

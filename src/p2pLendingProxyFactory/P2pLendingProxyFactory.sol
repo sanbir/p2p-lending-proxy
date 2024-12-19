@@ -36,9 +36,9 @@ contract P2pLendingProxyFactory is
     /// @notice Reference P2pLendingProxy contract
     P2pLendingProxy private immutable i_referenceP2pLendingProxy;
 
-    // contract => selector => AllowedCalldata
-    // all rules must be followed
-    mapping(address => mapping(bytes4 => AllowedCalldata)) private s_allowedFunctionsForContracts;
+    // FunctionType => Contract => Selector => Rule[]
+    // all rules must be followed for (FunctionType, Contract, Selector)
+    mapping(FunctionType => mapping(address => mapping(bytes4 => Rule[]))) private s_calldataRules;
 
     address private s_p2pSigner;
     address private s_p2pOperator;
@@ -99,19 +99,21 @@ contract P2pLendingProxyFactory is
         s_p2pSigner = _newP2pSigner;
     }
 
-    function setAllowedFunctionForContract(
+    function setCalldataRules(
+        FunctionType _functionType,
         address _contract,
         bytes4 _selector,
-        AllowedCalldata calldata _allowedCalldata
+        Rule[] calldata _rules
     ) external onlyP2pOperator {
-        s_allowedFunctionsForContracts[_contract][_selector] = _allowedCalldata;
+        s_calldataRules[_functionType][_contract][_selector] = _rules;
     }
 
-    function removeAllowedFunctionForContract(
+    function removeCalldataRules(
+        FunctionType _functionType,
         address _contract,
         bytes4 _selector
     ) external onlyP2pOperator {
-        delete s_allowedFunctionsForContracts[_contract][_selector];
+        delete s_calldataRules[_functionType][_contract][_selector];
     }
 
     function deposit(
@@ -151,12 +153,7 @@ contract P2pLendingProxyFactory is
         bytes calldata _calldataAfterSelector,
         FunctionType _functionType
     ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) returns (bool) {
-        AllowedCalldata storage allowedCalldata = s_allowedFunctionsForContracts[_target][_selector];
-        if (_functionType != allowedCalldata.functionType) {
-            return false;
-        }
-
-        Rule[] memory rules = allowedCalldata.rules;
+        Rule[] memory rules = s_calldataRules[_functionType][_target][_selector];
         for (uint256 i = 0; i < rules.length; i++) {
             Rule memory rule = rules[i];
 
@@ -271,8 +268,12 @@ contract P2pLendingProxyFactory is
         return PermitHash.hash(_permitSingle);
     }
 
-    function getAllowedCalldata(address _contract, bytes4 _selector) external view returns (AllowedCalldata memory) {
-        return s_allowedFunctionsForContracts[_contract][_selector];
+    function getCalldataRules(
+        FunctionType _functionType,
+        address _contract,
+        bytes4 _selector
+    ) external view returns (Rule[] memory) {
+        return s_calldataRules[_functionType][_contract][_selector];
     }
 
     function getP2pSigner() external view returns (address) {

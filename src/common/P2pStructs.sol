@@ -32,12 +32,4 @@ abstract contract P2pStructs {
         uint32 index;
         bytes allowedBytes;
     }
-
-    /// @notice Struct representing allowed calldata
-    /// @param function type
-    /// @param rules
-    struct AllowedCalldata {
-        FunctionType functionType;
-        Rule[] rules;
-    }
 }

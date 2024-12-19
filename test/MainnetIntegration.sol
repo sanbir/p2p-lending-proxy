@@ -66,16 +66,19 @@ contract MainnetIntegration is Test {
         });
         P2pStructs.Rule[] memory rules = new P2pStructs.Rule[](1);
         rules[0] = rule;
-        P2pStructs.AllowedCalldata memory allowedCalldata = P2pStructs.AllowedCalldata({
-            functionType: P2pStructs.FunctionType.Deposit,
-            rules: rules
-        });
 
         vm.startPrank(p2pOperatorAddress);
-        factory.setAllowedFunctionForContract(
+        factory.setCalldataRules(
+            P2pStructs.FunctionType.Deposit,
             MorphoEthereumBundlerV2,
             multicallSelector,
-            allowedCalldata
+            rules
+        );
+        factory.setCalldataRules(
+            P2pStructs.FunctionType.Withdrawal,
+            MorphoEthereumBundlerV2,
+            multicallSelector,
+            rules
         );
         vm.stopPrank();
 

@@ -18,7 +18,7 @@ import "../common/P2pStructs.sol";
 import "./IP2pLendingProxy.sol";
 import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-    error P2pLendingProxy__NotFactory(address _factory);
+error P2pLendingProxy__NotFactory(address _factory);
 
 /// @notice Called by an address other than factory
 /// @param _msgSender sender address.
