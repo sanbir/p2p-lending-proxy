@@ -189,13 +189,13 @@ contract P2pLendingProxy is
         IERC20(asset).safeTransfer(s_client, clientAmount);
     }
 
-    function isAllowedCalldata(
+    function checkCalldata(
         address _target,
         bytes4 _selector,
         bytes calldata _calldataAfterSelector,
         FunctionType _functionType
-    ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) returns (bool) {
-        return i_factory.isAllowedCalldata(
+    ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) {
+        i_factory.checkCalldata(
             _target,
             _selector,
             _calldataAfterSelector,

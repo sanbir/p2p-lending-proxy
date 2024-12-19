@@ -22,6 +22,33 @@ error P2pLendingProxyFactory__NotP2pOperatorCalled(
 error P2pLendingProxyFactory__P2pSignerSignatureExpired(
     uint256 _p2pSignerSigDeadline
 );
+error P2pLendingProxyFactory__NoRulesDefined(
+    P2pStructs.FunctionType _functionType,
+    address _target,
+    bytes4 _selector
+);
+error P2pLendingProxyFactory__NoCalldataAllowed(
+    P2pStructs.FunctionType _functionType,
+    address _target,
+    bytes4 _selector
+);
+error P2pLendingProxyFactory__CalldataTooShortForStartsWithRule(
+    uint256 _calldataAfterSelectorLength,
+    uint32 _ruleIndex,
+    uint32 _bytesCount
+);
+error P2pLendingProxyFactory__CalldataStartsWithRuleViolated(
+    bytes _actual,
+    bytes _expected
+);
+error P2pLendingProxyFactory__CalldataTooShortForEndsWithRule(
+    uint256 _calldataAfterSelectorLength,
+    uint32 _bytesCount
+);
+error P2pLendingProxyFactory__CalldataEndsWithRuleViolated(
+    bytes _actual,
+    bytes _expected
+);
 
 contract P2pLendingProxyFactory is
     AllowedCalldataChecker,
@@ -147,50 +174,67 @@ contract P2pLendingProxyFactory is
         p2pLendingProxyAddress = address(p2pLendingProxy);
     }
 
-    function isAllowedCalldata(
+    function checkCalldata(
         address _target,
         bytes4 _selector,
         bytes calldata _calldataAfterSelector,
         FunctionType _functionType
-    ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) returns (bool) {
+    ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) {
         Rule[] memory rules = s_calldataRules[_functionType][_target][_selector];
+        require (
+            rules.length > 0,
+            P2pLendingProxyFactory__NoRulesDefined(_functionType, _target, _selector)
+        );
+
         for (uint256 i = 0; i < rules.length; i++) {
             Rule memory rule = rules[i];
-
             RuleType ruleType = rule.ruleType;
+
+            require (
+                ruleType != RuleType.None,
+                P2pLendingProxyFactory__NoCalldataAllowed(_functionType, _target, _selector)
+            );
+
             uint32 bytesCount = uint32(rule.allowedBytes.length);
-
-            if (ruleType == RuleType.None) {
-                return false;
-            } else if (ruleType == RuleType.AnyCalldata) {
-                continue; // skip further checks for this rule
-            } else if (ruleType == RuleType.StartsWith) {
+            if (ruleType == RuleType.StartsWith) {
                 // Ensure the calldata is at least as long as the range defined by startIndex and bytesCount
-                if (_calldataAfterSelector.length < rule.index + bytesCount)
-                    return false;
+                require (
+                    _calldataAfterSelector.length >= rule.index + bytesCount,
+                    P2pLendingProxyFactory__CalldataTooShortForStartsWithRule(
+                        _calldataAfterSelector.length,
+                        rule.index,
+                        bytesCount
+                    )
+                );
                 // Compare the specified range in the calldata with the allowed bytes
-                bool isAllowed = keccak256(_calldataAfterSelector[rule.index:rule.index + bytesCount]) == keccak256(rule.allowedBytes);
-                if (!isAllowed) {
-                    return false;
-                } else {
-                    continue; // skip further checks for this rule
-                }
-            } else if (ruleType == RuleType.EndsWith) {
-                // Ensure the calldata is at least as long as bytesCount
-                if (_calldataAfterSelector.length < bytesCount) return false;
-                // Compare the end of the calldata with the allowed bytes
-                bool isAllowed = keccak256(_calldataAfterSelector[_calldataAfterSelector.length - bytesCount:]) == keccak256(rule.allowedBytes);
-                if (!isAllowed) {
-                    return false;
-                } else {
-                    continue; // skip further checks for this rule
-                }
+                require (
+                    keccak256(_calldataAfterSelector[rule.index:rule.index + bytesCount]) == keccak256(rule.allowedBytes),
+                    P2pLendingProxyFactory__CalldataStartsWithRuleViolated(
+                        _calldataAfterSelector[rule.index:rule.index + bytesCount],
+                        rule.allowedBytes
+                    )
+                );
             }
-
-            return false; // Default to false if none of the conditions are met
+            if (ruleType == RuleType.EndsWith) {
+                // Ensure the calldata is at least as long as bytesCount
+                require (
+                    _calldataAfterSelector.length >= bytesCount,
+                    P2pLendingProxyFactory__CalldataTooShortForEndsWithRule(
+                        _calldataAfterSelector.length,
+                        bytesCount
+                    )
+                );
+                // Compare the end of the calldata with the allowed bytes
+                require (
+                    keccak256(_calldataAfterSelector[_calldataAfterSelector.length - bytesCount:]) == keccak256(rule.allowedBytes),
+                    P2pLendingProxyFactory__CalldataEndsWithRuleViolated(
+                        _calldataAfterSelector[_calldataAfterSelector.length - bytesCount:],
+                        rule.allowedBytes
+                    )
+                );
+            }
+            // if (ruleType == RuleType.AnyCalldata) do nothing
         }
-
-        return true; // If all checks pass, allow
     }
 
     /// @notice Creates a new P2pLendingProxy contract instance if not created yet

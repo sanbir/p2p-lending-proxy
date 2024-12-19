@@ -7,10 +7,6 @@ import "./IAllowedCalldataChecker.sol";
 import "./P2pStructs.sol";
 
 error AllowedCalldataChecker__DataTooShort();
-error AllowedCalldataChecker__NotAllowedToCall(
-    address _target,
-    bytes4 _selector
-);
 
 abstract contract AllowedCalldataChecker is IAllowedCalldataChecker {
 
@@ -21,14 +17,12 @@ abstract contract AllowedCalldataChecker is IAllowedCalldataChecker {
     ) {
         // validate lendingProtocolCalldata for lendingProtocolAddress
         bytes4 selector = _getFunctionSelector(_lendingProtocolCalldata);
-        bool isAllowed = isAllowedCalldata(
+        checkCalldata(
             _lendingProtocolAddress,
             selector,
             _lendingProtocolCalldata[4:],
             _functionType
         );
-
-        require (isAllowed, AllowedCalldataChecker__NotAllowedToCall(_lendingProtocolAddress, selector));
         _;
     }
 
@@ -42,10 +36,10 @@ abstract contract AllowedCalldataChecker is IAllowedCalldataChecker {
         return bytes4(_data[:4]);
     }
 
-    function isAllowedCalldata(
+    function checkCalldata(
         address _target,
         bytes4 _selector,
         bytes calldata _calldataAfterSelector,
         P2pStructs.FunctionType _functionType
-    ) public virtual view returns (bool);
+    ) public virtual view;
 }

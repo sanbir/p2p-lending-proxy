@@ -56,27 +56,50 @@ contract BaseIntegration is Test {
     function test_HappyPath_Base() external {
         // allowed calldata for factory
         bytes4 multicallSelector = IMorphoEthereumBundlerV2.multicall.selector;
-        bytes memory allowedBytes = "";
-        P2pStructs.Rule memory rule = P2pStructs.Rule({
-            ruleType: P2pStructs.RuleType.AnyCalldata,
+
+        P2pStructs.Rule memory rule0Deposit = P2pStructs.Rule({ // approve2
+            ruleType: P2pStructs.RuleType.StartsWith,
             index: 0,
-            allowedBytes: allowedBytes
+            allowedBytes: hex"000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000002a00000000000000000000000000000000000000000000000000000000000000184af504202"
         });
-        P2pStructs.Rule[] memory rules = new P2pStructs.Rule[](1);
-        rules[0] = rule;
+        P2pStructs.Rule memory rule1Deposit = P2pStructs.Rule({ // spender in approve2 must be MorphoEthereumBundlerV2
+            ruleType: P2pStructs.RuleType.StartsWith,
+            index: 673,
+            allowedBytes: abi.encodePacked(MorphoEthereumBundlerV2)
+        });
+//        P2pStructs.Rule memory rule2Deposit = P2pStructs.Rule({
+//            ruleType: P2pStructs.RuleType.AnyCalldata,
+//            index: 0,
+//            allowedBytes: hex"00"
+//        });
+        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](2);
+        rulesDeposit[0] = rule0Deposit;
+        rulesDeposit[1] = rule1Deposit;
+//        rulesDeposit[2] = rule2Deposit;
 
         vm.startPrank(p2pOperatorAddress);
         factory.setCalldataRules(
             P2pStructs.FunctionType.Deposit,
             MorphoEthereumBundlerV2,
             multicallSelector,
-            rules
+            rulesDeposit
         );
+        vm.stopPrank();
+
+        P2pStructs.Rule memory rule = P2pStructs.Rule({
+            ruleType: P2pStructs.RuleType.AnyCalldata,
+            index: 0,
+            allowedBytes: hex"00"
+        });
+        P2pStructs.Rule[] memory rulesWithdrawal = new P2pStructs.Rule[](1);
+        rulesWithdrawal[0] = rule;
+
+        vm.startPrank(p2pOperatorAddress);
         factory.setCalldataRules(
             P2pStructs.FunctionType.Withdrawal,
             MorphoEthereumBundlerV2,
             multicallSelector,
-            rules
+            rulesWithdrawal
         );
         vm.stopPrank();
 
