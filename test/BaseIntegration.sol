@@ -72,10 +72,16 @@ contract BaseIntegration is Test {
             index: 640,
             allowedBytes: hex"54c53ef0"
         });
-        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](3);
+        P2pStructs.Rule memory rule3Deposit = P2pStructs.Rule({ // erc4626Deposit
+            ruleType: P2pStructs.RuleType.StartsWith,
+            index: 768,
+            allowedBytes: hex"6ef5eeae"
+        });
+        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](4);
         rulesDeposit[0] = rule0Deposit;
         rulesDeposit[1] = rule1Deposit;
         rulesDeposit[2] = rule2Deposit;
+        rulesDeposit[3] = rule3Deposit;
 
         vm.startPrank(p2pOperatorAddress);
         factory.setCalldataRules(
