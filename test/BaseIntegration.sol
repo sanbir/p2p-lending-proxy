@@ -92,13 +92,14 @@ contract BaseIntegration is Test {
         );
         vm.stopPrank();
 
-        P2pStructs.Rule memory rule = P2pStructs.Rule({
-            ruleType: P2pStructs.RuleType.AnyCalldata,
+        P2pStructs.Rule memory rule0Withdrawal = P2pStructs.Rule({ // erc4626Redeem
+            ruleType: P2pStructs.RuleType.StartsWith,
             index: 0,
-            allowedBytes: hex"00"
+            allowedBytes: hex"00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000a4a7f6e606"
         });
+
         P2pStructs.Rule[] memory rulesWithdrawal = new P2pStructs.Rule[](1);
-        rulesWithdrawal[0] = rule;
+        rulesWithdrawal[0] = rule0Withdrawal;
 
         vm.startPrank(p2pOperatorAddress);
         factory.setCalldataRules(

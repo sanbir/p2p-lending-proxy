@@ -58,27 +58,57 @@ contract MainnetIntegration is Test {
     function test_HappyPath_Mainnet() external {
         // allowed calldata for factory
         bytes4 multicallSelector = IMorphoEthereumBundlerV2.multicall.selector;
-        bytes memory allowedBytes = "";
-        P2pStructs.Rule memory rule = P2pStructs.Rule({
-            ruleType: P2pStructs.RuleType.AnyCalldata,
+
+        P2pStructs.Rule memory rule0Deposit = P2pStructs.Rule({ // approve2
+            ruleType: P2pStructs.RuleType.StartsWith,
             index: 0,
-            allowedBytes: allowedBytes
+            allowedBytes: hex"000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000002a00000000000000000000000000000000000000000000000000000000000000184af504202"
         });
-        P2pStructs.Rule[] memory rules = new P2pStructs.Rule[](1);
-        rules[0] = rule;
+        P2pStructs.Rule memory rule1Deposit = P2pStructs.Rule({ // spender in approve2 must be MorphoEthereumBundlerV2
+            ruleType: P2pStructs.RuleType.StartsWith,
+            index: 336,
+            allowedBytes: abi.encodePacked(MorphoEthereumBundlerV2)
+        });
+        P2pStructs.Rule memory rule2Deposit = P2pStructs.Rule({ // transferFrom2
+            ruleType: P2pStructs.RuleType.StartsWith,
+            index: 640,
+            allowedBytes: hex"54c53ef0"
+        });
+        P2pStructs.Rule memory rule3Deposit = P2pStructs.Rule({ // erc4626Deposit
+            ruleType: P2pStructs.RuleType.StartsWith,
+            index: 768,
+            allowedBytes: hex"6ef5eeae"
+        });
+        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](4);
+        rulesDeposit[0] = rule0Deposit;
+        rulesDeposit[1] = rule1Deposit;
+        rulesDeposit[2] = rule2Deposit;
+        rulesDeposit[3] = rule3Deposit;
 
         vm.startPrank(p2pOperatorAddress);
         factory.setCalldataRules(
             P2pStructs.FunctionType.Deposit,
             MorphoEthereumBundlerV2,
             multicallSelector,
-            rules
+            rulesDeposit
         );
+        vm.stopPrank();
+
+        P2pStructs.Rule memory rule0Withdrawal = P2pStructs.Rule({ // erc4626Redeem
+            ruleType: P2pStructs.RuleType.StartsWith,
+            index: 0,
+            allowedBytes: hex"00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000a4a7f6e606"
+        });
+
+        P2pStructs.Rule[] memory rulesWithdrawal = new P2pStructs.Rule[](1);
+        rulesWithdrawal[0] = rule0Withdrawal;
+
+        vm.startPrank(p2pOperatorAddress);
         factory.setCalldataRules(
             P2pStructs.FunctionType.Withdrawal,
             MorphoEthereumBundlerV2,
             multicallSelector,
-            rules
+            rulesWithdrawal
         );
         vm.stopPrank();
 
@@ -94,7 +124,7 @@ contract MainnetIntegration is Test {
             spender: MorphoEthereumBundlerV2,
             sigDeadline: SigDeadline
         });
-        bytes32 permitSingleHash = factory.getPermit2HashTypedData(permitSingle);
+        bytes32 permitSingleHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingle));
         (uint8 v0, bytes32 r0, bytes32 s0) = vm.sign(clientPrivateKey, permitSingleHash);
         bytes memory signatureForApprove2 = abi.encodePacked(r0, s0, v0);
         bytes memory approve2CallData = abi.encodeCall(IMorphoEthereumBundlerV2.approve2, (
@@ -131,13 +161,13 @@ contract MainnetIntegration is Test {
             spender: proxyAddress,
             sigDeadline: SigDeadline
         });
-        bytes32 permitSingleForP2pLendingProxyHash = factory.getPermit2HashTypedData(permitSingleForP2pLendingProxy);
+        bytes32 permitSingleForP2pLendingProxyHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingleForP2pLendingProxy));
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(clientPrivateKey, permitSingleForP2pLendingProxyHash);
         bytes memory permit2SignatureForP2pLendingProxy = abi.encodePacked(r1, s1, v1);
 
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
-        clientAddress,
+            clientAddress,
             ClientBasisPoints,
             SigDeadline
         );
