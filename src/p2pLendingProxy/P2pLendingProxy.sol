@@ -9,14 +9,14 @@ import "../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@permit2/libraries/Permit2Lib.sol";
 import "../@permit2/libraries/SignatureVerification.sol";
 import "../common/AllowedCalldataChecker.sol";
-import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
 import "../common/P2pStructs.sol";
+import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
 import "./IP2pLendingProxy.sol";
-import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 error P2pLendingProxy__NotFactory(address _factory);
 
@@ -93,7 +93,7 @@ contract P2pLendingProxy is
         s_client = _client;
         s_clientBasisPoints = _clientBasisPoints;
 
-        emit P2pLendingProxy__Initialized(_client, _clientBasisPoints);
+        emit P2pLendingProxy__Initialized();
     }
 
     function deposit(
@@ -108,7 +108,14 @@ contract P2pLendingProxy is
         address asset = _permitSingleForP2pLendingProxy.details.token;
         uint160 amount = _permitSingleForP2pLendingProxy.details.amount;
 
-        s_totalDeposited[asset] += amount;
+        uint256 totalDepositedAfter = s_totalDeposited[asset] + amount;
+        s_totalDeposited[asset] = totalDepositedAfter;
+        emit P2pLendingProxy__Deposited(
+            _lendingProtocolAddress,
+            asset,
+            amount,
+            totalDepositedAfter
+        );
 
         address client = s_client;
 
@@ -125,10 +132,12 @@ contract P2pLendingProxy is
             asset
         );
 
-        IERC20(asset).safeApprove(
-            address(Permit2Lib.PERMIT2),
-            type(uint256).max
-        );
+        if (IERC20(asset).allowance(address(this), address(Permit2Lib.PERMIT2)) == 0) {
+            IERC20(asset).safeApprove(
+                address(Permit2Lib.PERMIT2),
+                type(uint256).max
+            );
+        }
 
         _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
     }
@@ -187,6 +196,18 @@ contract P2pLendingProxy is
         }
         // clientAmount must be > 0 at this point
         IERC20(asset).safeTransfer(s_client, clientAmount);
+
+        emit P2pLendingProxy__Withdrawn(
+            _lendingProtocolAddress,
+            _vault,
+            asset,
+            _shares,
+            newAssetAmount,
+            totalWithdrawnAfter,
+            newProfit,
+            p2pAmount,
+            clientAmount
+        );
     }
 
     function checkCalldata(

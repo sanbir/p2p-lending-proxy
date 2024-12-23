@@ -11,8 +11,24 @@ import "../common/IAllowedCalldataChecker.sol";
 /// @dev External interface of P2pLendingProxy declared to support ERC165 detection.
 interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
 
-    event P2pLendingProxy__Initialized(
-        address _client,
-        uint96 _clientBasisPoints
+    event P2pLendingProxy__Initialized();
+
+    event P2pLendingProxy__Deposited(
+        address indexed _lendingProtocolAddress,
+        address indexed _asset,
+        uint160 _amount,
+        uint256 _totalDepositedAfter
+    );
+
+    event P2pLendingProxy__Withdrawn(
+        address indexed _lendingProtocolAddress,
+        address indexed _vault,
+        address indexed _asset,
+        uint256 _shares,
+        uint256 _assets,
+        uint256 _totalWithdrawnAfter,
+        uint256 _newProfit,
+        uint256 _p2pAmount,
+        uint256 _clientAmount
     );
 }
