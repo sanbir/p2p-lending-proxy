@@ -9,16 +9,14 @@ import "../@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@permit2/libraries/PermitHash.sol";
+import "../access/P2pOperator2Step.sol";
 import "../common/AllowedCalldataChecker.sol";
+import "../common/P2pStructs.sol";
 import "../p2pLendingProxy/P2pLendingProxy.sol";
 import "./IP2pLendingProxyFactory.sol";
-import "../common/P2pStructs.sol";
 
+error P2pLendingProxyFactory__ZeroP2pSignerAddress();
 error P2pLendingProxyFactory__InvalidP2pSignerSignature();
-error P2pLendingProxyFactory__NotP2pOperatorCalled(
-    address _msgSender,
-    address _actualP2pOperator
-);
 error P2pLendingProxyFactory__P2pSignerSignatureExpired(
     uint256 _p2pSignerSigDeadline
 );
@@ -52,6 +50,7 @@ error P2pLendingProxyFactory__CalldataEndsWithRuleViolated(
 
 contract P2pLendingProxyFactory is
     AllowedCalldataChecker,
+    P2pOperator2Step,
     P2pStructs,
     ERC165,
     IP2pLendingProxyFactory {
@@ -68,16 +67,8 @@ contract P2pLendingProxyFactory is
     mapping(FunctionType => mapping(address => mapping(bytes4 => Rule[]))) private s_calldataRules;
 
     address private s_p2pSigner;
-    address private s_p2pOperator;
 
-    /// @notice If caller is not P2P operator, revert
-    modifier onlyP2pOperator() {
-        address p2pOperator = s_p2pOperator;
-        if (msg.sender != p2pOperator) {
-            revert P2pLendingProxyFactory__NotP2pOperatorCalled(msg.sender, p2pOperator);
-        }
-        _;
-    }
+    address[] private s_allProxies;
 
     modifier p2pSignerSignatureShouldNotExpire(uint256 _p2pSignerSigDeadline) {
         require (
@@ -106,24 +97,16 @@ contract P2pLendingProxyFactory is
         _;
     }
 
-    constructor(address _p2pSigner, address _p2pTreasury) {
+    constructor(address _p2pSigner, address _p2pTreasury) P2pOperator(msg.sender) {
         i_referenceP2pLendingProxy = new P2pLendingProxy(address(this), _p2pTreasury);
 
-        s_p2pSigner = _p2pSigner;
-        s_p2pOperator = msg.sender;
+        _transferP2pSigner(_p2pSigner);
     }
 
-    // TODO: add 2 step
-    function setP2pOperator(
-        address _newP2pOperator
-    ) external onlyP2pOperator {
-        s_p2pOperator = _newP2pOperator;
-    }
-
-    function setP2pSigner(
+    function transferP2pSigner(
         address _newP2pSigner
     ) external onlyP2pOperator {
-        s_p2pSigner = _newP2pSigner;
+        _transferP2pSigner(_newP2pSigner);
     }
 
     function setCalldataRules(
@@ -133,6 +116,12 @@ contract P2pLendingProxyFactory is
         Rule[] calldata _rules
     ) external onlyP2pOperator {
         s_calldataRules[_functionType][_contract][_selector] = _rules;
+        emit P2pLendingProxyFactory__CalldataRulesSet(
+            _functionType,
+            _contract,
+            _selector,
+            _rules
+        );
     }
 
     function removeCalldataRules(
@@ -141,6 +130,11 @@ contract P2pLendingProxyFactory is
         bytes4 _selector
     ) external onlyP2pOperator {
         delete s_calldataRules[_functionType][_contract][_selector];
+        emit P2pLendingProxyFactory__CalldataRulesRemoved(
+            _functionType,
+            _contract,
+            _selector
+        );
     }
 
     function deposit(
@@ -170,6 +164,8 @@ contract P2pLendingProxyFactory is
             _permitSingleForP2pLendingProxy,
             _permit2SignatureForP2pLendingProxy
         );
+
+        emit P2pLendingProxyFactory__Deposited(msg.sender, _clientBasisPoints);
 
         p2pLendingProxyAddress = address(p2pLendingProxy);
     }
@@ -237,6 +233,14 @@ contract P2pLendingProxyFactory is
         }
     }
 
+    function _transferP2pSigner(
+        address _newP2pSigner
+    ) private {
+        require (_newP2pSigner != address(0), P2pLendingProxyFactory__ZeroP2pSignerAddress());
+        emit P2pLendingProxyFactory__P2pSignerTransferred(s_p2pSigner, _newP2pSigner);
+        s_p2pSigner = _newP2pSigner;
+    }
+
     /// @notice Creates a new P2pLendingProxy contract instance if not created yet
     function _getOrCreateP2pLendingProxy(uint96 _clientBasisPoints)
     private
@@ -265,6 +269,8 @@ contract P2pLendingProxyFactory is
             msg.sender,
             _clientBasisPoints
         );
+
+        s_allProxies.push(address(p2pLendingProxy));
     }
 
     /// @notice Predicts the address of a P2pLendingProxy contract instance
@@ -324,8 +330,8 @@ contract P2pLendingProxyFactory is
         return s_p2pSigner;
     }
 
-    function getP2pOperator() external view returns (address) {
-        return s_p2pOperator;
+    function getAllProxies() external view returns (address[] memory) {
+        return s_allProxies;
     }
 
     /// @notice Calculates the salt required for deterministic clone creation

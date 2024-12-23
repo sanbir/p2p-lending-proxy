@@ -15,6 +15,8 @@ import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
 
 contract MainnetIntegration is Test {
+    using SafeERC20 for IERC20;
+
     address constant P2pTreasury = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
     P2pLendingProxyFactory private factory;
 
@@ -30,7 +32,11 @@ contract MainnetIntegration is Test {
     address constant MorphoEthereumBundlerV2 = 0x4095F064B8d3c3548A3bebfd0Bbfd04750E30077;
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address constant VaultUSDC = 0x8eB67A509616cd6A7c1B3c8C21D48FF57df3d458;
-    // address constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address constant VaultUSDT = 0xbEef047a543E45807105E51A8BBEFCc5950fcfBa;
+
+    address asset;
+    address vault;
 
     uint256 constant SigDeadline = 1734464723;
     uint96 constant ClientBasisPoints = 8700; // 13% fee
@@ -46,8 +52,6 @@ contract MainnetIntegration is Test {
         p2pOperatorAddress = makeAddr("p2pOperator");
         nobody = makeAddr("nobody");
 
-        deal(USDC, clientAddress, 10000e18);
-
         vm.startPrank(p2pOperatorAddress);
         factory = new P2pLendingProxyFactory(p2pSignerAddress, P2pTreasury);
         vm.stopPrank();
@@ -55,7 +59,21 @@ contract MainnetIntegration is Test {
         proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
     }
 
-    function test_HappyPath_Mainnet() external {
+    function test_HappyPath_USDT_Mainnet() external {
+        asset = USDT;
+        vault = VaultUSDT;
+        _happyPath_Mainnet();
+    }
+
+    function test_HappyPath_USDC_Mainnet() external {
+        asset = USDC;
+        vault = VaultUSDC;
+        _happyPath_Mainnet();
+    }
+
+    function _happyPath_Mainnet() private {
+        deal(asset, clientAddress, 10000e18);
+
         // allowed calldata for factory
         bytes4 multicallSelector = IMorphoEthereumBundlerV2.multicall.selector;
 
@@ -114,7 +132,7 @@ contract MainnetIntegration is Test {
 
         // morpho approve2
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
-            token: USDC,
+            token: asset,
             amount: uint160(DepositAmount),
             expiration: type(uint48).max,
             nonce: 0
@@ -135,14 +153,14 @@ contract MainnetIntegration is Test {
 
         // morpho transferFrom2
         bytes memory transferFrom2CallData = abi.encodeCall(IMorphoEthereumBundlerV2.transferFrom2, (
-            USDC,
+            asset,
             DepositAmount
         ));
 
         // morpho erc4626Deposit
-        uint256 shares = IERC4626(VaultUSDC).convertToShares(DepositAmount);
+        uint256 shares = IERC4626(vault).convertToShares(DepositAmount);
         bytes memory erc4626Deposit2CallData = abi.encodeCall(IMorphoEthereumBundlerV2.erc4626Deposit, (
-            VaultUSDC,
+            vault,
             DepositAmount,
             (shares * 100) / 102,
             proxyAddress
@@ -176,7 +194,7 @@ contract MainnetIntegration is Test {
         bytes memory p2pSignerSignature = abi.encodePacked(r2, s2, v2);
 
         vm.startPrank(clientAddress);
-        IERC20(USDC).approve(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
@@ -189,12 +207,12 @@ contract MainnetIntegration is Test {
         );
         vm.stopPrank();
 
-        uint256 sharesBalance = IERC20(VaultUSDC).balanceOf(proxyAddress);
+        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
 
         // morpho erc4626Redeem
-        uint256 assets = IERC4626(VaultUSDC).convertToAssets(sharesBalance);
+        uint256 assets = IERC4626(vault).convertToAssets(sharesBalance);
         bytes memory erc4626RedeemCallData = abi.encodeCall(IMorphoEthereumBundlerV2.erc4626Redeem, (
-            VaultUSDC,
+            vault,
             sharesBalance,
             (assets * 100) / 102,
             proxyAddress,
@@ -210,7 +228,7 @@ contract MainnetIntegration is Test {
         P2pLendingProxy(proxyAddress).withdraw(
             MorphoEthereumBundlerV2,
             multicallWithdrawalCallData,
-            VaultUSDC,
+            vault,
             sharesBalance
         );
         vm.stopPrank();

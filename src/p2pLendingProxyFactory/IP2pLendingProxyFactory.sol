@@ -11,6 +11,29 @@ import "../common/P2pStructs.sol";
 /// @dev External interface of P2pLendingProxyFactory
 interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
 
+    event P2pLendingProxyFactory__P2pSignerTransferred(
+        address indexed _previousP2pSigner,
+        address indexed _newP2pSigner
+    );
+
+    event P2pLendingProxyFactory__CalldataRulesSet(
+        P2pStructs.FunctionType indexed _functionType,
+        address indexed _contract,
+        bytes4 indexed _selector,
+        P2pStructs.Rule[] _rules
+    );
+
+    event P2pLendingProxyFactory__CalldataRulesRemoved(
+        P2pStructs.FunctionType indexed _functionType,
+        address indexed _contract,
+        bytes4 indexed _selector
+    );
+
+    event P2pLendingProxyFactory__Deposited(
+        address indexed _client,
+        uint96 indexed _clientBasisPoints
+    );
+
     function setCalldataRules(
         P2pStructs.FunctionType _functionType,
         address _contract,
