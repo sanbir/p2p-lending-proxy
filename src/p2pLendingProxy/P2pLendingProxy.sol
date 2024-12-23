@@ -210,6 +210,19 @@ contract P2pLendingProxy is
         );
     }
 
+    function callAnyFunction(
+        address _lendingProtocolAddress,
+        bytes calldata _lendingProtocolCalldata
+    )
+    external
+    onlyClient
+    nonReentrant
+    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.None)
+    {
+        emit P2pLendingProxy__CalledAsAnyFunction(_lendingProtocolAddress);
+        _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
+    }
+
     function checkCalldata(
         address _target,
         bytes4 _selector,
