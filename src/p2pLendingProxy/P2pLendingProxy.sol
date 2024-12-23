@@ -18,6 +18,12 @@ import "../common/P2pStructs.sol";
 import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
 import "./IP2pLendingProxy.sol";
 
+error P2pLendingProxy__ZeroAddressClient();
+error P2pLendingProxy__ZeroAddressAsset();
+error P2pLendingProxy__ZeroAssetAmount();
+error P2pLendingProxy__ZeroSharesAmount();
+error P2pLendingProxy__InvalidClientBasisPoints(uint96 _clientBasisPoints);
+
 error P2pLendingProxy__NotFactory(address _factory);
 
 /// @notice Called by an address other than factory
@@ -90,6 +96,12 @@ contract P2pLendingProxy is
     external
     onlyFactory
     {
+        require(_client != address(0), P2pLendingProxy__ZeroAddressClient());
+        require(
+            _clientBasisPoints > 0 && _clientBasisPoints <= 10_000,
+            P2pLendingProxy__InvalidClientBasisPoints(_clientBasisPoints)
+        );
+
         s_client = _client;
         s_clientBasisPoints = _clientBasisPoints;
 
@@ -106,7 +118,10 @@ contract P2pLendingProxy is
     onlyFactory
     {
         address asset = _permitSingleForP2pLendingProxy.details.token;
+        require (asset != address(0), P2pLendingProxy__ZeroAddressAsset());
+
         uint160 amount = _permitSingleForP2pLendingProxy.details.amount;
+        require (amount > 0, P2pLendingProxy__ZeroAssetAmount());
 
         uint256 totalDepositedAfter = s_totalDeposited[asset] + amount;
         s_totalDeposited[asset] = totalDepositedAfter;
@@ -153,6 +168,8 @@ contract P2pLendingProxy is
     nonReentrant
     calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.Withdrawal)
     {
+        require (_shares > 0, P2pLendingProxy__ZeroSharesAmount());
+
         // approve shares from Proxy to Protocol
         IERC20(_vault).safeApprove(_lendingProtocolAddress, _shares);
 

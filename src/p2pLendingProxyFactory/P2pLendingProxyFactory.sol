@@ -15,6 +15,7 @@ import "../common/P2pStructs.sol";
 import "../p2pLendingProxy/P2pLendingProxy.sol";
 import "./IP2pLendingProxyFactory.sol";
 
+error P2pLendingProxyFactory__ZeroP2pSignerAddress();
 error P2pLendingProxyFactory__InvalidP2pSignerSignature();
 error P2pLendingProxyFactory__P2pSignerSignatureExpired(
     uint256 _p2pSignerSigDeadline
@@ -99,15 +100,13 @@ contract P2pLendingProxyFactory is
     constructor(address _p2pSigner, address _p2pTreasury) P2pOperator(msg.sender) {
         i_referenceP2pLendingProxy = new P2pLendingProxy(address(this), _p2pTreasury);
 
-        s_p2pSigner = _p2pSigner;
-        emit P2pLendingProxyFactory__P2pSignerTransferred(address(0), _p2pSigner);
+        _transferP2pSigner(_p2pSigner);
     }
 
     function transferP2pSigner(
         address _newP2pSigner
     ) external onlyP2pOperator {
-        emit P2pLendingProxyFactory__P2pSignerTransferred(s_p2pSigner, _newP2pSigner);
-        s_p2pSigner = _newP2pSigner;
+        _transferP2pSigner(_newP2pSigner);
     }
 
     function setCalldataRules(
@@ -232,6 +231,14 @@ contract P2pLendingProxyFactory is
             }
             // if (ruleType == RuleType.AnyCalldata) do nothing
         }
+    }
+
+    function _transferP2pSigner(
+        address _newP2pSigner
+    ) private {
+        require (_newP2pSigner != address(0), P2pLendingProxyFactory__ZeroP2pSignerAddress());
+        emit P2pLendingProxyFactory__P2pSignerTransferred(s_p2pSigner, _newP2pSigner);
+        s_p2pSigner = _newP2pSigner;
     }
 
     /// @notice Creates a new P2pLendingProxy contract instance if not created yet
