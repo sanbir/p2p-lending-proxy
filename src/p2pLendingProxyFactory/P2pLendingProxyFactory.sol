@@ -9,16 +9,13 @@ import "../@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@permit2/libraries/PermitHash.sol";
+import "../access/P2pOperator2Step.sol";
 import "../common/AllowedCalldataChecker.sol";
+import "../common/P2pStructs.sol";
 import "../p2pLendingProxy/P2pLendingProxy.sol";
 import "./IP2pLendingProxyFactory.sol";
-import "../common/P2pStructs.sol";
 
 error P2pLendingProxyFactory__InvalidP2pSignerSignature();
-error P2pLendingProxyFactory__NotP2pOperatorCalled(
-    address _msgSender,
-    address _actualP2pOperator
-);
 error P2pLendingProxyFactory__P2pSignerSignatureExpired(
     uint256 _p2pSignerSigDeadline
 );
@@ -52,6 +49,7 @@ error P2pLendingProxyFactory__CalldataEndsWithRuleViolated(
 
 contract P2pLendingProxyFactory is
     AllowedCalldataChecker,
+    P2pOperator2Step,
     P2pStructs,
     ERC165,
     IP2pLendingProxyFactory {
@@ -68,16 +66,6 @@ contract P2pLendingProxyFactory is
     mapping(FunctionType => mapping(address => mapping(bytes4 => Rule[]))) private s_calldataRules;
 
     address private s_p2pSigner;
-    address private s_p2pOperator;
-
-    /// @notice If caller is not P2P operator, revert
-    modifier onlyP2pOperator() {
-        address p2pOperator = s_p2pOperator;
-        if (msg.sender != p2pOperator) {
-            revert P2pLendingProxyFactory__NotP2pOperatorCalled(msg.sender, p2pOperator);
-        }
-        _;
-    }
 
     modifier p2pSignerSignatureShouldNotExpire(uint256 _p2pSignerSigDeadline) {
         require (
@@ -106,18 +94,10 @@ contract P2pLendingProxyFactory is
         _;
     }
 
-    constructor(address _p2pSigner, address _p2pTreasury) {
+    constructor(address _p2pSigner, address _p2pTreasury) P2pOperator(msg.sender) {
         i_referenceP2pLendingProxy = new P2pLendingProxy(address(this), _p2pTreasury);
 
         s_p2pSigner = _p2pSigner;
-        s_p2pOperator = msg.sender;
-    }
-
-    // TODO: add 2 step
-    function setP2pOperator(
-        address _newP2pOperator
-    ) external onlyP2pOperator {
-        s_p2pOperator = _newP2pOperator;
     }
 
     function setP2pSigner(
@@ -322,10 +302,6 @@ contract P2pLendingProxyFactory is
 
     function getP2pSigner() external view returns (address) {
         return s_p2pSigner;
-    }
-
-    function getP2pOperator() external view returns (address) {
-        return s_p2pOperator;
     }
 
     /// @notice Calculates the salt required for deterministic clone creation
