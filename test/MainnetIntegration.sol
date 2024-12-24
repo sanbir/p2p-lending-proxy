@@ -57,6 +57,8 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
 
         proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
+
+        _setRules();
     }
 
     function test_HappyPath_USDT_Mainnet() external {
@@ -74,6 +76,11 @@ contract MainnetIntegration is Test {
     function _happyPath_Mainnet() private {
         deal(asset, clientAddress, 10000e18);
 
+        _doDeposit();
+        _doWithdraw();
+    }
+
+    function _setRules() private {
         // allowed calldata for factory
         bytes4 multicallSelector = IMorphoEthereumBundlerV2.multicall.selector;
 
@@ -129,7 +136,9 @@ contract MainnetIntegration is Test {
             rulesWithdrawal
         );
         vm.stopPrank();
+    }
 
+    function _getMulticallDataAndPermitSingleForP2pLendingProxy() private view returns(bytes memory, IAllowanceTransfer.PermitSingle memory) {
         // morpho approve2
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: asset,
@@ -179,10 +188,18 @@ contract MainnetIntegration is Test {
             spender: proxyAddress,
             sigDeadline: SigDeadline
         });
+
+        return (multicallCallData, permitSingleForP2pLendingProxy);
+    }
+
+    function _getPermit2SignatureForP2pLendingProxy(IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy) private view returns(bytes memory) {
         bytes32 permitSingleForP2pLendingProxyHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingleForP2pLendingProxy));
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(clientPrivateKey, permitSingleForP2pLendingProxyHash);
         bytes memory permit2SignatureForP2pLendingProxy = abi.encodePacked(r1, s1, v1);
+        return permit2SignatureForP2pLendingProxy;
+    }
 
+    function _getP2pSignerSignature() private view returns(bytes memory) {
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
             clientAddress,
@@ -192,9 +209,21 @@ contract MainnetIntegration is Test {
         bytes32 ethSignedMessageHashForP2pSigner = ECDSA.toEthSignedMessageHash(hashForP2pSigner);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(p2pSignerPrivateKey, ethSignedMessageHashForP2pSigner);
         bytes memory p2pSignerSignature = abi.encodePacked(r2, s2, v2);
+        return p2pSignerSignature;
+    }
+
+    function _doDeposit() private {
+        (
+            bytes memory multicallCallData,
+            IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy
+        ) = _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        bytes memory permit2SignatureForP2pLendingProxy = _getPermit2SignatureForP2pLendingProxy(permitSingleForP2pLendingProxy);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature();
 
         vm.startPrank(clientAddress);
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        if (IERC20(asset).allowance(clientAddress, address(Permit2Lib.PERMIT2)) == 0) {
+            IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        }
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
@@ -206,7 +235,9 @@ contract MainnetIntegration is Test {
             p2pSignerSignature
         );
         vm.stopPrank();
+    }
 
+    function _getDataForWithdraw() private view returns(uint256, bytes memory) {
         uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
 
         // morpho erc4626Redeem
@@ -223,6 +254,12 @@ contract MainnetIntegration is Test {
         bytes[] memory dataForMulticallWithdrawal = new bytes[](1);
         dataForMulticallWithdrawal[0] = erc4626RedeemCallData;
         bytes memory multicallWithdrawalCallData = abi.encodeCall(IMorphoEthereumBundlerV2.multicall, (dataForMulticallWithdrawal));
+
+        return (sharesBalance, multicallWithdrawalCallData);
+    }
+
+    function _doWithdraw() private {
+        (uint256 sharesBalance, bytes memory multicallWithdrawalCallData) = _getDataForWithdraw();
 
         vm.startPrank(clientAddress);
         P2pLendingProxy(proxyAddress).withdraw(
