@@ -44,6 +44,8 @@ contract MainnetIntegration is Test {
 
     address proxyAddress;
 
+    uint48 nonce;
+
     function setUp() public {
         vm.createSelectFork("mainnet", 21308893);
 
@@ -77,7 +79,14 @@ contract MainnetIntegration is Test {
         deal(asset, clientAddress, 10000e18);
 
         _doDeposit();
-        _doWithdraw();
+        _doDeposit();
+        _doDeposit();
+        _doDeposit();
+        _doWithdraw(10);
+        _doWithdraw(5);
+        _doWithdraw(3);
+        _doWithdraw(2);
+        _doWithdraw(1);
     }
 
     function _setRules() private {
@@ -138,14 +147,15 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function _getMulticallDataAndPermitSingleForP2pLendingProxy() private view returns(bytes memory, IAllowanceTransfer.PermitSingle memory) {
+    function _getMulticallDataAndPermitSingleForP2pLendingProxy() private returns(bytes memory, IAllowanceTransfer.PermitSingle memory) {
         // morpho approve2
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: asset,
             amount: uint160(DepositAmount),
             expiration: type(uint48).max,
-            nonce: 0
+            nonce: nonce
         });
+        nonce++;
         IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
             details: permitDetails,
             spender: MorphoEthereumBundlerV2,
@@ -237,14 +247,12 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function _getDataForWithdraw() private view returns(uint256, bytes memory) {
-        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
-
+    function _getMulticallWithdrawalCallData(uint256 sharesToWithdraw) private view returns(bytes memory) {
         // morpho erc4626Redeem
-        uint256 assets = IERC4626(vault).convertToAssets(sharesBalance);
+        uint256 assets = IERC4626(vault).convertToAssets(sharesToWithdraw);
         bytes memory erc4626RedeemCallData = abi.encodeCall(IMorphoEthereumBundlerV2.erc4626Redeem, (
             vault,
-            sharesBalance,
+            sharesToWithdraw,
             (assets * 100) / 102,
             proxyAddress,
             proxyAddress
@@ -255,11 +263,12 @@ contract MainnetIntegration is Test {
         dataForMulticallWithdrawal[0] = erc4626RedeemCallData;
         bytes memory multicallWithdrawalCallData = abi.encodeCall(IMorphoEthereumBundlerV2.multicall, (dataForMulticallWithdrawal));
 
-        return (sharesBalance, multicallWithdrawalCallData);
+        return multicallWithdrawalCallData;
     }
 
-    function _doWithdraw() private {
-        (uint256 sharesBalance, bytes memory multicallWithdrawalCallData) = _getDataForWithdraw();
+    function _doWithdraw(uint256 denominator) private {
+        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
+        bytes memory multicallWithdrawalCallData = _getMulticallWithdrawalCallData(sharesBalance / denominator);
 
         vm.startPrank(clientAddress);
         P2pLendingProxy(proxyAddress).withdraw(

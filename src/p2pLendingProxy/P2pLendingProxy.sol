@@ -171,7 +171,7 @@ contract P2pLendingProxy is
         require (_shares > 0, P2pLendingProxy__ZeroSharesAmount());
 
         // approve shares from Proxy to Protocol
-        IERC20(_vault).safeApprove(_lendingProtocolAddress, _shares);
+        IERC20(_vault).safeIncreaseAllowance(_lendingProtocolAddress, _shares);
 
         // withdraw assets from Protocol
         _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
