@@ -767,6 +767,24 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_getHashForP2pSigner_Mainnet() public view {
+        bytes32 expectedHash = keccak256(abi.encode(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline,
+            address(factory),
+            block.chainid
+        ));
+
+        bytes32 actualHash = factory.getHashForP2pSigner(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        assertEq(actualHash, expectedHash);
+    }
+
     function test_viewFunctions_Mainnet() public {
         // Add this line to give tokens to the client before attempting deposit
         deal(asset, clientAddress, DepositAmount);
