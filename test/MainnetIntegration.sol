@@ -498,6 +498,60 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_calldataStartsWithRuleViolated_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(asset, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        // Do initial deposit
+        _doDeposit();
+        vm.stopPrank();
+
+        // Set rule that requires first 32 bytes to match specific value
+        bytes memory expectedBytes = new bytes(32);
+        for(uint i = 0; i < 32; i++) {
+            expectedBytes[i] = bytes1(uint8(i));
+        }
+
+        P2pStructs.Rule[] memory rules = new P2pStructs.Rule[](1);
+        rules[0] = P2pStructs.Rule({
+            ruleType: P2pStructs.RuleType.StartsWith,
+            index: 0,
+            allowedBytes: expectedBytes
+        });
+
+        vm.startPrank(p2pOperatorAddress);
+        factory.setCalldataRules(
+            P2pStructs.FunctionType.None,
+            vault,
+            IERC20.balanceOf.selector,
+            rules
+        );
+        vm.stopPrank();
+
+        // Create calldata with different first 32 bytes
+        bytes memory differentBytes = new bytes(32);
+        bytes memory wrongCalldata = abi.encodePacked(
+            IERC20.balanceOf.selector,
+            differentBytes
+        );
+
+        vm.startPrank(clientAddress);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxyFactory__CalldataStartsWithRuleViolated.selector,
+                differentBytes,
+                expectedBytes
+            )
+        );
+        P2pLendingProxy(proxyAddress).callAnyFunction(
+            vault,
+            wrongCalldata
+        );
+        vm.stopPrank();
+    }
+
     function test_callBalanceOfViaCallAnyFunction_Mainnet() public {
         // Create proxy and do initial deposit
         deal(asset, clientAddress, DepositAmount);
