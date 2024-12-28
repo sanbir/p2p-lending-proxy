@@ -452,6 +452,52 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_calldataTooShortForStartsWithRule_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(asset, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        // Do initial deposit
+        _doDeposit();
+        vm.stopPrank();
+
+        // Set rule that requires first 32 bytes to match
+        P2pStructs.Rule[] memory rules = new P2pStructs.Rule[](1);
+        rules[0] = P2pStructs.Rule({
+            ruleType: P2pStructs.RuleType.StartsWith,
+            index: 0,
+            allowedBytes: new bytes(32)
+        });
+
+        vm.startPrank(p2pOperatorAddress);
+        factory.setCalldataRules(
+            P2pStructs.FunctionType.None,
+            vault,
+            IERC20.balanceOf.selector,
+            rules
+        );
+        vm.stopPrank();
+
+        // Create calldata that's too short (only 4 bytes)
+        bytes memory shortCalldata = abi.encodeWithSelector(IERC20.balanceOf.selector);
+
+        vm.startPrank(clientAddress);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxyFactory__CalldataTooShortForStartsWithRule.selector,
+                0, // calldata length after selector
+                0, // rule index
+                32 // required bytes count
+            )
+        );
+        P2pLendingProxy(proxyAddress).callAnyFunction(
+            vault,
+            shortCalldata
+        );
+        vm.stopPrank();
+    }
+
     function test_callBalanceOfViaCallAnyFunction_Mainnet() public {
         // Create proxy and do initial deposit
         deal(asset, clientAddress, DepositAmount);
