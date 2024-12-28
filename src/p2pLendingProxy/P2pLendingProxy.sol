@@ -18,7 +18,6 @@ import "../common/P2pStructs.sol";
 import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
 import "./IP2pLendingProxy.sol";
 
-error P2pLendingProxy__ZeroAddressClient();
 error P2pLendingProxy__ZeroAddressAsset();
 error P2pLendingProxy__ZeroAssetAmount();
 error P2pLendingProxy__ZeroSharesAmount();
@@ -96,7 +95,6 @@ contract P2pLendingProxy is
     external
     onlyFactory
     {
-        require(_client != address(0), P2pLendingProxy__ZeroAddressClient());
         require(
             _clientBasisPoints > 0 && _clientBasisPoints <= 10_000,
             P2pLendingProxy__InvalidClientBasisPoints(_clientBasisPoints)
