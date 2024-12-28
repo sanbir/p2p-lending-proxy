@@ -547,6 +547,8 @@ contract MainnetIntegration is Test {
         assertEq(proxy.getClient(), clientAddress);
         assertEq(proxy.getClientBasisPoints(), ClientBasisPoints);
         assertEq(proxy.getTotalDeposited(asset), DepositAmount);
+        assertEq(factory.getP2pSigner(), p2pSignerAddress);
+        assertEq(factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints), proxyAddress);
     }
 
     function test_acceptP2pOperator_Mainnet() public {
