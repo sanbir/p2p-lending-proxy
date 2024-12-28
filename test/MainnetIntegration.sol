@@ -4,9 +4,10 @@
 pragma solidity 0.8.27;
 
 import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
+import "../src/access/P2pOperator.sol";
+import "../src/common/P2pStructs.sol";
 import "../src/mocks/IMorphoEthereumBundlerV2.sol";
 import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
-import "../src/common/P2pStructs.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
@@ -108,6 +109,21 @@ contract MainnetIntegration is Test {
 
         assertApproxEqAbs(ClientBasisPoints, clientBasisPointsDeFacto, 1);
         assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
+    }
+
+    function test_transferP2pSigner_Mainnet() public {
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.transferP2pSigner(nobody);
+
+        address oldSigner = factory.getP2pSigner();
+        assertEq(oldSigner, p2pSignerAddress);
+
+        vm.startPrank(p2pOperatorAddress);
+        factory.transferP2pSigner(nobody);
+
+        address newSigner = factory.getP2pSigner();
+        assertEq(newSigner, nobody);
     }
 
     function _happyPath_Mainnet() private {
