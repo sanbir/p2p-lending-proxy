@@ -420,6 +420,38 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_withdrawViaCallAnyFunction_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(asset, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        // Do initial deposit
+        _doDeposit();
+
+        // Try to withdraw using callAnyFunction
+        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
+        bytes memory withdrawalCallData = _getMulticallWithdrawalCallData(sharesBalance);
+        
+        vm.startPrank(clientAddress);
+        
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxyFactory__NoRulesDefined.selector,
+                P2pStructs.FunctionType.None,
+                MorphoEthereumBundlerV2,
+                IMorphoEthereumBundlerV2.multicall.selector
+            )
+        );
+        
+        proxy.callAnyFunction(
+            MorphoEthereumBundlerV2,
+            withdrawalCallData
+        );
+        vm.stopPrank();
+    }
+
     function _happyPath_Mainnet() private {
         deal(asset, clientAddress, 10000e18);
 
