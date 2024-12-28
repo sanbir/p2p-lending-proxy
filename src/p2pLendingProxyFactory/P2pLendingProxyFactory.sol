@@ -170,6 +170,59 @@ contract P2pLendingProxyFactory is
         p2pLendingProxyAddress = address(p2pLendingProxy);
     }
 
+    function _transferP2pSigner(
+        address _newP2pSigner
+    ) private {
+        require (_newP2pSigner != address(0), P2pLendingProxyFactory__ZeroP2pSignerAddress());
+        emit P2pLendingProxyFactory__P2pSignerTransferred(s_p2pSigner, _newP2pSigner);
+        s_p2pSigner = _newP2pSigner;
+    }
+
+    /// @notice Creates a new P2pLendingProxy contract instance if not created yet
+    function _getOrCreateP2pLendingProxy(uint96 _clientBasisPoints)
+    private
+    returns (P2pLendingProxy p2pLendingProxy)
+    {
+        address p2pLendingProxyAddress = predictP2pLendingProxyAddress(
+            msg.sender,
+            _clientBasisPoints
+        );
+        uint256 codeSize = p2pLendingProxyAddress.code.length;
+        if (codeSize > 0) {
+            return P2pLendingProxy(p2pLendingProxyAddress);
+        }
+
+        p2pLendingProxy = P2pLendingProxy(
+                Clones.cloneDeterministic(
+                address(i_referenceP2pLendingProxy),
+                _getSalt(
+                    msg.sender,
+                    _clientBasisPoints
+                )
+            )
+        );
+
+        p2pLendingProxy.initialize(
+            msg.sender,
+            _clientBasisPoints
+        );
+
+        s_allProxies.push(address(p2pLendingProxy));
+    }
+
+    /// @notice Calculates the salt required for deterministic clone creation
+    /// depending on client address and client basis points
+    /// @param _clientAddress address
+    /// @param _clientBasisPoints basis points (10000 = 100%)
+    /// @return bytes32 salt
+    function _getSalt(
+        address _clientAddress,
+        uint96 _clientBasisPoints
+    ) private pure returns (bytes32)
+    {
+        return keccak256(abi.encode(_clientAddress, _clientBasisPoints));
+    }
+
     function checkCalldata(
         address _target,
         bytes4 _selector,
@@ -233,46 +286,6 @@ contract P2pLendingProxyFactory is
         }
     }
 
-    function _transferP2pSigner(
-        address _newP2pSigner
-    ) private {
-        require (_newP2pSigner != address(0), P2pLendingProxyFactory__ZeroP2pSignerAddress());
-        emit P2pLendingProxyFactory__P2pSignerTransferred(s_p2pSigner, _newP2pSigner);
-        s_p2pSigner = _newP2pSigner;
-    }
-
-    /// @notice Creates a new P2pLendingProxy contract instance if not created yet
-    function _getOrCreateP2pLendingProxy(uint96 _clientBasisPoints)
-    private
-    returns (P2pLendingProxy p2pLendingProxy)
-    {
-        address p2pLendingProxyAddress = predictP2pLendingProxyAddress(
-            msg.sender,
-            _clientBasisPoints
-        );
-        uint256 codeSize = p2pLendingProxyAddress.code.length;
-        if (codeSize > 0) {
-            return P2pLendingProxy(p2pLendingProxyAddress);
-        }
-
-        p2pLendingProxy = P2pLendingProxy(
-                Clones.cloneDeterministic(
-                address(i_referenceP2pLendingProxy),
-                _getSalt(
-                    msg.sender,
-                    _clientBasisPoints
-                )
-            )
-        );
-
-        p2pLendingProxy.initialize(
-            msg.sender,
-            _clientBasisPoints
-        );
-
-        s_allProxies.push(address(p2pLendingProxy));
-    }
-
     /// @notice Predicts the address of a P2pLendingProxy contract instance
     /// @return The address of the P2pLendingProxy contract instance
     function predictP2pLendingProxyAddress(
@@ -332,19 +345,6 @@ contract P2pLendingProxyFactory is
 
     function getAllProxies() external view returns (address[] memory) {
         return s_allProxies;
-    }
-
-    /// @notice Calculates the salt required for deterministic clone creation
-    /// depending on client address and client basis points
-    /// @param _clientAddress address
-    /// @param _clientBasisPoints basis points (10000 = 100%)
-    /// @return bytes32 salt
-    function _getSalt(
-        address _clientAddress,
-        uint96 _clientBasisPoints
-    ) private pure returns (bytes32)
-    {
-        return keccak256(abi.encode(_clientAddress, _clientBasisPoints));
     }
 
     /// @inheritdoc ERC165
