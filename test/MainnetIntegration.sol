@@ -768,6 +768,13 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_getP2pLendingProxyFactory__ZeroP2pSignerAddress_Mainnet() public {
+        vm.startPrank(p2pOperatorAddress);
+        vm.expectRevert(P2pLendingProxyFactory__ZeroP2pSignerAddress.selector);
+        factory.transferP2pSigner(address(0));
+        vm.stopPrank();
+    }
+
     function test_getHashForP2pSigner_Mainnet() public view {
         bytes32 expectedHash = keccak256(abi.encode(
             clientAddress,
