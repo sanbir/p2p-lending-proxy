@@ -509,6 +509,46 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_viewFunctions_Mainnet() public {
+        // Add this line to give tokens to the client before attempting deposit
+        deal(asset, clientAddress, DepositAmount);
+        
+        vm.startPrank(clientAddress);
+        
+        // Add this line to approve tokens for Permit2
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        // Create proxy first via factory
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        // Get the multicall data and permit details
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+
+        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        assertEq(proxy.getFactory(), address(factory));
+        assertEq(proxy.getP2pTreasury(), P2pTreasury);
+        assertEq(proxy.getClient(), clientAddress);
+        assertEq(proxy.getClientBasisPoints(), ClientBasisPoints);
+        assertEq(proxy.getTotalDeposited(asset), DepositAmount);
+    }
+
     function _happyPath_Mainnet() private {
         deal(asset, clientAddress, 10000e18);
 
