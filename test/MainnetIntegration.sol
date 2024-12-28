@@ -785,6 +785,41 @@ contract MainnetIntegration is Test {
         assertEq(actualHash, expectedHash);
     }
 
+    function test_getPermit2HashTypedData_Mainnet() public view {
+        // Create a permit single struct
+        IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
+            details: IAllowanceTransfer.PermitDetails({
+                token: asset,
+                amount: uint160(DepositAmount),
+                expiration: uint48(SigDeadline),
+                nonce: 0
+            }),
+            spender: proxyAddress,
+            sigDeadline: SigDeadline
+        });
+
+        // Get the permit hash
+        bytes32 permitHash = factory.getPermitHash(permitSingle);
+
+        // Get the typed data hash
+        bytes32 actualTypedDataHash = factory.getPermit2HashTypedData(permitHash);
+
+        // Calculate expected hash
+        bytes32 expectedTypedDataHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                Permit2Lib.PERMIT2.DOMAIN_SEPARATOR(),
+                permitHash
+            )
+        );
+
+        assertEq(actualTypedDataHash, expectedTypedDataHash);
+
+        // Test the overloaded function that takes PermitSingle directly
+        bytes32 actualTypedDataHashFromPermitSingle = factory.getPermit2HashTypedData(permitSingle);
+        assertEq(actualTypedDataHashFromPermitSingle, expectedTypedDataHash);
+    }
+
     function test_viewFunctions_Mainnet() public {
         // Add this line to give tokens to the client before attempting deposit
         deal(asset, clientAddress, DepositAmount);
@@ -994,7 +1029,7 @@ contract MainnetIntegration is Test {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: asset,
             amount: uint160(DepositAmount),
-            expiration: type(uint48).max,
+            expiration: uint48(SigDeadline),
             nonce: nonce
         });
         nonce++;
