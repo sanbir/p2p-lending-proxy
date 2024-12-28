@@ -820,6 +820,21 @@ contract MainnetIntegration is Test {
         assertEq(actualTypedDataHashFromPermitSingle, expectedTypedDataHash);
     }
 
+    function test_supportsInterface_Mainnet() public view {
+        // Test IP2pLendingProxyFactory interface support
+        bool supportsP2pLendingProxyFactory = factory.supportsInterface(type(IP2pLendingProxyFactory).interfaceId);
+        assertTrue(supportsP2pLendingProxyFactory);
+
+        // Test IERC165 interface support 
+        bool supportsERC165 = factory.supportsInterface(type(IERC165).interfaceId);
+        assertTrue(supportsERC165);
+
+        // Test non-supported interface
+        bytes4 nonSupportedInterfaceId = bytes4(keccak256("nonSupportedInterface()"));
+        bool supportsNonSupported = factory.supportsInterface(nonSupportedInterfaceId);
+        assertFalse(supportsNonSupported);
+    }
+
     function test_viewFunctions_Mainnet() public {
         // Add this line to give tokens to the client before attempting deposit
         deal(asset, clientAddress, DepositAmount);
