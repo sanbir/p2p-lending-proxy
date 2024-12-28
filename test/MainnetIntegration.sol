@@ -390,6 +390,36 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_incorrectWithdrawalCalldata_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(asset, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        // Do initial deposit
+        _doDeposit();
+
+        // Try to withdraw with incorrect calldata
+        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
+        
+        // Create incorrect withdrawal calldata (empty bytes)
+        bytes memory incorrectWithdrawalCalldata = "";
+        
+        vm.startPrank(clientAddress);
+        
+        // Update the expected error to match the actual error from AllowedCalldataChecker
+        vm.expectRevert(AllowedCalldataChecker__DataTooShort.selector);
+        
+        proxy.withdraw(
+            MorphoEthereumBundlerV2,
+            incorrectWithdrawalCalldata,
+            vault,
+            sharesBalance
+        );
+        vm.stopPrank();
+    }
+
     function _happyPath_Mainnet() private {
         deal(asset, clientAddress, 10000e18);
 
