@@ -291,6 +291,54 @@ contract MainnetIntegration is Test {
         );
     }
 
+    function test_initializeDirectlyOnProxy_Mainnet() public {
+        // Create the proxy first since we need a valid proxy address to test with
+        proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
+        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        
+        vm.startPrank(clientAddress);
+        
+        // Add this line to give initial tokens to the client
+        deal(asset, clientAddress, DepositAmount);
+        
+        // Add this line to approve tokens for Permit2
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        // This will create the proxy
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+
+        // Now try to initialize it directly
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxy__NotFactoryCalled.selector,
+                clientAddress,
+                address(factory)
+            )
+        );
+        proxy.initialize(
+            clientAddress,
+            ClientBasisPoints
+        );
+        vm.stopPrank();
+    }
+
     function _happyPath_Mainnet() private {
         deal(asset, clientAddress, 10000e18);
 
