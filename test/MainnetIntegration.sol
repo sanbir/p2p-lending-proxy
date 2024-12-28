@@ -835,6 +835,46 @@ contract MainnetIntegration is Test {
         assertFalse(supportsNonSupported);
     }
 
+    function test_p2pSignerSignatureExpired_Mainnet() public {
+        // Add this line to give tokens to the client before attempting deposit
+        deal(asset, clientAddress, DepositAmount);
+        
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+
+        // Get the multicall data and permit details
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+
+        // Get p2p signer signature with expired deadline
+        uint256 expiredDeadline = block.timestamp - 1;
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            expiredDeadline
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxyFactory__P2pSignerSignatureExpired.selector,
+                expiredDeadline
+            )
+        );
+
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            expiredDeadline,
+            p2pSignerSignature
+        );
+        vm.stopPrank();
+    }
+
     function test_viewFunctions_Mainnet() public {
         // Add this line to give tokens to the client before attempting deposit
         deal(asset, clientAddress, DepositAmount);
