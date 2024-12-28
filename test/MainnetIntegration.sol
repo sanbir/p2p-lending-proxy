@@ -339,6 +339,57 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_withdrawOnProxyOnlyCallableByClient_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(asset, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+        vm.stopPrank();
+
+        // Try to withdraw as non-client
+        vm.startPrank(nobody);
+        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        
+        // Get withdrawal calldata
+        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
+        bytes memory withdrawalCallData = _getMulticallWithdrawalCallData(sharesBalance);
+        
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxy__NotClientCalled.selector,
+                nobody,        // _msgSender (the nobody address trying to call)
+                clientAddress  // _actualClient (the actual client address)
+            )
+        );
+        
+        proxy.withdraw(
+            MorphoEthereumBundlerV2,
+            withdrawalCallData,
+            vault,
+            sharesBalance
+        );
+        vm.stopPrank();
+    }
+
     function _happyPath_Mainnet() private {
         deal(asset, clientAddress, 10000e18);
 
