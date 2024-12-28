@@ -185,6 +185,35 @@ contract MainnetIntegration is Test {
         );
     }
 
+    function test_zeroAddressAsset_Mainnet() public {
+        vm.startPrank(clientAddress);
+        
+        // Get the multicall data and permit details
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        
+        // Set token to zero address
+        permitSingle.details.token = address(0);
+        
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        vm.expectRevert(P2pLendingProxy__ZeroAddressAsset.selector);
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+    }
+
     function _happyPath_Mainnet() private {
         deal(asset, clientAddress, 10000e18);
 
