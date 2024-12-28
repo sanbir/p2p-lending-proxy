@@ -62,6 +62,9 @@ contract MainnetIntegration is Test {
         proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
 
         _setRules();
+
+        asset = USDC;
+        vault = VaultUSDC;
     }
 
     function test_HappyPath_USDT_Mainnet() external {
@@ -155,6 +158,31 @@ contract MainnetIntegration is Test {
             bytes4(0)
         );
         factory.removeCalldataRules(P2pStructs.FunctionType.None, address(0), bytes4(0));
+    }
+
+    function test_clientBasisPointsGreaterThan10000_Mainnet() public {
+        uint96 invalidBasisPoints = 10001;
+
+        vm.startPrank(clientAddress);
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            invalidBasisPoints,
+            SigDeadline
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(P2pLendingProxy__InvalidClientBasisPoints.selector, invalidBasisPoints));
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            invalidBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
     }
 
     function _happyPath_Mainnet() private {
@@ -322,12 +350,16 @@ contract MainnetIntegration is Test {
         return permit2SignatureForP2pLendingProxy;
     }
 
-    function _getP2pSignerSignature() private view returns(bytes memory) {
+    function _getP2pSignerSignature(
+        address _clientAddress,
+        uint96 _clientBasisPoints,
+        uint256 _sigDeadline
+    ) private view returns(bytes memory) {
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
-            clientAddress,
-            ClientBasisPoints,
-            SigDeadline
+            _clientAddress,
+            _clientBasisPoints,
+            _sigDeadline
         );
         bytes32 ethSignedMessageHashForP2pSigner = ECDSA.toEthSignedMessageHash(hashForP2pSigner);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(p2pSignerPrivateKey, ethSignedMessageHashForP2pSigner);
@@ -341,7 +373,11 @@ contract MainnetIntegration is Test {
             IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy
         ) = _getMulticallDataAndPermitSingleForP2pLendingProxy();
         bytes memory permit2SignatureForP2pLendingProxy = _getPermit2SignatureForP2pLendingProxy(permitSingleForP2pLendingProxy);
-        bytes memory p2pSignerSignature = _getP2pSignerSignature();
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
 
         vm.startPrank(clientAddress);
         if (IERC20(asset).allowance(clientAddress, address(Permit2Lib.PERMIT2)) == 0) {
