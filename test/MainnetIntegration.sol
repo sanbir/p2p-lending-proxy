@@ -142,6 +142,21 @@ contract MainnetIntegration is Test {
         factory.setCalldataRules(P2pStructs.FunctionType.None, address(0), bytes4(0), new P2pStructs.Rule[](0));
     }
 
+    function test_removeCalldataRules_Mainnet() public {
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.removeCalldataRules(P2pStructs.FunctionType.None, address(0), bytes4(0));
+
+        vm.startPrank(p2pOperatorAddress);
+        vm.expectEmit();
+        emit IP2pLendingProxyFactory.P2pLendingProxyFactory__CalldataRulesRemoved(
+            P2pStructs.FunctionType.None,
+            address(0),
+            bytes4(0)
+        );
+        factory.removeCalldataRules(P2pStructs.FunctionType.None, address(0), bytes4(0));
+    }
+
     function _happyPath_Mainnet() private {
         deal(asset, clientAddress, 10000e18);
 
