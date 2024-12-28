@@ -597,6 +597,63 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_calldataEndsWithRuleViolated_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(asset, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        // Do initial deposit
+        _doDeposit();
+        vm.stopPrank();
+
+        // Set rule that requires last 32 bytes to match specific value
+        bytes memory expectedEndBytes = new bytes(32);
+        for(uint i = 0; i < 32; i++) {
+            expectedEndBytes[i] = bytes1(uint8(i));
+        }
+
+        P2pStructs.Rule[] memory rules = new P2pStructs.Rule[](1);
+        rules[0] = P2pStructs.Rule({
+            ruleType: P2pStructs.RuleType.EndsWith,
+            index: 0,
+            allowedBytes: expectedEndBytes
+        });
+
+        vm.startPrank(p2pOperatorAddress);
+        factory.setCalldataRules(
+            P2pStructs.FunctionType.None,
+            vault,
+            IERC20.balanceOf.selector,
+            rules
+        );
+        vm.stopPrank();
+
+        // Create calldata with different ending bytes
+        bytes memory wrongEndBytes = new bytes(32);
+        for(uint i = 0; i < 32; i++) {
+            wrongEndBytes[i] = bytes1(uint8(100 + i));
+        }
+        bytes memory wrongCalldata = abi.encodePacked(
+            IERC20.balanceOf.selector,
+            wrongEndBytes
+        );
+
+        vm.startPrank(clientAddress);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxyFactory__CalldataEndsWithRuleViolated.selector,
+                wrongEndBytes,
+                expectedEndBytes
+            )
+        );
+        P2pLendingProxy(proxyAddress).callAnyFunction(
+            vault,
+            wrongCalldata
+        );
+        vm.stopPrank();
+    }
+
     function test_callBalanceOfViaCallAnyFunction_Mainnet() public {
         // Create proxy and do initial deposit
         deal(asset, clientAddress, DepositAmount);
