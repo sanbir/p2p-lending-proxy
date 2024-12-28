@@ -81,50 +81,33 @@ contract MainnetIntegration is Test {
         deal(asset, clientAddress, 100e6);
 
         uint256 clientAssetBalanceBefore = IERC20(asset).balanceOf(clientAddress);
-        console.log(clientAssetBalanceBefore);
-
         uint256 p2pAssetBalanceBefore = IERC20(asset).balanceOf(P2pTreasury);
-        console.log(p2pAssetBalanceBefore);
 
         _doDeposit();
 
         uint256 shares = IERC20(vault).balanceOf(proxyAddress);
-
         uint256 assetsInMorphoBefore = IERC4626(vault).convertToAssets(shares);
 
         _forward(10000000);
 
         uint256 assetsInMorphoAfter = IERC4626(vault).convertToAssets(shares);
-
         uint256 profit = assetsInMorphoAfter - assetsInMorphoBefore;
-        console.log(profit);
 
         _doWithdraw(1);
 
         uint256 clientAssetBalanceAfter = IERC20(asset).balanceOf(clientAddress);
-        console.log(clientAssetBalanceAfter);
-
         uint256 p2pAssetBalanceAfter = IERC20(asset).balanceOf(P2pTreasury);
-        console.log(p2pAssetBalanceAfter);
-
         uint256 clientBalanceChange = clientAssetBalanceAfter - clientAssetBalanceBefore;
-        console.log(clientBalanceChange);
-
         uint256 p2pBalanceChange = p2pAssetBalanceAfter - p2pAssetBalanceBefore;
-        console.log(p2pBalanceChange);
-
         uint256 sumOfBalanceChanges = clientBalanceChange + p2pBalanceChange;
-        console.log(sumOfBalanceChanges);
 
         assertApproxEqAbs(sumOfBalanceChanges, profit, 1);
 
         uint256 clientBasisPointsDeFacto = clientBalanceChange * 10_000 / sumOfBalanceChanges;
-        console.log(clientBasisPointsDeFacto);
+        uint256 p2pBasisPointsDeFacto = p2pBalanceChange * 10_000 / sumOfBalanceChanges;
 
         assertApproxEqAbs(ClientBasisPoints, clientBasisPointsDeFacto, 1);
-
-        uint256 p2pBasisPointsDeFacto = p2pBalanceChange * 10_000 / sumOfBalanceChanges;
-        console.log(p2pBasisPointsDeFacto);
+        assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
     }
 
     function _happyPath_Mainnet() private {
