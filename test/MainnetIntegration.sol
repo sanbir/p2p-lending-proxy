@@ -549,6 +549,65 @@ contract MainnetIntegration is Test {
         assertEq(proxy.getTotalDeposited(asset), DepositAmount);
     }
 
+    function test_acceptP2pOperator_Mainnet() public {
+        // Initial state check
+        assertEq(factory.getP2pOperator(), p2pOperatorAddress);
+
+        // Only operator can initiate transfer
+        vm.startPrank(nobody);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pOperator.P2pOperator__UnauthorizedAccount.selector,
+                nobody
+            )
+        );
+        factory.transferP2pOperator(nobody);
+        vm.stopPrank();
+
+        // Operator initiates transfer
+        address newOperator = makeAddr("newOperator");
+        vm.startPrank(p2pOperatorAddress);
+        factory.transferP2pOperator(newOperator);
+        
+        // Check pending operator is set
+        assertEq(factory.getPendingP2pOperator(), newOperator);
+        // Check current operator hasn't changed yet
+        assertEq(factory.getP2pOperator(), p2pOperatorAddress);
+        vm.stopPrank();
+
+        // Wrong address cannot accept transfer
+        vm.startPrank(nobody);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pOperator.P2pOperator__UnauthorizedAccount.selector,
+                nobody
+            )
+        );
+        factory.acceptP2pOperator();
+        vm.stopPrank();
+
+        // New operator accepts transfer
+        vm.startPrank(newOperator);
+        factory.acceptP2pOperator();
+        
+        // Check operator was updated
+        assertEq(factory.getP2pOperator(), newOperator);
+        // Check pending operator was cleared
+        assertEq(factory.getPendingP2pOperator(), address(0));
+        vm.stopPrank();
+
+        // Old operator can no longer call operator functions
+        vm.startPrank(p2pOperatorAddress);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pOperator.P2pOperator__UnauthorizedAccount.selector,
+                p2pOperatorAddress
+            )
+        );
+        factory.transferP2pOperator(p2pOperatorAddress);
+        vm.stopPrank();
+    }
+
     function _happyPath_Mainnet() private {
         deal(asset, clientAddress, 10000e18);
 
