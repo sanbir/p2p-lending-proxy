@@ -4,9 +4,10 @@
 pragma solidity 0.8.27;
 
 import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
+import "../src/access/P2pOperator.sol";
+import "../src/common/P2pStructs.sol";
 import "../src/mocks/IMorphoEthereumBundlerV2.sol";
 import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
-import "../src/common/P2pStructs.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
@@ -44,6 +45,8 @@ contract MainnetIntegration is Test {
 
     address proxyAddress;
 
+    uint48 nonce;
+
     function setUp() public {
         vm.createSelectFork("mainnet", 21308893);
 
@@ -57,6 +60,11 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
 
         proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
+
+        _setRules();
+
+        asset = USDC;
+        vault = VaultUSDC;
     }
 
     function test_HappyPath_USDT_Mainnet() external {
@@ -71,9 +79,583 @@ contract MainnetIntegration is Test {
         _happyPath_Mainnet();
     }
 
+    function test_profitSplit_Mainnet() public {
+        asset = USDC;
+        vault = VaultUSDC;
+        deal(asset, clientAddress, 100e6);
+
+        uint256 clientAssetBalanceBefore = IERC20(asset).balanceOf(clientAddress);
+        uint256 p2pAssetBalanceBefore = IERC20(asset).balanceOf(P2pTreasury);
+
+        _doDeposit();
+
+        uint256 shares = IERC20(vault).balanceOf(proxyAddress);
+        uint256 assetsInMorphoBefore = IERC4626(vault).convertToAssets(shares);
+
+        _forward(10000000);
+
+        uint256 assetsInMorphoAfter = IERC4626(vault).convertToAssets(shares);
+        uint256 profit = assetsInMorphoAfter - assetsInMorphoBefore;
+
+        _doWithdraw(1);
+
+        uint256 clientAssetBalanceAfter = IERC20(asset).balanceOf(clientAddress);
+        uint256 p2pAssetBalanceAfter = IERC20(asset).balanceOf(P2pTreasury);
+        uint256 clientBalanceChange = clientAssetBalanceAfter - clientAssetBalanceBefore;
+        uint256 p2pBalanceChange = p2pAssetBalanceAfter - p2pAssetBalanceBefore;
+        uint256 sumOfBalanceChanges = clientBalanceChange + p2pBalanceChange;
+
+        assertApproxEqAbs(sumOfBalanceChanges, profit, 1);
+
+        uint256 clientBasisPointsDeFacto = clientBalanceChange * 10_000 / sumOfBalanceChanges;
+        uint256 p2pBasisPointsDeFacto = p2pBalanceChange * 10_000 / sumOfBalanceChanges;
+
+        assertApproxEqAbs(ClientBasisPoints, clientBasisPointsDeFacto, 1);
+        assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
+    }
+
+    function test_transferP2pSigner_Mainnet() public {
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.transferP2pSigner(nobody);
+
+        address oldSigner = factory.getP2pSigner();
+        assertEq(oldSigner, p2pSignerAddress);
+
+        vm.startPrank(p2pOperatorAddress);
+        factory.transferP2pSigner(nobody);
+
+        address newSigner = factory.getP2pSigner();
+        assertEq(newSigner, nobody);
+    }
+
+    function test_setCalldataRules_Mainnet() public {
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.setCalldataRules(P2pStructs.FunctionType.None, address(0), bytes4(0), new P2pStructs.Rule[](0));
+
+        vm.startPrank(p2pOperatorAddress);
+        vm.expectEmit();
+        emit IP2pLendingProxyFactory.P2pLendingProxyFactory__CalldataRulesSet(
+            P2pStructs.FunctionType.None,
+            address(0),
+            bytes4(0),
+            new P2pStructs.Rule[](0)
+        );
+        factory.setCalldataRules(P2pStructs.FunctionType.None, address(0), bytes4(0), new P2pStructs.Rule[](0));
+    }
+
+    function test_removeCalldataRules_Mainnet() public {
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.removeCalldataRules(P2pStructs.FunctionType.None, address(0), bytes4(0));
+
+        vm.startPrank(p2pOperatorAddress);
+        vm.expectEmit();
+        emit IP2pLendingProxyFactory.P2pLendingProxyFactory__CalldataRulesRemoved(
+            P2pStructs.FunctionType.None,
+            address(0),
+            bytes4(0)
+        );
+        factory.removeCalldataRules(P2pStructs.FunctionType.None, address(0), bytes4(0));
+    }
+
+    function test_clientBasisPointsGreaterThan10000_Mainnet() public {
+        uint96 invalidBasisPoints = 10001;
+
+        vm.startPrank(clientAddress);
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            invalidBasisPoints,
+            SigDeadline
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(P2pLendingProxy__InvalidClientBasisPoints.selector, invalidBasisPoints));
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            invalidBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+    }
+
+    function test_zeroAddressAsset_Mainnet() public {
+        vm.startPrank(clientAddress);
+        
+        // Get the multicall data and permit details
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        
+        // Set token to zero address
+        permitSingle.details.token = address(0);
+        
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        vm.expectRevert(P2pLendingProxy__ZeroAddressAsset.selector);
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+    }
+
+    function test_zeroAssetAmount_Mainnet() public {
+        vm.startPrank(clientAddress);
+        
+        // Get the multicall data and permit details
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        
+        // Set amount to zero
+        permitSingle.details.amount = 0;
+        
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        vm.expectRevert(P2pLendingProxy__ZeroAssetAmount.selector);
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+    }
+
+    function test_depositDirectlyOnProxy_Mainnet() public {
+        vm.startPrank(clientAddress);
+        
+        // Add this line to give initial tokens to the client
+        deal(asset, clientAddress, DepositAmount);
+        
+        // Add this line to approve tokens for Permit2
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        // Get the multicall data and permit details
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+
+        // Create proxy first via factory
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+
+        // Now try to call deposit directly on the proxy
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxy__NotFactoryCalled.selector,
+                clientAddress,
+                address(factory)
+            )
+        );
+        P2pLendingProxy(proxyAddress).deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature
+        );
+    }
+
+    function test_initializeDirectlyOnProxy_Mainnet() public {
+        // Create the proxy first since we need a valid proxy address to test with
+        proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
+        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        
+        vm.startPrank(clientAddress);
+        
+        // Add this line to give initial tokens to the client
+        deal(asset, clientAddress, DepositAmount);
+        
+        // Add this line to approve tokens for Permit2
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        // This will create the proxy
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+
+        // Now try to initialize it directly
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxy__NotFactoryCalled.selector,
+                clientAddress,
+                address(factory)
+            )
+        );
+        proxy.initialize(
+            clientAddress,
+            ClientBasisPoints
+        );
+        vm.stopPrank();
+    }
+
+    function test_withdrawOnProxyOnlyCallableByClient_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(asset, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+        vm.stopPrank();
+
+        // Try to withdraw as non-client
+        vm.startPrank(nobody);
+        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        
+        // Get withdrawal calldata
+        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
+        bytes memory withdrawalCallData = _getMulticallWithdrawalCallData(sharesBalance);
+        
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxy__NotClientCalled.selector,
+                nobody,        // _msgSender (the nobody address trying to call)
+                clientAddress  // _actualClient (the actual client address)
+            )
+        );
+        
+        proxy.withdraw(
+            MorphoEthereumBundlerV2,
+            withdrawalCallData,
+            vault,
+            sharesBalance
+        );
+        vm.stopPrank();
+    }
+
+    function test_incorrectWithdrawalCalldata_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(asset, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        // Do initial deposit
+        _doDeposit();
+
+        // Try to withdraw with incorrect calldata
+        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
+        
+        // Create incorrect withdrawal calldata (empty bytes)
+        bytes memory incorrectWithdrawalCalldata = "";
+        
+        vm.startPrank(clientAddress);
+        
+        // Update the expected error to match the actual error from AllowedCalldataChecker
+        vm.expectRevert(AllowedCalldataChecker__DataTooShort.selector);
+        
+        proxy.withdraw(
+            MorphoEthereumBundlerV2,
+            incorrectWithdrawalCalldata,
+            vault,
+            sharesBalance
+        );
+        vm.stopPrank();
+    }
+
+    function test_withdrawViaCallAnyFunction_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(asset, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        // Do initial deposit
+        _doDeposit();
+
+        // Try to withdraw using callAnyFunction
+        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
+        bytes memory withdrawalCallData = _getMulticallWithdrawalCallData(sharesBalance);
+        
+        vm.startPrank(clientAddress);
+        
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxyFactory__NoRulesDefined.selector,
+                P2pStructs.FunctionType.None,
+                MorphoEthereumBundlerV2,
+                IMorphoEthereumBundlerV2.multicall.selector
+            )
+        );
+        
+        proxy.callAnyFunction(
+            MorphoEthereumBundlerV2,
+            withdrawalCallData
+        );
+        vm.stopPrank();
+    }
+
+    function test_callBalanceOfViaCallAnyFunction_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(asset, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        // Do initial deposit
+        _doDeposit();
+        vm.stopPrank();
+
+        bytes memory balanceOfCalldata = abi.encodeWithSelector(
+            IERC20.balanceOf.selector,
+            proxyAddress
+        );
+
+        vm.startPrank(clientAddress);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxyFactory__NoRulesDefined.selector,
+                P2pStructs.FunctionType.None,
+                vault,
+                IERC20.balanceOf.selector
+            )
+        );
+        P2pLendingProxy(proxyAddress).callAnyFunction(
+            vault,
+            balanceOfCalldata
+        );
+        vm.stopPrank();
+
+        P2pStructs.Rule[] memory rules = new P2pStructs.Rule[](1);
+        rules[0] = P2pStructs.Rule({
+            ruleType: P2pStructs.RuleType.AnyCalldata,
+            index: 0,
+            allowedBytes: ""
+        });
+
+        vm.startPrank(p2pOperatorAddress);
+        factory.setCalldataRules(
+            P2pStructs.FunctionType.None, // This is correct
+            vault,
+            IERC20.balanceOf.selector,
+            rules
+        );
+        vm.stopPrank();
+
+        // Call balanceOf via callAnyFunction
+        vm.startPrank(clientAddress);
+        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        proxy.callAnyFunction(
+            vault,
+            balanceOfCalldata
+        );
+        vm.stopPrank();
+    }
+
+    function test_viewFunctions_Mainnet() public {
+        // Add this line to give tokens to the client before attempting deposit
+        deal(asset, clientAddress, DepositAmount);
+        
+        vm.startPrank(clientAddress);
+        
+        // Add this line to approve tokens for Permit2
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        
+        // Create proxy first via factory
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        // Get the multicall data and permit details
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+
+        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        assertEq(proxy.getFactory(), address(factory));
+        assertEq(proxy.getP2pTreasury(), P2pTreasury);
+        assertEq(proxy.getClient(), clientAddress);
+        assertEq(proxy.getClientBasisPoints(), ClientBasisPoints);
+        assertEq(proxy.getTotalDeposited(asset), DepositAmount);
+        assertEq(factory.getP2pSigner(), p2pSignerAddress);
+        assertEq(factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints), proxyAddress);
+    }
+
+    function test_acceptP2pOperator_Mainnet() public {
+        // Initial state check
+        assertEq(factory.getP2pOperator(), p2pOperatorAddress);
+
+        // Only operator can initiate transfer
+        vm.startPrank(nobody);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pOperator.P2pOperator__UnauthorizedAccount.selector,
+                nobody
+            )
+        );
+        factory.transferP2pOperator(nobody);
+        vm.stopPrank();
+
+        // Operator initiates transfer
+        address newOperator = makeAddr("newOperator");
+        vm.startPrank(p2pOperatorAddress);
+        factory.transferP2pOperator(newOperator);
+        
+        // Check pending operator is set
+        assertEq(factory.getPendingP2pOperator(), newOperator);
+        // Check current operator hasn't changed yet
+        assertEq(factory.getP2pOperator(), p2pOperatorAddress);
+        vm.stopPrank();
+
+        // Wrong address cannot accept transfer
+        vm.startPrank(nobody);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pOperator.P2pOperator__UnauthorizedAccount.selector,
+                nobody
+            )
+        );
+        factory.acceptP2pOperator();
+        vm.stopPrank();
+
+        // New operator accepts transfer
+        vm.startPrank(newOperator);
+        factory.acceptP2pOperator();
+        
+        // Check operator was updated
+        assertEq(factory.getP2pOperator(), newOperator);
+        // Check pending operator was cleared
+        assertEq(factory.getPendingP2pOperator(), address(0));
+        vm.stopPrank();
+
+        // Old operator can no longer call operator functions
+        vm.startPrank(p2pOperatorAddress);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pOperator.P2pOperator__UnauthorizedAccount.selector,
+                p2pOperatorAddress
+            )
+        );
+        factory.transferP2pOperator(p2pOperatorAddress);
+        vm.stopPrank();
+    }
+
     function _happyPath_Mainnet() private {
         deal(asset, clientAddress, 10000e18);
 
+        uint256 assetBalanceBefore = IERC20(asset).balanceOf(clientAddress);
+        uint256 sharesBalanceBefore = IERC20(vault).balanceOf(proxyAddress);
+        assertEq(sharesBalanceBefore, 0);
+
+        _doDeposit();
+
+        uint256 assetBalanceAfter1 = IERC20(asset).balanceOf(clientAddress);
+        uint256 sharesBalanceAfter1 = IERC20(vault).balanceOf(proxyAddress);
+        assertNotEq(sharesBalanceAfter1, 0);
+        assertEq(assetBalanceBefore - assetBalanceAfter1, DepositAmount);
+
+        _doDeposit();
+
+        uint256 assetBalanceAfter2 = IERC20(asset).balanceOf(clientAddress);
+        uint256 sharesBalanceAfter2 = IERC20(vault).balanceOf(proxyAddress);
+
+        assertEq(assetBalanceAfter1 - assetBalanceAfter2, DepositAmount);
+        assertEq(sharesBalanceAfter2 - sharesBalanceAfter1, sharesBalanceAfter1);
+
+        _doDeposit();
+        _doDeposit();
+
+        uint256 assetBalanceAfterAllDeposits = IERC20(asset).balanceOf(clientAddress);
+
+        _doWithdraw(10);
+
+        uint256 assetBalanceAfterWithdraw1 = IERC20(asset).balanceOf(clientAddress);
+
+        assertApproxEqAbs(assetBalanceAfterWithdraw1 - assetBalanceAfterAllDeposits, DepositAmount * 4 / 10, 1);
+
+        _doWithdraw(5);
+        _doWithdraw(3);
+        _doWithdraw(2);
+        _doWithdraw(1);
+
+        uint256 assetBalanceAfterAllWithdrawals = IERC20(asset).balanceOf(clientAddress);
+        uint256 sharesBalanceAfterAfterAllWithdrawals = IERC20(vault).balanceOf(proxyAddress);
+
+        assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore, 1);
+        assertEq(sharesBalanceAfterAfterAllWithdrawals, 0);
+    }
+
+    function _setRules() private {
         // allowed calldata for factory
         bytes4 multicallSelector = IMorphoEthereumBundlerV2.multicall.selector;
 
@@ -129,14 +711,17 @@ contract MainnetIntegration is Test {
             rulesWithdrawal
         );
         vm.stopPrank();
+    }
 
+    function _getMulticallDataAndPermitSingleForP2pLendingProxy() private returns(bytes memory, IAllowanceTransfer.PermitSingle memory) {
         // morpho approve2
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: asset,
             amount: uint160(DepositAmount),
             expiration: type(uint48).max,
-            nonce: 0
+            nonce: nonce
         });
+        nonce++;
         IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
             details: permitDetails,
             spender: MorphoEthereumBundlerV2,
@@ -179,22 +764,50 @@ contract MainnetIntegration is Test {
             spender: proxyAddress,
             sigDeadline: SigDeadline
         });
+
+        return (multicallCallData, permitSingleForP2pLendingProxy);
+    }
+
+    function _getPermit2SignatureForP2pLendingProxy(IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy) private view returns(bytes memory) {
         bytes32 permitSingleForP2pLendingProxyHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingleForP2pLendingProxy));
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(clientPrivateKey, permitSingleForP2pLendingProxyHash);
         bytes memory permit2SignatureForP2pLendingProxy = abi.encodePacked(r1, s1, v1);
+        return permit2SignatureForP2pLendingProxy;
+    }
 
+    function _getP2pSignerSignature(
+        address _clientAddress,
+        uint96 _clientBasisPoints,
+        uint256 _sigDeadline
+    ) private view returns(bytes memory) {
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
-            clientAddress,
-            ClientBasisPoints,
-            SigDeadline
+            _clientAddress,
+            _clientBasisPoints,
+            _sigDeadline
         );
         bytes32 ethSignedMessageHashForP2pSigner = ECDSA.toEthSignedMessageHash(hashForP2pSigner);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(p2pSignerPrivateKey, ethSignedMessageHashForP2pSigner);
         bytes memory p2pSignerSignature = abi.encodePacked(r2, s2, v2);
+        return p2pSignerSignature;
+    }
+
+    function _doDeposit() private {
+        (
+            bytes memory multicallCallData,
+            IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy
+        ) = _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        bytes memory permit2SignatureForP2pLendingProxy = _getPermit2SignatureForP2pLendingProxy(permitSingleForP2pLendingProxy);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
 
         vm.startPrank(clientAddress);
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        if (IERC20(asset).allowance(clientAddress, address(Permit2Lib.PERMIT2)) == 0) {
+            IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        }
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
@@ -206,14 +819,14 @@ contract MainnetIntegration is Test {
             p2pSignerSignature
         );
         vm.stopPrank();
+    }
 
-        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
-
+    function _getMulticallWithdrawalCallData(uint256 sharesToWithdraw) private view returns(bytes memory) {
         // morpho erc4626Redeem
-        uint256 assets = IERC4626(vault).convertToAssets(sharesBalance);
+        uint256 assets = IERC4626(vault).convertToAssets(sharesToWithdraw);
         bytes memory erc4626RedeemCallData = abi.encodeCall(IMorphoEthereumBundlerV2.erc4626Redeem, (
             vault,
-            sharesBalance,
+            sharesToWithdraw,
             (assets * 100) / 102,
             proxyAddress,
             proxyAddress
@@ -224,6 +837,13 @@ contract MainnetIntegration is Test {
         dataForMulticallWithdrawal[0] = erc4626RedeemCallData;
         bytes memory multicallWithdrawalCallData = abi.encodeCall(IMorphoEthereumBundlerV2.multicall, (dataForMulticallWithdrawal));
 
+        return multicallWithdrawalCallData;
+    }
+
+    function _doWithdraw(uint256 denominator) private {
+        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
+        bytes memory multicallWithdrawalCallData = _getMulticallWithdrawalCallData(sharesBalance / denominator);
+
         vm.startPrank(clientAddress);
         P2pLendingProxy(proxyAddress).withdraw(
             MorphoEthereumBundlerV2,
@@ -232,5 +852,11 @@ contract MainnetIntegration is Test {
             sharesBalance
         );
         vm.stopPrank();
+    }
+
+    /// @dev Rolls & warps the given number of blocks forward the blockchain.
+    function _forward(uint256 blocks) internal {
+        vm.roll(block.number + blocks);
+        vm.warp(block.timestamp + blocks);
     }
 }
