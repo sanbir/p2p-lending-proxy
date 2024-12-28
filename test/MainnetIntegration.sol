@@ -711,6 +711,62 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_getP2pLendingProxyFactory__NoRulesDefined_Mainnet() public {
+        // Create proxy first via factory
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        // Get the multicall data and permit details
+        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
+            _getMulticallDataAndPermitSingleForP2pLendingProxy();
+        
+        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+
+        // Add this line to give tokens to the client before attempting deposit
+        deal(asset, clientAddress, DepositAmount);
+        
+        vm.startPrank(clientAddress);
+        
+        // Add this line to approve tokens for Permit2
+        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+
+        // Try to call a function with no rules defined
+        bytes memory someCalldata = abi.encodeWithSelector(
+            IERC20.transfer.selector,
+            address(0),
+            0
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pLendingProxyFactory__NoRulesDefined.selector,
+                P2pStructs.FunctionType.None,
+                asset,
+                IERC20.transfer.selector
+            )
+        );
+
+        P2pLendingProxy(proxyAddress).callAnyFunction(
+            asset,
+            someCalldata
+        );
+
+        vm.stopPrank();
+    }
+
     function test_viewFunctions_Mainnet() public {
         // Add this line to give tokens to the client before attempting deposit
         deal(asset, clientAddress, DepositAmount);
