@@ -47,6 +47,10 @@ error P2pLendingProxyFactory__CalldataEndsWithRuleViolated(
     bytes _actual,
     bytes _expected
 );
+error P2pLendingProxyFactory__ZeroTrustedDistributorAddress();
+error P2pLendingProxyFactory__DistributorNotTrusted(
+    address _distributor
+);
 
 contract P2pLendingProxyFactory is
     AllowedCalldataChecker,
@@ -69,6 +73,9 @@ contract P2pLendingProxyFactory is
     address private s_p2pSigner;
 
     address[] private s_allProxies;
+
+    // distributor address => true
+    mapping(address => bool) private s_trustedDistributors;
 
     modifier p2pSignerSignatureShouldNotExpire(uint256 _p2pSignerSigDeadline) {
         require (
@@ -97,8 +104,16 @@ contract P2pLendingProxyFactory is
         _;
     }
 
-    constructor(address _p2pSigner, address _p2pTreasury) P2pOperator(msg.sender) {
-        i_referenceP2pLendingProxy = new P2pLendingProxy(address(this), _p2pTreasury);
+    constructor(
+        address _morphoBundler,
+        address _p2pSigner,
+        address _p2pTreasury
+    ) P2pOperator(msg.sender) {
+        i_referenceP2pLendingProxy = new P2pLendingProxy(
+            _morphoBundler,
+            address(this),
+            _p2pTreasury
+        );
 
         _transferP2pSigner(_p2pSigner);
     }
@@ -135,6 +150,24 @@ contract P2pLendingProxyFactory is
             _contract,
             _selector
         );
+    }
+
+    function setTrustedDistributor(
+        address _newTrustedDistributor
+    ) external onlyP2pOperator {
+        require (
+            _newTrustedDistributor != address(0),
+            P2pLendingProxyFactory__ZeroTrustedDistributorAddress()
+        );
+        emit P2pLendingProxyFactory__TrustedDistributorSet(_newTrustedDistributor);
+        s_trustedDistributors[_newTrustedDistributor] = true;
+    }
+
+    function removeTrustedDistributor(
+        address _trustedDistributor
+    ) external onlyP2pOperator {
+        emit P2pLendingProxyFactory__TrustedDistributorRemoved(_trustedDistributor);
+        s_trustedDistributors[_trustedDistributor] = false;
     }
 
     function deposit(
@@ -284,6 +317,23 @@ contract P2pLendingProxyFactory is
             }
             // if (ruleType == RuleType.AnyCalldata) do nothing
         }
+    }
+
+    function checkMorphoUrdClaim(
+        address _p2pOperatorToCheck,
+        bool _shouldCheckP2pOperator,
+        address _distributor
+    ) public view {
+        if (_shouldCheckP2pOperator) {
+            require(
+                getP2pOperator() == _p2pOperatorToCheck,
+                P2pOperator__UnauthorizedAccount(_p2pOperatorToCheck)
+            );
+        }
+        require(
+            s_trustedDistributors[_distributor],
+            P2pLendingProxyFactory__DistributorNotTrusted(_distributor)
+        );
     }
 
     /// @notice Predicts the address of a P2pLendingProxy contract instance

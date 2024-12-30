@@ -4,7 +4,7 @@
 pragma solidity 0.8.27;
 
 import "../lib/forge-std/src/Vm.sol";
-import "../src/mocks/IMorphoEthereumBundlerV2.sol";
+import "../src/common/IMorphoBundler.sol";
 import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
 import {Script} from "forge-std/Script.sol";
 
@@ -17,7 +17,7 @@ contract Deploy is Script {
         returns (P2pLendingProxyFactory factory, P2pLendingProxy proxy)
     {
         // allowed calldata for factory
-        bytes4 multicallSelector = IMorphoEthereumBundlerV2.multicall.selector;
+        bytes4 multicallSelector = IMorphoBundler.multicall.selector;
 
         P2pStructs.Rule memory rule0Deposit = P2pStructs.Rule({ // approve2
             ruleType: P2pStructs.RuleType.StartsWith,
@@ -59,6 +59,7 @@ contract Deploy is Script {
 
         vm.startBroadcast(deployerKey);
             factory = new P2pLendingProxyFactory(
+        MorphoEthereumBundlerV2,
                 wallet.addr,
                 P2pTreasury
             );
