@@ -35,4 +35,12 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     event P2pLendingProxy__CalledAsAnyFunction(
         address indexed _lendingProtocolAddress
     );
+
+    event P2pLendingProxy__ClaimedMorphoUrd(
+        address _distributor,
+        address _reward,
+        uint256 _totalAmount,
+        uint256 _p2pAmount,
+        uint256 _clientAmount
+    );
 }

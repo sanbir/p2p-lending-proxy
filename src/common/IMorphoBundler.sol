@@ -5,7 +5,7 @@ pragma solidity 0.8.27;
 
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
 
-interface IMorphoEthereumBundlerV2 {
+interface IMorphoBundler {
     /// @notice Approves the given `amount` of `asset` from the initiator to be spent by `permitSingle.spender` via
     /// Permit2 with the given `deadline` & EIP-712 `signature`.
     /// @param permitSingle The `PermitSingle` struct.
@@ -45,6 +45,23 @@ interface IMorphoEthereumBundlerV2 {
     function erc4626Redeem(address vault, uint256 shares, uint256 minAssets, address receiver, address owner)
     external
     payable;
+
+    /// @notice Claims `amount` of `reward` on behalf of `account` on the given rewards distributor, using `proof`.
+    /// @dev Assumes the given distributor implements IUniversalRewardsDistributor.
+    /// @param distributor The address of the reward distributor contract.
+    /// @param account The address of the owner of the rewards (also the address that will receive the rewards).
+    /// @param reward The address of the token reward.
+    /// @param amount The amount of the reward token to claim.
+    /// @param proof The proof.
+    /// @param skipRevert Whether to avoid reverting the call in case the proof is frontrunned.
+    function urdClaim(
+        address distributor,
+        address account,
+        address reward,
+        uint256 amount,
+        bytes32[] calldata proof,
+        bool skipRevert
+    ) external payable;
 
     /// @notice Executes a series of delegate calls to the contract itself.
     /// @dev Locks the initiator so that the sender can uniquely be identified in callbacks.

@@ -29,6 +29,14 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
         bytes4 indexed _selector
     );
 
+    event P2pLendingProxyFactory__TrustedDistributorSet(
+        address indexed _newTrustedDistributor
+    );
+
+    event P2pLendingProxyFactory__TrustedDistributorRemoved(
+        address indexed _trustedDistributor
+    );
+
     event P2pLendingProxyFactory__Deposited(
         address indexed _client,
         uint96 indexed _clientBasisPoints
@@ -78,4 +86,10 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @notice Returns a template set by P2P to be used for new P2pLendingProxy instances
     /// @return a template set by P2P to be used for new P2pLendingProxy instances
     function getReferenceP2pLendingProxy() external view returns (address);
+
+    function checkMorphoUrdClaim(
+        address _p2pOperatorToCheck,
+        bool _shouldCheckP2pOperator,
+        address _distributor
+    ) external view;
 }

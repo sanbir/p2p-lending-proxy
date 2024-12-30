@@ -6,7 +6,7 @@ pragma solidity 0.8.27;
 import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../src/access/P2pOperator.sol";
 import "../src/common/P2pStructs.sol";
-import "../src/mocks/IMorphoEthereumBundlerV2.sol";
+import "../src/common/IMorphoBundler.sol";
 import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
@@ -57,7 +57,11 @@ contract MainnetIntegration is Test {
         nobody = makeAddr("nobody");
 
         vm.startPrank(p2pOperatorAddress);
-        factory = new P2pLendingProxyFactory(p2pSignerAddress, P2pTreasury);
+        factory = new P2pLendingProxyFactory(
+            MorphoEthereumBundlerV2,
+            p2pSignerAddress,
+            P2pTreasury
+        );
         vm.stopPrank();
 
         proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
@@ -442,7 +446,7 @@ contract MainnetIntegration is Test {
                 P2pLendingProxyFactory__NoRulesDefined.selector,
                 P2pStructs.FunctionType.None,
                 MorphoEthereumBundlerV2,
-                IMorphoEthereumBundlerV2.multicall.selector
+                IMorphoBundler.multicall.selector
             )
         );
         
@@ -1070,7 +1074,7 @@ contract MainnetIntegration is Test {
 
     function _setRules() private {
         // allowed calldata for factory
-        bytes4 multicallSelector = IMorphoEthereumBundlerV2.multicall.selector;
+        bytes4 multicallSelector = IMorphoBundler.multicall.selector;
 
         P2pStructs.Rule memory rule0Deposit = P2pStructs.Rule({ // approve2
             ruleType: P2pStructs.RuleType.StartsWith,
@@ -1143,21 +1147,21 @@ contract MainnetIntegration is Test {
         bytes32 permitSingleHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingle));
         (uint8 v0, bytes32 r0, bytes32 s0) = vm.sign(clientPrivateKey, permitSingleHash);
         bytes memory signatureForApprove2 = abi.encodePacked(r0, s0, v0);
-        bytes memory approve2CallData = abi.encodeCall(IMorphoEthereumBundlerV2.approve2, (
+        bytes memory approve2CallData = abi.encodeCall(IMorphoBundler.approve2, (
             permitSingle,
             signatureForApprove2,
             true
         ));
 
         // morpho transferFrom2
-        bytes memory transferFrom2CallData = abi.encodeCall(IMorphoEthereumBundlerV2.transferFrom2, (
+        bytes memory transferFrom2CallData = abi.encodeCall(IMorphoBundler.transferFrom2, (
             asset,
             DepositAmount
         ));
 
         // morpho erc4626Deposit
         uint256 shares = IERC4626(vault).convertToShares(DepositAmount);
-        bytes memory erc4626Deposit2CallData = abi.encodeCall(IMorphoEthereumBundlerV2.erc4626Deposit, (
+        bytes memory erc4626Deposit2CallData = abi.encodeCall(IMorphoBundler.erc4626Deposit, (
             vault,
             DepositAmount,
             (shares * 100) / 102,
@@ -1169,7 +1173,7 @@ contract MainnetIntegration is Test {
         dataForMulticall[0] = approve2CallData;
         dataForMulticall[1] = transferFrom2CallData;
         dataForMulticall[2] = erc4626Deposit2CallData;
-        bytes memory multicallCallData = abi.encodeCall(IMorphoEthereumBundlerV2.multicall, (dataForMulticall));
+        bytes memory multicallCallData = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
 
         // data for factory
         IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy = IAllowanceTransfer.PermitSingle({
@@ -1237,7 +1241,7 @@ contract MainnetIntegration is Test {
     function _getMulticallWithdrawalCallData(uint256 sharesToWithdraw) private view returns(bytes memory) {
         // morpho erc4626Redeem
         uint256 assets = IERC4626(vault).convertToAssets(sharesToWithdraw);
-        bytes memory erc4626RedeemCallData = abi.encodeCall(IMorphoEthereumBundlerV2.erc4626Redeem, (
+        bytes memory erc4626RedeemCallData = abi.encodeCall(IMorphoBundler.erc4626Redeem, (
             vault,
             sharesToWithdraw,
             (assets * 100) / 102,
@@ -1248,7 +1252,7 @@ contract MainnetIntegration is Test {
         // morpho multicall
         bytes[] memory dataForMulticallWithdrawal = new bytes[](1);
         dataForMulticallWithdrawal[0] = erc4626RedeemCallData;
-        bytes memory multicallWithdrawalCallData = abi.encodeCall(IMorphoEthereumBundlerV2.multicall, (dataForMulticallWithdrawal));
+        bytes memory multicallWithdrawalCallData = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticallWithdrawal));
 
         return multicallWithdrawalCallData;
     }
