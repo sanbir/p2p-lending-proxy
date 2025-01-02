@@ -81,15 +81,12 @@ contract MainnetMorphoClaiming is Test {
         merkle = new Merkle();
     }
 
-    function test_MorphoClaiming_Mainnet() public {
+    function test_MorphoClaimingByClient_Mainnet() public {
         uint256 claimable = 10 ether;
 
-        asset = USDC;
-        vault = VaultUSDC;
         deal(asset, clientAddress, 100e6);
 
         _doDeposit();
-        _forward(10000000);
 
         uint256 clientBalanceBefore = IERC20(MORPHO_token).balanceOf(clientAddress);
         uint256 p2pBalanceBefore = IERC20(MORPHO_token).balanceOf(P2pTreasury);
@@ -124,6 +121,42 @@ contract MainnetMorphoClaiming is Test {
         assertEq(p2pBalanceAfter - p2pBalanceBefore, claimable * (10_000 - ClientBasisPoints) / 10_000);
     }
 
+    function test_MorphoClaimingByOperator_Mainnet() public {
+        uint256 claimable = 10 ether;
+
+        deal(asset, clientAddress, 100e6);
+
+        _doDeposit();
+
+        uint256 clientBalanceBefore = IERC20(MORPHO_token).balanceOf(clientAddress);
+        uint256 p2pBalanceBefore = IERC20(MORPHO_token).balanceOf(P2pTreasury);
+
+        bytes32[] memory tree = _setupRewards(claimable);
+        bytes32[] memory proof = merkle.getProof(tree, 0);
+
+        vm.startPrank(p2pOperatorAddress);
+        vm.expectRevert(abi.encodeWithSelector(P2pLendingProxyFactory__DistributorNotTrusted.selector, distributor));
+        P2pLendingProxy(proxyAddress).morphoUrdClaim(
+            distributor,
+            MORPHO_token,
+            claimable,
+            proof
+        );
+        factory.setTrustedDistributor(distributor);
+        P2pLendingProxy(proxyAddress).morphoUrdClaim(
+            distributor,
+            MORPHO_token,
+            claimable,
+            proof
+        );
+
+        uint256 clientBalanceAfter = IERC20(MORPHO_token).balanceOf(clientAddress);
+        uint256 p2pBalanceAfter = IERC20(MORPHO_token).balanceOf(P2pTreasury);
+
+        assertEq(clientBalanceAfter - clientBalanceBefore, claimable * ClientBasisPoints / 10_000);
+        assertEq(p2pBalanceAfter - p2pBalanceBefore, claimable * (10_000 - ClientBasisPoints) / 10_000);
+    }
+
     function _setupRewards(uint256 claimable) internal returns (bytes32[] memory tree) {
         tree = new bytes32[](2);
         tree[0] = keccak256(bytes.concat(keccak256(abi.encode(proxyAddress, MORPHO_token, claimable))));
@@ -132,51 +165,6 @@ contract MainnetMorphoClaiming is Test {
 
         vm.prank(MORPHO_OWNER);
         IUniversalRewardsDistributor(distributor).setRoot(root, bytes32(0));
-    }
-
-    function _happyPath_Mainnet() private {
-        deal(asset, clientAddress, 10000e18);
-
-        uint256 assetBalanceBefore = IERC20(asset).balanceOf(clientAddress);
-        uint256 sharesBalanceBefore = IERC20(vault).balanceOf(proxyAddress);
-        assertEq(sharesBalanceBefore, 0);
-
-        _doDeposit();
-
-        uint256 assetBalanceAfter1 = IERC20(asset).balanceOf(clientAddress);
-        uint256 sharesBalanceAfter1 = IERC20(vault).balanceOf(proxyAddress);
-        assertNotEq(sharesBalanceAfter1, 0);
-        assertEq(assetBalanceBefore - assetBalanceAfter1, DepositAmount);
-
-        _doDeposit();
-
-        uint256 assetBalanceAfter2 = IERC20(asset).balanceOf(clientAddress);
-        uint256 sharesBalanceAfter2 = IERC20(vault).balanceOf(proxyAddress);
-
-        assertEq(assetBalanceAfter1 - assetBalanceAfter2, DepositAmount);
-        assertEq(sharesBalanceAfter2 - sharesBalanceAfter1, sharesBalanceAfter1);
-
-        _doDeposit();
-        _doDeposit();
-
-        uint256 assetBalanceAfterAllDeposits = IERC20(asset).balanceOf(clientAddress);
-
-        _doWithdraw(10);
-
-        uint256 assetBalanceAfterWithdraw1 = IERC20(asset).balanceOf(clientAddress);
-
-        assertApproxEqAbs(assetBalanceAfterWithdraw1 - assetBalanceAfterAllDeposits, DepositAmount * 4 / 10, 1);
-
-        _doWithdraw(5);
-        _doWithdraw(3);
-        _doWithdraw(2);
-        _doWithdraw(1);
-
-        uint256 assetBalanceAfterAllWithdrawals = IERC20(asset).balanceOf(clientAddress);
-        uint256 sharesBalanceAfterAfterAllWithdrawals = IERC20(vault).balanceOf(proxyAddress);
-
-        assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore, 1);
-        assertEq(sharesBalanceAfterAfterAllWithdrawals, 0);
     }
 
     function _setRules() private {
@@ -362,25 +350,5 @@ contract MainnetMorphoClaiming is Test {
         bytes memory multicallWithdrawalCallData = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticallWithdrawal));
 
         return multicallWithdrawalCallData;
-    }
-
-    function _doWithdraw(uint256 denominator) private {
-        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
-        bytes memory multicallWithdrawalCallData = _getMulticallWithdrawalCallData(sharesBalance / denominator);
-
-        vm.startPrank(clientAddress);
-        P2pLendingProxy(proxyAddress).withdraw(
-            MorphoEthereumBundlerV2,
-            multicallWithdrawalCallData,
-            vault,
-            sharesBalance
-        );
-        vm.stopPrank();
-    }
-
-    /// @dev Rolls & warps the given number of blocks forward the blockchain.
-    function _forward(uint256 blocks) internal {
-        vm.roll(block.number + blocks);
-        vm.warp(block.timestamp + blocks);
     }
 }
