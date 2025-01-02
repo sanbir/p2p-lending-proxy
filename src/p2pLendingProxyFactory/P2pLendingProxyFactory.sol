@@ -15,43 +15,67 @@ import "../common/P2pStructs.sol";
 import "../p2pLendingProxy/P2pLendingProxy.sol";
 import "./IP2pLendingProxyFactory.sol";
 
+/// @dev Error when the P2pSigner address is zero
 error P2pLendingProxyFactory__ZeroP2pSignerAddress();
+
+/// @dev Error when the P2pSigner signature is invalid
 error P2pLendingProxyFactory__InvalidP2pSignerSignature();
+
+/// @dev Error when the P2pSigner signature is expired
 error P2pLendingProxyFactory__P2pSignerSignatureExpired(
     uint256 _p2pSignerSigDeadline
 );
+
+/// @dev Error when no rules are defined
 error P2pLendingProxyFactory__NoRulesDefined(
     P2pStructs.FunctionType _functionType,
     address _target,
     bytes4 _selector
 );
+
+/// @dev Error when no calldata is allowed
 error P2pLendingProxyFactory__NoCalldataAllowed(
     P2pStructs.FunctionType _functionType,
     address _target,
     bytes4 _selector
 );
+
+/// @dev Error when the calldata is too short for the start with rule
 error P2pLendingProxyFactory__CalldataTooShortForStartsWithRule(
     uint256 _calldataAfterSelectorLength,
     uint32 _ruleIndex,
     uint32 _bytesCount
 );
+
+/// @dev Error when the calldata starts with rule is violated
 error P2pLendingProxyFactory__CalldataStartsWithRuleViolated(
     bytes _actual,
     bytes _expected
 );
+
+/// @dev Error when the calldata is too short for the ends with rule
 error P2pLendingProxyFactory__CalldataTooShortForEndsWithRule(
     uint256 _calldataAfterSelectorLength,
     uint32 _bytesCount
 );
+
+/// @dev Error when the calldata ends with rule is violated
 error P2pLendingProxyFactory__CalldataEndsWithRuleViolated(
     bytes _actual,
     bytes _expected
 );
+
+/// @dev Error when the trusted distributor address is zero
 error P2pLendingProxyFactory__ZeroTrustedDistributorAddress();
+
+/// @dev Error when the distributor is not trusted
 error P2pLendingProxyFactory__DistributorNotTrusted(
     address _distributor
 );
 
+/// @title P2pLendingProxyFactory
+/// @author P2P Validator <info@p2p.org>
+/// @notice P2pLendingProxyFactory is a factory contract for creating P2pLendingProxy contracts
 contract P2pLendingProxyFactory is
     AllowedCalldataChecker,
     P2pOperator2Step,
@@ -70,13 +94,16 @@ contract P2pLendingProxyFactory is
     // all rules must be followed for (FunctionType, Contract, Selector)
     mapping(FunctionType => mapping(address => mapping(bytes4 => Rule[]))) private s_calldataRules;
 
+    /// @notice P2pSigner address   
     address private s_p2pSigner;
 
+    /// @notice All proxies
     address[] private s_allProxies;
 
     // distributor address => true
     mapping(address => bool) private s_trustedDistributors;
 
+    /// @notice Modifier to check if the P2pSigner signature should not expire
     modifier p2pSignerSignatureShouldNotExpire(uint256 _p2pSignerSigDeadline) {
         require (
             block.timestamp < _p2pSignerSigDeadline,
@@ -85,6 +112,7 @@ contract P2pLendingProxyFactory is
         _;
     }
 
+    /// @notice Modifier to check if the P2pSigner signature should be valid
     modifier p2pSignerSignatureShouldBeValid(
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
@@ -104,6 +132,10 @@ contract P2pLendingProxyFactory is
         _;
     }
 
+    /// @notice Constructor for P2pLendingProxyFactory
+    /// @param _morphoBundler The morpho bundler address
+    /// @param _p2pSigner The P2pSigner address
+    /// @param _p2pTreasury The P2pTreasury address
     constructor(
         address _morphoBundler,
         address _p2pSigner,
@@ -118,12 +150,14 @@ contract P2pLendingProxyFactory is
         _transferP2pSigner(_p2pSigner);
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function transferP2pSigner(
         address _newP2pSigner
     ) external onlyP2pOperator {
         _transferP2pSigner(_newP2pSigner);
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function setCalldataRules(
         FunctionType _functionType,
         address _contract,
@@ -139,6 +173,7 @@ contract P2pLendingProxyFactory is
         );
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function removeCalldataRules(
         FunctionType _functionType,
         address _contract,
@@ -152,6 +187,7 @@ contract P2pLendingProxyFactory is
         );
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function setTrustedDistributor(
         address _newTrustedDistributor
     ) external onlyP2pOperator {
@@ -163,6 +199,7 @@ contract P2pLendingProxyFactory is
         s_trustedDistributors[_newTrustedDistributor] = true;
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function removeTrustedDistributor(
         address _trustedDistributor
     ) external onlyP2pOperator {
@@ -170,6 +207,7 @@ contract P2pLendingProxyFactory is
         s_trustedDistributors[_trustedDistributor] = false;
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function deposit(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata,
@@ -256,6 +294,7 @@ contract P2pLendingProxyFactory is
         return keccak256(abi.encode(_clientAddress, _clientBasisPoints));
     }
 
+    /// @inheritdoc IAllowedCalldataChecker
     function checkCalldata(
         address _target,
         bytes4 _selector,
@@ -319,6 +358,7 @@ contract P2pLendingProxyFactory is
         }
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function checkMorphoUrdClaim(
         address _p2pOperatorToCheck,
         bool _shouldCheckP2pOperator,
@@ -336,8 +376,7 @@ contract P2pLendingProxyFactory is
         );
     }
 
-    /// @notice Predicts the address of a P2pLendingProxy contract instance
-    /// @return The address of the P2pLendingProxy contract instance
+    /// @inheritdoc IP2pLendingProxyFactory
     function predictP2pLendingProxyAddress(
         address _client,
         uint96 _clientBasisPoints
@@ -348,12 +387,12 @@ contract P2pLendingProxyFactory is
         );
     }
 
-    /// @notice Returns the address of the reference P2pLendingProxy contract
-    /// @return The address of the reference P2pLendingProxy contract
+    /// @inheritdoc IP2pLendingProxyFactory
     function getReferenceP2pLendingProxy() external view returns (address) {
         return address(i_referenceP2pLendingProxy);
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function getHashForP2pSigner(
         address _client,
         uint96 _clientBasisPoints,
@@ -368,19 +407,22 @@ contract P2pLendingProxyFactory is
         ));
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function getPermit2HashTypedData(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32) {
         return getPermit2HashTypedData(getPermitHash(_permitSingle));
     }
 
-    /// @notice Creates an EIP-712 typed data hash for Permit2
+    /// @inheritdoc IP2pLendingProxyFactory
     function getPermit2HashTypedData(bytes32 _dataHash) public view returns (bytes32) {
         return keccak256(abi.encodePacked("\x19\x01", Permit2Lib.PERMIT2.DOMAIN_SEPARATOR(), _dataHash));
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) public pure returns (bytes32) {
         return PermitHash.hash(_permitSingle);
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function getCalldataRules(
         FunctionType _functionType,
         address _contract,
@@ -389,12 +431,19 @@ contract P2pLendingProxyFactory is
         return s_calldataRules[_functionType][_contract][_selector];
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function getP2pSigner() external view returns (address) {
         return s_p2pSigner;
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
     function getAllProxies() external view returns (address[] memory) {
         return s_allProxies;
+    }
+
+    /// @inheritdoc IP2pLendingProxyFactory
+    function isTrustedDistributor(address _distributor) external view returns (bool) {
+        return s_trustedDistributors[_distributor];
     }
 
     /// @inheritdoc ERC165

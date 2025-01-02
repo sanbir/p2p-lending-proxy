@@ -5,6 +5,9 @@ pragma solidity 0.8.27;
 
 import "./P2pStructs.sol";
 
+/// @title IAllowedCalldataChecker
+/// @author P2P Validator <info@p2p.org>
+/// @notice Interface for checking if a calldata is allowed
 interface IAllowedCalldataChecker {
     function checkCalldata(
         address _target,
