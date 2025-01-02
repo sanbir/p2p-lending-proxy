@@ -18,8 +18,11 @@ abstract contract P2pStructs {
 
     /// @title Enum
     enum FunctionType {
+        /// @notice Any other function type (not deposit or withdrawal)
         None,
+        /// @notice Deposit function type
         Deposit,
+        /// @notice Withdrawal function type    
         Withdrawal
     }
 

@@ -5,6 +5,8 @@ pragma solidity 0.8.27;
 
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
 
+/// @title IMorphoBundler
+/// @notice Based on https://github.com/morpho-org/morpho-blue-bundlers
 interface IMorphoBundler {
     /// @notice Approves the given `amount` of `asset` from the initiator to be spent by `permitSingle.spender` via
     /// Permit2 with the given `deadline` & EIP-712 `signature`.

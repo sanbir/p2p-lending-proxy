@@ -44,6 +44,9 @@ error P2pLendingProxy__NotClientCalled(
 
 error P2pLendingProxy__NothingClaimed();
 
+/// @title P2pLendingProxy
+/// @notice P2pLendingProxy is a contract that allows a client to deposit and withdraw assets from a lending protocol.
+/// @dev The reference implementation is based on Morpho's lending protocol.
 contract P2pLendingProxy is
     AllowedCalldataChecker,
     P2pStructs,
@@ -95,6 +98,7 @@ contract P2pLendingProxy is
         i_p2pTreasury = _p2pTreasury;
     }
 
+    /// @inheritdoc IP2pLendingProxy
     function initialize(
         address _client,
         uint96 _clientBasisPoints
@@ -113,6 +117,7 @@ contract P2pLendingProxy is
         emit P2pLendingProxy__Initialized();
     }
 
+    /// @inheritdoc IP2pLendingProxy
     function deposit(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata,
@@ -162,6 +167,7 @@ contract P2pLendingProxy is
         _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
     }
 
+    /// @inheritdoc IP2pLendingProxy
     function withdraw(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata,
@@ -232,6 +238,7 @@ contract P2pLendingProxy is
         );
     }
 
+    /// @inheritdoc IP2pLendingProxy
     function callAnyFunction(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata
@@ -245,6 +252,7 @@ contract P2pLendingProxy is
         _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
     }
 
+    /// @inheritdoc IP2pLendingProxy
     function morphoUrdClaim(
         address _distributor,
         address _reward,
@@ -299,6 +307,7 @@ contract P2pLendingProxy is
         );
     }
 
+    /// @inheritdoc IAllowedCalldataChecker
     function checkCalldata(
         address _target,
         bytes4 _selector,
@@ -319,26 +328,32 @@ contract P2pLendingProxy is
         return IERC1271.isValidSignature.selector;
     }
 
+    /// @inheritdoc IP2pLendingProxy
     function getFactory() external view returns (address) {
         return address(i_factory);
     }
 
+    /// @inheritdoc IP2pLendingProxy
     function getP2pTreasury() external view returns (address) {
         return i_p2pTreasury;
     }
 
+    /// @inheritdoc IP2pLendingProxy
     function getClient() external view returns (address) {
         return s_client;
     }
 
+    /// @inheritdoc IP2pLendingProxy
     function getClientBasisPoints() external view returns (uint96) {
         return s_clientBasisPoints;
     }
 
+    /// @inheritdoc IP2pLendingProxy
     function getTotalDeposited(address _asset) external view returns (uint256) {
         return s_totalDeposited[_asset];
     }
 
+    /// @inheritdoc IP2pLendingProxy
     function getTotalWithdrawn(address _asset) external view returns (uint256) {
         return s_totalWithdrawn[_asset];
     }
