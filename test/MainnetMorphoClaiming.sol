@@ -91,11 +91,23 @@ contract MainnetMorphoClaiming is Test {
         _doDeposit();
         _forward(10000000);
 
-        vm.prank(p2pOperatorAddress);
-        factory.setTrustedDistributor(distributor);
+        uint256 clientBalanceBefore = IERC20(MORPHO_token).balanceOf(clientAddress);
+        uint256 p2pBalanceBefore = IERC20(MORPHO_token).balanceOf(P2pTreasury);
 
         bytes32[] memory tree = _setupRewards(claimable);
         bytes32[] memory proof = merkle.getProof(tree, 0);
+
+        vm.prank(clientAddress);
+        vm.expectRevert(abi.encodeWithSelector(P2pLendingProxyFactory__DistributorNotTrusted.selector, distributor));
+        P2pLendingProxy(proxyAddress).morphoUrdClaim(
+            distributor,
+            MORPHO_token,
+            claimable,
+            proof
+        );
+
+        vm.prank(p2pOperatorAddress);
+        factory.setTrustedDistributor(distributor);
 
         vm.prank(clientAddress);
         P2pLendingProxy(proxyAddress).morphoUrdClaim(
@@ -104,6 +116,12 @@ contract MainnetMorphoClaiming is Test {
             claimable,
             proof
         );
+
+        uint256 clientBalanceAfter = IERC20(MORPHO_token).balanceOf(clientAddress);
+        uint256 p2pBalanceAfter = IERC20(MORPHO_token).balanceOf(P2pTreasury);
+
+        assertEq(clientBalanceAfter - clientBalanceBefore, claimable * ClientBasisPoints / 10_000);
+        assertEq(p2pBalanceAfter - p2pBalanceBefore, claimable * (10_000 - ClientBasisPoints) / 10_000);
     }
 
     function _setupRewards(uint256 claimable) internal returns (bytes32[] memory tree) {
