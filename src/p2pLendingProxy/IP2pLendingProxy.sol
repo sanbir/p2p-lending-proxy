@@ -93,6 +93,7 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     external;
 
     /// @notice Claims Morpho Urd rewards
+    /// @dev This function is Morpho specific. Cannot be reused for other protocols.
     /// @param _distributor The distributor address
     /// @param _reward The reward address
     /// @param _amount The amount to claim

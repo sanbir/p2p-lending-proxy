@@ -107,7 +107,7 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @dev Computes the address of a P2pLendingProxy created by `_createP2pLendingProxy` function
     /// @dev P2pLendingProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
     /// @param _client The address of client
-    /// @return _clientBasisPoints
+    /// @return address The address of the P2pLendingProxy instance
     function predictP2pLendingProxyAddress(
         address _client,
         uint96 _clientBasisPoints
@@ -123,6 +123,10 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @return a template set by P2P to be used for new P2pLendingProxy instances
     function getReferenceP2pLendingProxy() external view returns (address);
 
+    /// @dev Checks if the morpho URD claim is valid
+    /// @param _p2pOperatorToCheck The P2pOperator to check
+    /// @param _shouldCheckP2pOperator If the P2pOperator should be checked
+    /// @param _distributor The distributor address
     function checkMorphoUrdClaim(
         address _p2pOperatorToCheck,
         bool _shouldCheckP2pOperator,
