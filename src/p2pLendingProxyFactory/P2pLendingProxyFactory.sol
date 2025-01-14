@@ -76,7 +76,7 @@ error P2pLendingProxyFactory__DistributorNotTrusted(
 /// @title P2pLendingProxyFactory
 /// @author P2P Validator <info@p2p.org>
 /// @notice P2pLendingProxyFactory is a factory contract for creating P2pLendingProxy contracts
-contract P2pLendingProxyFactory is
+abstract contract P2pLendingProxyFactory is
     AllowedCalldataChecker,
     P2pOperator2Step,
     P2pStructs,
@@ -219,7 +219,8 @@ contract P2pLendingProxyFactory is
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
     )
-    external
+    public
+    virtual
     p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
     p2pSignerSignatureShouldBeValid(_clientBasisPoints, _p2pSignerSigDeadline, _p2pSignerSignature)
     calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.Deposit)

@@ -11,6 +11,7 @@ import "../src/common/P2pStructs.sol";
 import "../src/mocks/@murky/Merkle.sol";
 import "../src/mocks/IUniversalRewardsDistributor.sol";
 import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
+import "../src/adapters/P2pMorphoProxyFactory.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
@@ -22,7 +23,7 @@ contract MainnetMorphoClaiming is Test {
     using SafeERC20 for IERC20;
 
     address constant P2pTreasury = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
-    P2pLendingProxyFactory private factory;
+    P2pMorphoProxyFactory private factory;
 
     address private clientAddress;
     uint256 private clientPrivateKey;
@@ -64,7 +65,7 @@ contract MainnetMorphoClaiming is Test {
         nobody = makeAddr("nobody");
 
         vm.startPrank(p2pOperatorAddress);
-        factory = new P2pLendingProxyFactory(
+        factory = new P2pMorphoProxyFactory(
             MorphoEthereumBundlerV2,
             p2pSignerAddress,
             P2pTreasury
