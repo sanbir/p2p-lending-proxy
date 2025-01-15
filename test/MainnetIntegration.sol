@@ -179,7 +179,7 @@ contract MainnetIntegration is Test {
             SigDeadline
         );
 
-        vm.expectRevert(abi.encodeWithSelector(P2pLendingProxy__InvalidClientBasisPoints.selector, invalidBasisPoints));
+        vm.expectRevert(P2pMorphoProxyFactory__erc4626Deposit_receiver_ne_proxy.selector);
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
@@ -208,7 +208,7 @@ contract MainnetIntegration is Test {
             SigDeadline
         );
 
-        vm.expectRevert(P2pLendingProxy__ZeroAddressAsset.selector);
+        vm.expectRevert(P2pMorphoProxyFactory__approve2_token_ne_permitSingleForP2pLendingProxy_token.selector);
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
@@ -237,7 +237,7 @@ contract MainnetIntegration is Test {
             SigDeadline
         );
 
-        vm.expectRevert(P2pLendingProxy__ZeroAssetAmount.selector);
+        vm.expectRevert(P2pMorphoProxyFactory__approve2_amount_ne_permitSingleForP2pLendingProxy_amount.selector);
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
