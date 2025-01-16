@@ -39,15 +39,6 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
         address indexed _lendingProtocolAddress
     );
 
-    /// @notice Emitted when a Morpho Urd claim is made
-    event P2pLendingProxy__ClaimedMorphoUrd(
-        address _distributor,
-        address _reward,
-        uint256 _totalAmount,
-        uint256 _p2pAmount,
-        uint256 _clientAmount
-    );
-
     /// @notice Initializes the P2pLendingProxy
     /// @param _client The client address
     /// @param _clientBasisPoints The client basis points
@@ -89,20 +80,6 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     function callAnyFunction(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata
-    )
-    external;
-
-    /// @notice Claims Morpho Urd rewards
-    /// @dev This function is Morpho specific. Cannot be reused for other protocols.
-    /// @param _distributor The distributor address
-    /// @param _reward The reward address
-    /// @param _amount The amount to claim
-    /// @param _proof The proof for the claim
-    function morphoUrdClaim(
-        address _distributor,
-        address _reward,
-        uint256 _amount,
-        bytes32[] calldata _proof
     )
     external;
 

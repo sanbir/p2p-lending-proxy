@@ -6,15 +6,16 @@ pragma solidity 0.8.27;
 import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../src/access/P2pOperator.sol";
+import "../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
+import "../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
 import "../src/common/IMorphoBundler.sol";
 import "../src/common/P2pStructs.sol";
 import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
-import "../src/adapters/P2pMorphoProxyFactory.sol";
+import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
 import "forge-std/console2.sol";
-import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
 
 contract MainnetIntegration is Test {
@@ -289,7 +290,7 @@ contract MainnetIntegration is Test {
                 address(factory)
             )
         );
-        P2pLendingProxy(proxyAddress).deposit(
+        P2pMorphoProxy(proxyAddress).deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
             permitSingle,
@@ -300,7 +301,7 @@ contract MainnetIntegration is Test {
     function test_initializeDirectlyOnProxy_Mainnet() public {
         // Create the proxy first since we need a valid proxy address to test with
         proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
-        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        P2pMorphoProxy proxy = P2pMorphoProxy(proxyAddress);
         
         vm.startPrank(clientAddress);
         
@@ -373,7 +374,7 @@ contract MainnetIntegration is Test {
 
         // Try to withdraw as non-client
         vm.startPrank(nobody);
-        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        P2pMorphoProxy proxy = P2pMorphoProxy(proxyAddress);
         
         // Get withdrawal calldata
         uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
@@ -406,7 +407,7 @@ contract MainnetIntegration is Test {
         _doDeposit();
 
         // Try to withdraw with incorrect calldata
-        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        P2pMorphoProxy proxy = P2pMorphoProxy(proxyAddress);
         uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
         
         // Create incorrect withdrawal calldata (empty bytes)
@@ -436,7 +437,7 @@ contract MainnetIntegration is Test {
         _doDeposit();
 
         // Try to withdraw using callAnyFunction
-        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        P2pMorphoProxy proxy = P2pMorphoProxy(proxyAddress);
         uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
         bytes memory withdrawalCallData = _getMulticallWithdrawalCallData(sharesBalance);
         
@@ -497,7 +498,7 @@ contract MainnetIntegration is Test {
                 32 // required bytes count
             )
         );
-        P2pLendingProxy(proxyAddress).callAnyFunction(
+        P2pMorphoProxy(proxyAddress).callAnyFunction(
             vault,
             shortCalldata
         );
@@ -551,7 +552,7 @@ contract MainnetIntegration is Test {
                 expectedBytes
             )
         );
-        P2pLendingProxy(proxyAddress).callAnyFunction(
+        P2pMorphoProxy(proxyAddress).callAnyFunction(
             vault,
             wrongCalldata
         );
@@ -596,7 +597,7 @@ contract MainnetIntegration is Test {
                 32 // required bytes count
             )
         );
-        P2pLendingProxy(proxyAddress).callAnyFunction(
+        P2pMorphoProxy(proxyAddress).callAnyFunction(
             vault,
             shortCalldata
         );
@@ -653,7 +654,7 @@ contract MainnetIntegration is Test {
                 expectedEndBytes
             )
         );
-        P2pLendingProxy(proxyAddress).callAnyFunction(
+        P2pMorphoProxy(proxyAddress).callAnyFunction(
             vault,
             wrongCalldata
         );
@@ -685,7 +686,7 @@ contract MainnetIntegration is Test {
                 IERC20.balanceOf.selector
             )
         );
-        P2pLendingProxy(proxyAddress).callAnyFunction(
+        P2pMorphoProxy(proxyAddress).callAnyFunction(
             vault,
             balanceOfCalldata
         );
@@ -709,7 +710,7 @@ contract MainnetIntegration is Test {
 
         // Call balanceOf via callAnyFunction
         vm.startPrank(clientAddress);
-        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        P2pMorphoProxy proxy = P2pMorphoProxy(proxyAddress);
         proxy.callAnyFunction(
             vault,
             balanceOfCalldata
@@ -765,7 +766,7 @@ contract MainnetIntegration is Test {
             )
         );
 
-        P2pLendingProxy(proxyAddress).callAnyFunction(
+        P2pMorphoProxy(proxyAddress).callAnyFunction(
             asset,
             someCalldata
         );
@@ -959,7 +960,7 @@ contract MainnetIntegration is Test {
             p2pSignerSignature
         );
 
-        P2pLendingProxy proxy = P2pLendingProxy(proxyAddress);
+        P2pMorphoProxy proxy = P2pMorphoProxy(proxyAddress);
         assertEq(proxy.getFactory(), address(factory));
         assertEq(proxy.getP2pTreasury(), P2pTreasury);
         assertEq(proxy.getClient(), clientAddress);
@@ -1263,7 +1264,7 @@ contract MainnetIntegration is Test {
         bytes memory multicallWithdrawalCallData = _getMulticallWithdrawalCallData(sharesBalance / denominator);
 
         vm.startPrank(clientAddress);
-        P2pLendingProxy(proxyAddress).withdraw(
+        P2pMorphoProxy(proxyAddress).withdraw(
             MorphoEthereumBundlerV2,
             multicallWithdrawalCallData,
             vault,

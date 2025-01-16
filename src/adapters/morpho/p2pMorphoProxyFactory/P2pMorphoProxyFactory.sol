@@ -3,21 +3,35 @@
 
 pragma solidity 0.8.27;
 
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
-import "../p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
+import "../../../@permit2/interfaces/IAllowanceTransfer.sol";
+import "../../../p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
+import "../../common/CalldataParser.sol";
+import "./IP2pMorphoProxyFactory.sol";
+import {P2pMorphoProxy} from "../p2pMorphoProxy/P2pMorphoProxy.sol";
 
+error P2pMorphoProxyFactory__DistributorNotTrusted(address _distributor);
 error P2pMorphoProxyFactory__IncorrectLengthOf_dataForMulticall();
-error P2pMorphoProxyFactory__InvalidSlice();
 error P2pMorphoProxyFactory__approve2_amount_ne_permitSingleForP2pLendingProxy_amount();
 error P2pMorphoProxyFactory__transferFrom2_amount_ne_permitSingleForP2pLendingProxy_amount();
 error P2pMorphoProxyFactory__erc4626Deposit_assets_ne_permitSingleForP2pLendingProxy_amount();
 error P2pMorphoProxyFactory__approve2_token_ne_permitSingleForP2pLendingProxy_token();
 error P2pMorphoProxyFactory__transferFrom2_asset_ne_permitSingleForP2pLendingProxy_token();
 error P2pMorphoProxyFactory__erc4626Deposit_receiver_ne_proxy();
+error P2pMorphoProxyFactory__ZeroTrustedDistributorAddress();
 
-contract P2pMorphoProxyFactory is P2pLendingProxyFactory {
+contract P2pMorphoProxyFactory is P2pLendingProxyFactory, CalldataParser, IP2pMorphoProxyFactory {
+    /// @dev Emitted when the trusted distributor is set
+    event P2pMorphoProxyFactory__TrustedDistributorSet(
+        address indexed _newTrustedDistributor
+    );
 
-    uint256 private constant SELECTOR_LENGTH = 4;
+    /// @dev Emitted when the trusted distributor is removed
+    event P2pMorphoProxyFactory__TrustedDistributorRemoved(
+        address indexed _trustedDistributor
+    );
+
+    // distributor address => true
+    mapping(address => bool) private s_trustedDistributors;
 
     /// @notice Constructor for P2pMorphoProxyFactory
     /// @param _morphoBundler The morpho bundler address
@@ -27,7 +41,12 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory {
         address _morphoBundler,
         address _p2pSigner,
         address _p2pTreasury
-    ) P2pLendingProxyFactory(_morphoBundler, _p2pSigner, _p2pTreasury) {
+    ) P2pLendingProxyFactory(_p2pSigner) {
+        i_referenceP2pLendingProxy = new P2pMorphoProxy(
+            _morphoBundler,
+            address(this),
+            _p2pTreasury
+        );
     }
 
     /// @inheritdoc IP2pLendingProxyFactory
@@ -43,7 +62,7 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory {
         bytes calldata _p2pSignerSignature
     )
     public
-    override
+    override(P2pLendingProxyFactory, IP2pLendingProxyFactory)
     returns (address p2pLendingProxyAddress) {
         // morpho multicall
         bytes[] memory dataForMulticall = abi.decode(_lendingProtocolCalldata[SELECTOR_LENGTH:], (bytes[]));
@@ -115,38 +134,59 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory {
         );
     }
 
-    // Helper function to slice bytes
-    function _slice(bytes memory data, uint256 start, uint256 length) internal pure returns (bytes memory) {
-        require(
-            data.length >= (start + length),
-            P2pMorphoProxyFactory__InvalidSlice()
+    /// @dev Sets the trusted distributor
+    /// @param _newTrustedDistributor The new trusted distributor
+    function setTrustedDistributor(
+        address _newTrustedDistributor
+    ) external onlyP2pOperator {
+        require (
+            _newTrustedDistributor != address(0),
+            P2pMorphoProxyFactory__ZeroTrustedDistributorAddress()
         );
+        emit P2pMorphoProxyFactory__TrustedDistributorSet(_newTrustedDistributor);
+        s_trustedDistributors[_newTrustedDistributor] = true;
+    }
 
-        bytes memory tempBytes;
+    /// @dev Removes the trusted distributor
+    /// @param _trustedDistributor The trusted distributor
+    function removeTrustedDistributor(
+        address _trustedDistributor
+    ) external onlyP2pOperator {
+        emit P2pMorphoProxyFactory__TrustedDistributorRemoved(_trustedDistributor);
+        s_trustedDistributors[_trustedDistributor] = false;
+    }
 
-        assembly {
-            switch iszero(length)
-            case 0 {
-            // Allocate memory for the sliced bytes
-                tempBytes := mload(0x40)
-            // Set the length
-                mstore(tempBytes, length)
-            // Copy the data
-                let src := add(data, add(0x20, start))
-                let dest := add(tempBytes, 0x20)
-                for { let i := 0 } lt(i, length) { i := add(i, 0x20) } {
-                    mstore(add(dest, i), mload(add(src, i)))
-                }
-            // Update the free memory pointer
-                mstore(0x40, add(dest, length))
-            }
-            default {
-                tempBytes := mload(0x40)
-                mstore(tempBytes, 0)
-                mstore(0x40, add(tempBytes, 0x20))
-            }
+    /// @dev Checks if the morpho URD claim is valid
+    /// @param _p2pOperatorToCheck The P2pOperator to check
+    /// @param _shouldCheckP2pOperator If the P2pOperator should be checked
+    /// @param _distributor The distributor address
+    function checkMorphoUrdClaim(
+        address _p2pOperatorToCheck,
+        bool _shouldCheckP2pOperator,
+        address _distributor
+    ) public view {
+        if (_shouldCheckP2pOperator) {
+            require(
+                getP2pOperator() == _p2pOperatorToCheck,
+                P2pOperator__UnauthorizedAccount(_p2pOperatorToCheck)
+            );
         }
+        require(
+            s_trustedDistributors[_distributor],
+            P2pMorphoProxyFactory__DistributorNotTrusted(_distributor)
+        );
+    }
 
-        return tempBytes;
+    /// @dev Checks if the distributor is trusted
+    /// @param _distributor The distributor address
+    /// @return If the distributor is trusted or not
+    function isTrustedDistributor(address _distributor) external view returns (bool) {
+        return s_trustedDistributors[_distributor];
+    }
+
+    /// @inheritdoc ERC165
+    function supportsInterface(bytes4 interfaceId) public view virtual override(P2pLendingProxyFactory, IERC165) returns (bool) {
+        return interfaceId == type(IP2pMorphoProxyFactory).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 }

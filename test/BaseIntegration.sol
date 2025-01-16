@@ -4,10 +4,11 @@
 pragma solidity 0.8.27;
 
 import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
+import "../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
+import "../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
 import "../src/common/IMorphoBundler.sol";
-import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
-import "../src/adapters/P2pMorphoProxyFactory.sol";
 import "../src/common/P2pStructs.sol";
+import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
@@ -210,7 +211,7 @@ contract BaseIntegration is Test {
         bytes memory multicallWithdrawalCallData = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticallWithdrawal));
 
         vm.startPrank(clientAddress);
-        P2pLendingProxy(proxyAddress).withdraw(
+        P2pMorphoProxy(proxyAddress).withdraw(
             MorphoEthereumBundlerV2,
             multicallWithdrawalCallData,
             VaultUSDC,

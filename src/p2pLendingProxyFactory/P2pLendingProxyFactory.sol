@@ -65,14 +65,6 @@ error P2pLendingProxyFactory__CalldataEndsWithRuleViolated(
     bytes _expected
 );
 
-/// @dev Error when the trusted distributor address is zero
-error P2pLendingProxyFactory__ZeroTrustedDistributorAddress();
-
-/// @dev Error when the distributor is not trusted
-error P2pLendingProxyFactory__DistributorNotTrusted(
-    address _distributor
-);
-
 /// @title P2pLendingProxyFactory
 /// @author P2P Validator <info@p2p.org>
 /// @notice P2pLendingProxyFactory is a factory contract for creating P2pLendingProxy contracts
@@ -88,20 +80,17 @@ abstract contract P2pLendingProxyFactory is
     using ECDSA for bytes32;
 
     /// @notice Reference P2pLendingProxy contract
-    P2pLendingProxy private immutable i_referenceP2pLendingProxy;
+    P2pLendingProxy internal immutable i_referenceP2pLendingProxy;
 
     // FunctionType => Contract => Selector => Rule[]
     // all rules must be followed for (FunctionType, Contract, Selector)
-    mapping(FunctionType => mapping(address => mapping(bytes4 => Rule[]))) private s_calldataRules;
+    mapping(FunctionType => mapping(address => mapping(bytes4 => Rule[]))) internal s_calldataRules;
 
     /// @notice P2pSigner address   
-    address private s_p2pSigner;
+    address internal s_p2pSigner;
 
     /// @notice All proxies
-    address[] private s_allProxies;
-
-    // distributor address => true
-    mapping(address => bool) private s_trustedDistributors;
+    address[] internal s_allProxies;
 
     /// @notice Modifier to check if the P2pSigner signature should not expire
     modifier p2pSignerSignatureShouldNotExpire(uint256 _p2pSignerSigDeadline) {
@@ -133,20 +122,10 @@ abstract contract P2pLendingProxyFactory is
     }
 
     /// @notice Constructor for P2pLendingProxyFactory
-    /// @param _morphoBundler The morpho bundler address
     /// @param _p2pSigner The P2pSigner address
-    /// @param _p2pTreasury The P2pTreasury address
     constructor(
-        address _morphoBundler,
-        address _p2pSigner,
-        address _p2pTreasury
+        address _p2pSigner
     ) P2pOperator(msg.sender) {
-        i_referenceP2pLendingProxy = new P2pLendingProxy(
-            _morphoBundler,
-            address(this),
-            _p2pTreasury
-        );
-
         _transferP2pSigner(_p2pSigner);
     }
 
@@ -185,26 +164,6 @@ abstract contract P2pLendingProxyFactory is
             _contract,
             _selector
         );
-    }
-
-    /// @inheritdoc IP2pLendingProxyFactory
-    function setTrustedDistributor(
-        address _newTrustedDistributor
-    ) external onlyP2pOperator {
-        require (
-            _newTrustedDistributor != address(0),
-            P2pLendingProxyFactory__ZeroTrustedDistributorAddress()
-        );
-        emit P2pLendingProxyFactory__TrustedDistributorSet(_newTrustedDistributor);
-        s_trustedDistributors[_newTrustedDistributor] = true;
-    }
-
-    /// @inheritdoc IP2pLendingProxyFactory
-    function removeTrustedDistributor(
-        address _trustedDistributor
-    ) external onlyP2pOperator {
-        emit P2pLendingProxyFactory__TrustedDistributorRemoved(_trustedDistributor);
-        s_trustedDistributors[_trustedDistributor] = false;
     }
 
     /// @inheritdoc IP2pLendingProxyFactory
@@ -360,24 +319,6 @@ abstract contract P2pLendingProxyFactory is
     }
 
     /// @inheritdoc IP2pLendingProxyFactory
-    function checkMorphoUrdClaim(
-        address _p2pOperatorToCheck,
-        bool _shouldCheckP2pOperator,
-        address _distributor
-    ) public view {
-        if (_shouldCheckP2pOperator) {
-            require(
-                getP2pOperator() == _p2pOperatorToCheck,
-                P2pOperator__UnauthorizedAccount(_p2pOperatorToCheck)
-            );
-        }
-        require(
-            s_trustedDistributors[_distributor],
-            P2pLendingProxyFactory__DistributorNotTrusted(_distributor)
-        );
-    }
-
-    /// @inheritdoc IP2pLendingProxyFactory
     function predictP2pLendingProxyAddress(
         address _client,
         uint96 _clientBasisPoints
@@ -440,11 +381,6 @@ abstract contract P2pLendingProxyFactory is
     /// @inheritdoc IP2pLendingProxyFactory
     function getAllProxies() external view returns (address[] memory) {
         return s_allProxies;
-    }
-
-    /// @inheritdoc IP2pLendingProxyFactory
-    function isTrustedDistributor(address _distributor) external view returns (bool) {
-        return s_trustedDistributors[_distributor];
     }
 
     /// @inheritdoc ERC165

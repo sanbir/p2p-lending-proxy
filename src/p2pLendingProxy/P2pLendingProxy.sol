@@ -50,13 +50,10 @@ error P2pLendingProxy__NotClientCalled(
     address _actualClient
 );
 
-/// @dev Error when the nothing is claimed
-error P2pLendingProxy__NothingClaimed();
-
 /// @title P2pLendingProxy
 /// @notice P2pLendingProxy is a contract that allows a client to deposit and withdraw assets from a lending protocol.
 /// @dev The reference implementation is based on Morpho's lending protocol.
-contract P2pLendingProxy is
+abstract contract P2pLendingProxy is
     AllowedCalldataChecker,
     P2pStructs,
     ReentrancyGuard,
@@ -67,26 +64,23 @@ contract P2pLendingProxy is
     using SafeERC20 for IERC20;
     using Address for address;
 
-    /// @dev Morpho bundler 
-    IMorphoBundler private immutable i_morphoBundler;
-
     /// @dev P2pLendingProxyFactory
-    IP2pLendingProxyFactory private immutable i_factory;
+    IP2pLendingProxyFactory internal immutable i_factory;
 
     /// @dev P2pTreasury
-    address private immutable i_p2pTreasury;
+    address internal immutable i_p2pTreasury;
 
     /// @dev Client
-    address private s_client;
+    address internal s_client;
 
     /// @dev Client basis points
-    uint96 private s_clientBasisPoints;
+    uint96 internal s_clientBasisPoints;
 
     // asset => amount
-    mapping(address => uint256) private s_totalDeposited;
+    mapping(address => uint256) internal s_totalDeposited;
 
     // asset => amount
-    mapping(address => uint256) private s_totalWithdrawn;
+    mapping(address => uint256) internal s_totalWithdrawn;
 
     /// @notice If caller is not factory, revert
     modifier onlyFactory() {
@@ -105,15 +99,12 @@ contract P2pLendingProxy is
     }
 
     /// @notice Constructor for P2pLendingProxy
-    /// @param _morphoBundler The morpho bundler address
     /// @param _factory The factory address
     /// @param _p2pTreasury The P2pTreasury address
     constructor(
-        address _morphoBundler,
         address _factory,
         address _p2pTreasury
     ) {
-        i_morphoBundler = IMorphoBundler(_morphoBundler);
         i_factory = IP2pLendingProxyFactory(_factory);
         i_p2pTreasury = _p2pTreasury;
     }
@@ -194,7 +185,8 @@ contract P2pLendingProxy is
         address _vault,
         uint256 _shares
     )
-    external
+    public
+    virtual
     onlyClient
     nonReentrant
     calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.Withdrawal)
@@ -270,61 +262,6 @@ contract P2pLendingProxy is
     {
         emit P2pLendingProxy__CalledAsAnyFunction(_lendingProtocolAddress);
         _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
-    }
-
-    /// @inheritdoc IP2pLendingProxy
-    function morphoUrdClaim(
-        address _distributor,
-        address _reward,
-        uint256 _amount,
-        bytes32[] calldata _proof
-    )
-    external
-    nonReentrant
-    {
-        bool shouldCheckP2pOperator;
-        if (msg.sender != s_client) {
-            shouldCheckP2pOperator = true;
-        }
-        i_factory.checkMorphoUrdClaim(
-            msg.sender,
-            shouldCheckP2pOperator,
-            _distributor
-        );
-
-        bytes memory urdClaimCalldata = abi.encodeCall(IMorphoBundler.urdClaim, (
-            _distributor,
-            address(this),
-            _reward,
-            _amount,
-            _proof,
-            false
-        ));
-        bytes[] memory dataForMulticall = new bytes[](1);
-        dataForMulticall[0] = urdClaimCalldata;
-
-        // claim _reward token from Morpho
-        i_morphoBundler.multicall(dataForMulticall);
-
-        uint256 newAssetAmount = IERC20(_reward).balanceOf(address(this));
-        require (newAssetAmount > 0, P2pLendingProxy__NothingClaimed());
-
-        uint256 p2pAmount = (newAssetAmount * (10_000 - s_clientBasisPoints)) / 10_000;
-        uint256 clientAmount = newAssetAmount - p2pAmount;
-
-        if (p2pAmount > 0) {
-            IERC20(_reward).safeTransfer(i_p2pTreasury, p2pAmount);
-        }
-        // clientAmount must be > 0 at this point
-        IERC20(_reward).safeTransfer(s_client, clientAmount);
-
-        emit P2pLendingProxy__ClaimedMorphoUrd(
-        _distributor,
-            _reward,
-            newAssetAmount,
-            p2pAmount,
-            clientAmount
-        );
     }
 
     /// @inheritdoc IAllowedCalldataChecker
