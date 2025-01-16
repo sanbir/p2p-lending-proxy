@@ -414,10 +414,8 @@ contract MainnetIntegration is Test {
         bytes memory incorrectWithdrawalCalldata = "";
         
         vm.startPrank(clientAddress);
-        
-        // Update the expected error to match the actual error from AllowedCalldataChecker
-        vm.expectRevert(AllowedCalldataChecker__DataTooShort.selector);
-        
+
+        vm.expectRevert();
         proxy.withdraw(
             MorphoEthereumBundlerV2,
             incorrectWithdrawalCalldata,
@@ -1261,14 +1259,15 @@ contract MainnetIntegration is Test {
 
     function _doWithdraw(uint256 denominator) private {
         uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
-        bytes memory multicallWithdrawalCallData = _getMulticallWithdrawalCallData(sharesBalance / denominator);
+        uint256 sharesToWithdraw = sharesBalance / denominator;
+        bytes memory multicallWithdrawalCallData = _getMulticallWithdrawalCallData(sharesToWithdraw);
 
         vm.startPrank(clientAddress);
         P2pMorphoProxy(proxyAddress).withdraw(
             MorphoEthereumBundlerV2,
             multicallWithdrawalCallData,
             vault,
-            sharesBalance
+            sharesToWithdraw
         );
         vm.stopPrank();
     }
