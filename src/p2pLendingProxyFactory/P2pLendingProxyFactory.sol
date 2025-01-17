@@ -360,6 +360,15 @@ abstract contract P2pLendingProxyFactory is
     }
 
     /// @inheritdoc IP2pLendingProxyFactory
+    function getP2pLendingProxyHashTypedData(
+        IAllowanceTransfer.PermitSingle calldata _permitSingle,
+        address _p2pLendingProxy
+    ) external virtual view returns (bytes32);
+
+    /// @inheritdoc IP2pLendingProxyFactory
+    function getP2pLendingProxyHashTypedData(bytes32 _permitHash, address _p2pLendingProxy) public virtual view returns (bytes32);
+
+    /// @inheritdoc IP2pLendingProxyFactory
     function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) public pure returns (bytes32) {
         return PermitHash.hash(_permitSingle);
     }

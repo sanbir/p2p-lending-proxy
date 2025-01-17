@@ -9,6 +9,9 @@ import "../../common/CalldataParser.sol";
 import "./IP2pMorphoProxyFactory.sol";
 import {P2pMorphoProxy} from "../p2pMorphoProxy/P2pMorphoProxy.sol";
 
+import "forge-std/console.sol";
+import "forge-std/console2.sol";
+
 error P2pMorphoProxyFactory__DistributorNotTrusted(address _distributor);
 error P2pMorphoProxyFactory__IncorrectLengthOf_dataForMulticall();
 error P2pMorphoProxyFactory__approve2_amount_ne_permitSingleForP2pLendingProxy_amount();
@@ -182,6 +185,41 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory, CalldataParser, IP2pMo
     /// @return If the distributor is trusted or not
     function isTrustedDistributor(address _distributor) external view returns (bool) {
         return s_trustedDistributors[_distributor];
+    }
+
+    /// @inheritdoc IP2pLendingProxyFactory
+    function getP2pLendingProxyHashTypedData(
+        IAllowanceTransfer.PermitSingle calldata _permitSingle,
+        address _p2pLendingProxy
+    )
+    external
+    override(P2pLendingProxyFactory, IP2pLendingProxyFactory)
+    view
+    returns (bytes32) {
+        return getP2pLendingProxyHashTypedData(getPermitHash(_permitSingle), _p2pLendingProxy);
+    }
+
+    /// @inheritdoc IP2pLendingProxyFactory
+    function getP2pLendingProxyHashTypedData(bytes32 _permitHash, address _p2pLendingProxy)
+    public
+    override(P2pLendingProxyFactory, IP2pLendingProxyFactory)
+    view
+    returns (bytes32) {
+        bytes32 domainSeparator = keccak256(abi.encode(
+            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+            keccak256(bytes("P2pMorphoProxy")),
+            keccak256(bytes("1")),
+            block.chainid,
+            _p2pLendingProxy
+        ));
+
+        console.log("domainSeparator");
+        console.logBytes32(domainSeparator);
+
+        console.log("_permitHash");
+        console.logBytes32(_permitHash);
+
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, _permitHash));
     }
 
     /// @inheritdoc ERC165

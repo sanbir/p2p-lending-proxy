@@ -128,7 +128,7 @@ contract BaseIntegration is Test {
             spender: MorphoEthereumBundlerV2,
             sigDeadline: SigDeadline
         });
-        bytes32 permitSingleHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingle));
+        bytes32 permitSingleHash = factory.getP2pLendingProxyHashTypedData(PermitHash.hash(permitSingle), proxyAddress);
         (uint8 v0, bytes32 r0, bytes32 s0) = vm.sign(clientPrivateKey, permitSingleHash);
         bytes memory signatureForApprove2 = abi.encodePacked(r0, s0, v0);
         bytes memory approve2CallData = abi.encodeCall(IMorphoBundler.approve2, (

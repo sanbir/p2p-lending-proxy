@@ -7,6 +7,7 @@ import "../@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "../@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
+import "../@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
@@ -57,6 +58,7 @@ abstract contract P2pLendingProxy is
     AllowedCalldataChecker,
     P2pStructs,
     ReentrancyGuard,
+    EIP712,
     ERC165,
     IP2pLendingProxy,
     IERC1271 {
@@ -99,12 +101,16 @@ abstract contract P2pLendingProxy is
     }
 
     /// @notice Constructor for P2pLendingProxy
+    /// @param _name The user readable name of the signing domain, i.e. the name of the DApp or the protocol
+    /// @param _version The current major version of the signing domain
     /// @param _factory The factory address
     /// @param _p2pTreasury The P2pTreasury address
     constructor(
+        string memory _name,
+        string memory _version,
         address _factory,
         address _p2pTreasury
-    ) {
+    ) EIP712(_name, _version) {
         i_factory = IP2pLendingProxyFactory(_factory);
         i_p2pTreasury = _p2pTreasury;
     }
@@ -279,8 +285,14 @@ abstract contract P2pLendingProxy is
         );
     }
 
-    function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue) {
-        SignatureVerification.verify(signature, hash, s_client);
+    /// @inheritdoc IERC1271
+    function isValidSignature(bytes32 _hash, bytes calldata _signature) external view returns (bytes4 magicValue) {
+        console.log("_hash");
+        console.logBytes32(_hash);
+
+        bytes32 hashWithDomainSeparator = _hashTypedDataV4(_hash);
+
+        SignatureVerification.verify(_signature, hashWithDomainSeparator, s_client);
 
         return IERC1271.isValidSignature.selector;
     }

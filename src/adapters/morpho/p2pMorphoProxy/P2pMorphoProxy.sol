@@ -29,7 +29,7 @@ contract P2pMorphoProxy is P2pLendingProxy, CalldataParser, IP2pMorphoProxy {
         address _morphoBundler,
         address _factory,
         address _p2pTreasury
-    ) P2pLendingProxy(_factory, _p2pTreasury) {
+    ) P2pLendingProxy("P2pMorphoProxy", "1", _factory, _p2pTreasury) {
         i_morphoBundler = IMorphoBundler(_morphoBundler);
     }
 

@@ -122,6 +122,24 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @return The permit2 hash typed data
     function getPermit2HashTypedData(bytes32 _permitHash) external view returns (bytes32);
 
+    /// @dev Gets the P2pLendingProxy hash typed data
+    /// @param _permitSingle The permit single
+    /// @param _p2pLendingProxy P2pLendingProxy instance address
+    /// @return The P2pLendingProxy hash typed data
+    function getP2pLendingProxyHashTypedData(
+        IAllowanceTransfer.PermitSingle calldata _permitSingle,
+        address _p2pLendingProxy
+    ) external view returns (bytes32);
+
+    /// @dev Gets the P2pLendingProxy hash typed data
+    /// @param _permitHash The permit hash
+    /// @param _p2pLendingProxy P2pLendingProxy instance address
+    /// @return The P2pLendingProxy hash typed data
+    function getP2pLendingProxyHashTypedData(
+        bytes32 _permitHash,
+        address _p2pLendingProxy
+    ) external view returns (bytes32);
+
     /// @dev Gets the permit hash
     /// @param _permitSingle The permit single
     /// @return The permit hash
