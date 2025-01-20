@@ -144,15 +144,6 @@ abstract contract P2pLendingProxy is
         uint160 amount = _permitSingleForP2pLendingProxy.details.amount;
         require (amount > 0, P2pLendingProxy__ZeroAssetAmount());
 
-        uint256 totalDepositedAfter = s_totalDeposited[asset] + amount;
-        s_totalDeposited[asset] = totalDepositedAfter;
-        emit P2pLendingProxy__Deposited(
-            _lendingProtocolAddress,
-            asset,
-            amount,
-            totalDepositedAfter
-        );
-
         address client = s_client;
 
         // transfer tokens into Proxy
@@ -163,11 +154,25 @@ abstract contract P2pLendingProxy is
         ) {}
         catch {} // prevent unintended reverts due to invalidated nonce
 
+        uint256 assetAmountBefore = IERC20(asset).balanceOf(address(this));
+
         Permit2Lib.PERMIT2.transferFrom(
             client,
             address(this),
             amount,
             asset
+        );
+
+        uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
+        uint256 actualAmount = assetAmountAfter - assetAmountBefore;
+
+        uint256 totalDepositedAfter = s_totalDeposited[asset] + actualAmount;
+        s_totalDeposited[asset] = totalDepositedAfter;
+        emit P2pLendingProxy__Deposited(
+            _lendingProtocolAddress,
+            asset,
+            actualAmount,
+            totalDepositedAfter
         );
 
         if (IERC20(asset).allowance(address(this), address(Permit2Lib.PERMIT2)) == 0) {

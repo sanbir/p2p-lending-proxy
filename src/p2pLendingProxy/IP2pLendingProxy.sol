@@ -17,7 +17,7 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     event P2pLendingProxy__Deposited(
         address indexed _lendingProtocolAddress,
         address indexed _asset,
-        uint160 _amount,
+        uint256 _amount,
         uint256 _totalDepositedAfter
     );
 
