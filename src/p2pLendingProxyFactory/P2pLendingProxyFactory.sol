@@ -272,7 +272,7 @@ abstract contract P2pLendingProxyFactory is
             RuleType ruleType = rule.ruleType;
 
             require (
-                ruleType != RuleType.None,
+                ruleType != RuleType.None || _calldataAfterSelector.length == 0,
                 P2pLendingProxyFactory__NoCalldataAllowed(_functionType, _target, _selector)
             );
 
