@@ -112,10 +112,14 @@ contract P2pMorphoProxy is P2pLendingProxy, CalldataParser, IP2pMorphoProxy {
         bytes[] memory dataForMulticall = new bytes[](1);
         dataForMulticall[0] = urdClaimCalldata;
 
+        uint256 assetAmountBefore = IERC20(_reward).balanceOf(address(this));
+
         // claim _reward token from Morpho
         i_morphoBundler.multicall(dataForMulticall);
 
-        uint256 newAssetAmount = IERC20(_reward).balanceOf(address(this));
+        uint256 assetAmountAfter = IERC20(_reward).balanceOf(address(this));
+
+        uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
         require (newAssetAmount > 0, P2pMorphoProxy__NothingClaimed());
 
         uint256 p2pAmount = (newAssetAmount * (10_000 - s_clientBasisPoints)) / 10_000;
