@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 P2P Validator <info@p2p.org>
+// SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
 // Copy and rename of OpenZeppelin Contracts (last updated v5.0.0) (access/Ownable.sol)

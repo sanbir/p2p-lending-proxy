@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 P2P Validator <info@p2p.org>
+// SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.8.27;
@@ -11,18 +11,20 @@ import "../src/common/P2pStructs.sol";
 import "../src/mocks/@murky/Merkle.sol";
 import "../src/mocks/IUniversalRewardsDistributor.sol";
 import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
+import "../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
 import "forge-std/console2.sol";
 import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
+import {P2pMorphoProxy} from "../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
 
 
 contract MainnetMorphoClaiming is Test {
     using SafeERC20 for IERC20;
 
     address constant P2pTreasury = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
-    P2pLendingProxyFactory private factory;
+    P2pMorphoProxyFactory private factory;
 
     address private clientAddress;
     uint256 private clientPrivateKey;
@@ -64,7 +66,7 @@ contract MainnetMorphoClaiming is Test {
         nobody = makeAddr("nobody");
 
         vm.startPrank(p2pOperatorAddress);
-        factory = new P2pLendingProxyFactory(
+        factory = new P2pMorphoProxyFactory(
             MorphoEthereumBundlerV2,
             p2pSignerAddress,
             P2pTreasury
@@ -95,8 +97,8 @@ contract MainnetMorphoClaiming is Test {
         bytes32[] memory proof = merkle.getProof(tree, 0);
 
         vm.prank(clientAddress);
-        vm.expectRevert(abi.encodeWithSelector(P2pLendingProxyFactory__DistributorNotTrusted.selector, distributor));
-        P2pLendingProxy(proxyAddress).morphoUrdClaim(
+        vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxyFactory__DistributorNotTrusted.selector, distributor));
+        P2pMorphoProxy(proxyAddress).morphoUrdClaim(
             distributor,
             MORPHO_token,
             claimable,
@@ -107,7 +109,7 @@ contract MainnetMorphoClaiming is Test {
         factory.setTrustedDistributor(distributor);
 
         vm.prank(clientAddress);
-        P2pLendingProxy(proxyAddress).morphoUrdClaim(
+        P2pMorphoProxy(proxyAddress).morphoUrdClaim(
             distributor,
             MORPHO_token,
             claimable,
@@ -135,15 +137,15 @@ contract MainnetMorphoClaiming is Test {
         bytes32[] memory proof = merkle.getProof(tree, 0);
 
         vm.startPrank(p2pOperatorAddress);
-        vm.expectRevert(abi.encodeWithSelector(P2pLendingProxyFactory__DistributorNotTrusted.selector, distributor));
-        P2pLendingProxy(proxyAddress).morphoUrdClaim(
+        vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxyFactory__DistributorNotTrusted.selector, distributor));
+        P2pMorphoProxy(proxyAddress).morphoUrdClaim(
             distributor,
             MORPHO_token,
             claimable,
             proof
         );
         factory.setTrustedDistributor(distributor);
-        P2pLendingProxy(proxyAddress).morphoUrdClaim(
+        P2pMorphoProxy(proxyAddress).morphoUrdClaim(
             distributor,
             MORPHO_token,
             claimable,

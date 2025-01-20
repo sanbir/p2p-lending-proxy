@@ -1,12 +1,14 @@
-// SPDX-FileCopyrightText: 2024 P2P Validator <info@p2p.org>
+// SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.8.27;
 
 import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
+import "../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
+import "../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
 import "../src/common/IMorphoBundler.sol";
-import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
 import "../src/common/P2pStructs.sol";
+import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
@@ -15,7 +17,7 @@ import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
 contract BaseIntegration is Test {
     address constant P2pTreasury = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
-    P2pLendingProxyFactory private factory;
+    P2pMorphoProxyFactory private factory;
 
     address private clientAddress;
     uint256 private clientPrivateKey;
@@ -47,7 +49,7 @@ contract BaseIntegration is Test {
         deal(USDC, clientAddress, 10000e18);
 
         vm.startPrank(p2pOperatorAddress);
-        factory = new P2pLendingProxyFactory(
+        factory = new P2pMorphoProxyFactory(
             MorphoEthereumBundlerV2,
             p2pSignerAddress,
             P2pTreasury
@@ -209,7 +211,7 @@ contract BaseIntegration is Test {
         bytes memory multicallWithdrawalCallData = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticallWithdrawal));
 
         vm.startPrank(clientAddress);
-        P2pLendingProxy(proxyAddress).withdraw(
+        P2pMorphoProxy(proxyAddress).withdraw(
             MorphoEthereumBundlerV2,
             multicallWithdrawalCallData,
             VaultUSDC,

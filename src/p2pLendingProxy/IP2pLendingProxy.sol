@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 P2P Validator <info@p2p.org>
+// SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.8.27;
@@ -17,7 +17,7 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     event P2pLendingProxy__Deposited(
         address indexed _lendingProtocolAddress,
         address indexed _asset,
-        uint160 _amount,
+        uint256 _amount,
         uint256 _totalDepositedAfter
     );
 
@@ -37,15 +37,6 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     /// @notice Emitted when an arbitrary allowed function is called
     event P2pLendingProxy__CalledAsAnyFunction(
         address indexed _lendingProtocolAddress
-    );
-
-    /// @notice Emitted when a Morpho Urd claim is made
-    event P2pLendingProxy__ClaimedMorphoUrd(
-        address _distributor,
-        address _reward,
-        uint256 _totalAmount,
-        uint256 _p2pAmount,
-        uint256 _clientAmount
     );
 
     /// @notice Initializes the P2pLendingProxy
@@ -89,20 +80,6 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     function callAnyFunction(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata
-    )
-    external;
-
-    /// @notice Claims Morpho Urd rewards
-    /// @dev This function is Morpho specific. Cannot be reused for other protocols.
-    /// @param _distributor The distributor address
-    /// @param _reward The reward address
-    /// @param _amount The amount to claim
-    /// @param _proof The proof for the claim
-    function morphoUrdClaim(
-        address _distributor,
-        address _reward,
-        uint256 _amount,
-        bytes32[] calldata _proof
     )
     external;
 

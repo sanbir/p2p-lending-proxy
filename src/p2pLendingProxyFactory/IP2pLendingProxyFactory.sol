@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 P2P Validator <info@p2p.org>
+// SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.8.27;
@@ -32,16 +32,6 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
         bytes4 indexed _selector
     );
 
-    /// @dev Emitted when the trusted distributor is set
-    event P2pLendingProxyFactory__TrustedDistributorSet(
-        address indexed _newTrustedDistributor
-    );
-
-    /// @dev Emitted when the trusted distributor is removed
-    event P2pLendingProxyFactory__TrustedDistributorRemoved(
-        address indexed _trustedDistributor
-    );
-
     /// @dev Emitted when the deposit is made
     event P2pLendingProxyFactory__Deposited(
         address indexed _client,
@@ -68,18 +58,6 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
         P2pStructs.FunctionType _functionType,
         address _contract,
         bytes4 _selector
-    ) external;
-
-    /// @dev Sets the trusted distributor
-    /// @param _newTrustedDistributor The new trusted distributor
-    function setTrustedDistributor(
-        address _newTrustedDistributor
-    ) external;
-
-    /// @dev Removes the trusted distributor
-    /// @param _trustedDistributor The trusted distributor
-    function removeTrustedDistributor(
-        address _trustedDistributor
     ) external;
 
     /// @dev Deposits the lending protocol
@@ -122,16 +100,6 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @dev Returns a template set by P2P to be used for new P2pLendingProxy instances
     /// @return a template set by P2P to be used for new P2pLendingProxy instances
     function getReferenceP2pLendingProxy() external view returns (address);
-
-    /// @dev Checks if the morpho URD claim is valid
-    /// @param _p2pOperatorToCheck The P2pOperator to check
-    /// @param _shouldCheckP2pOperator If the P2pOperator should be checked
-    /// @param _distributor The distributor address
-    function checkMorphoUrdClaim(
-        address _p2pOperatorToCheck,
-        bool _shouldCheckP2pOperator,
-        address _distributor
-    ) external view;
 
     /// @dev Gets the hash for the P2pSigner
     /// @param _client The address of client
@@ -177,9 +145,4 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @dev Gets all proxies
     /// @return The proxy addresses
     function getAllProxies() external view returns (address[] memory);
-
-    /// @dev Checks if the distributor is trusted
-    /// @param _distributor The distributor address
-    /// @return If the distributor is trusted or not
-    function isTrustedDistributor(address _distributor) external view returns (bool);
 }
