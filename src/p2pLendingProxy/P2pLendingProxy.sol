@@ -156,11 +156,13 @@ abstract contract P2pLendingProxy is
         address client = s_client;
 
         // transfer tokens into Proxy
-        Permit2Lib.PERMIT2.permit(
+        try Permit2Lib.PERMIT2.permit(
             client,
             _permitSingleForP2pLendingProxy,
             _permit2SignatureForP2pLendingProxy
-        );
+        ) {}
+        catch {} // prevent unintended reverts due to invalidated nonce
+
         Permit2Lib.PERMIT2.transferFrom(
             client,
             address(this),
