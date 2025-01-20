@@ -195,14 +195,18 @@ abstract contract P2pLendingProxy is
     {
         require (_shares > 0, P2pLendingProxy__ZeroSharesAmount());
 
+        address asset = IERC4626(_vault).asset();
+        uint256 assetAmountBefore = IERC20(asset).balanceOf(address(this));
+
         // approve shares from Proxy to Protocol
         IERC20(_vault).safeIncreaseAllowance(_lendingProtocolAddress, _shares);
 
         // withdraw assets from Protocol
         _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
 
-        address asset = IERC4626(_vault).asset();
-        uint256 newAssetAmount = IERC20(asset).balanceOf(address(this));
+        uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
+
+        uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
 
         uint256 totalWithdrawnBefore = s_totalWithdrawn[asset];
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
