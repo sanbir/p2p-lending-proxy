@@ -8,6 +8,7 @@ import "../../../p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
 import "../../common/CalldataParser.sol";
 import "./IP2pMorphoProxyFactory.sol";
 import {P2pMorphoProxy} from "../p2pMorphoProxy/P2pMorphoProxy.sol";
+import {IERC4626} from "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 error P2pMorphoProxyFactory__DistributorNotTrusted(address _distributor);
 error P2pMorphoProxyFactory__IncorrectLengthOf_dataForMulticall();
@@ -16,6 +17,7 @@ error P2pMorphoProxyFactory__transferFrom2_amount_ne_permitSingleForP2pLendingPr
 error P2pMorphoProxyFactory__erc4626Deposit_assets_ne_permitSingleForP2pLendingProxy_amount();
 error P2pMorphoProxyFactory__approve2_token_ne_permitSingleForP2pLendingProxy_token();
 error P2pMorphoProxyFactory__transferFrom2_asset_ne_permitSingleForP2pLendingProxy_token();
+error P2pMorphoProxyFactory__erc4626Deposit_vault_asset_ne_permitSingleForP2pLendingProxy_token();
 error P2pMorphoProxyFactory__erc4626Deposit_receiver_ne_proxy();
 error P2pMorphoProxyFactory__ZeroTrustedDistributorAddress();
 
@@ -85,7 +87,7 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory, CalldataParser, IP2pMo
         );
 
         // morpho erc4626Deposit
-        (,uint256 assets,, address receiver) = abi.decode(
+        (address vault, uint256 assets,, address receiver) = abi.decode(
             _slice(dataForMulticall[2], SELECTOR_LENGTH, dataForMulticall[2].length - SELECTOR_LENGTH),
             (address, uint256, uint256, address)
         );
@@ -111,13 +113,16 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory, CalldataParser, IP2pMo
             asset == _permitSingleForP2pLendingProxy.details.token,
             P2pMorphoProxyFactory__transferFrom2_asset_ne_permitSingleForP2pLendingProxy_token()
         );
-
-        address proxy = predictP2pLendingProxyAddress(
-            msg.sender,
-            _clientBasisPoints
-        );
         require(
-            receiver == proxy,
+            IERC4626(vault).asset() == _permitSingleForP2pLendingProxy.details.token,
+            P2pMorphoProxyFactory__erc4626Deposit_vault_asset_ne_permitSingleForP2pLendingProxy_token()
+        );
+
+        require(
+            receiver == predictP2pLendingProxyAddress(
+                msg.sender,
+                _clientBasisPoints
+            ),
             P2pMorphoProxyFactory__erc4626Deposit_receiver_ne_proxy()
         );
 
