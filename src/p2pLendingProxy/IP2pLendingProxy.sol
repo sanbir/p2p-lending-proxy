@@ -26,7 +26,6 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
         address indexed _lendingProtocolAddress,
         address indexed _vault,
         address indexed _asset,
-        uint256 _shares,
         uint256 _assets,
         uint256 _totalWithdrawnAfter,
         uint256 _newProfit,
@@ -49,28 +48,14 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     external;
 
     /// @notice Deposits assets into the lending protocol
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata to call the lending protocol
+    /// @param _yieldProtocolDepositCalldata Yield protocol deposit calldata
     /// @param _permitSingleForP2pLendingProxy The permit single for the P2pLendingProxy
     /// @param _permit2SignatureForP2pLendingProxy The permit2 signature for the P2pLendingProxy
     function deposit(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
+        bytes calldata _yieldProtocolDepositCalldata,
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy
-    )
-    external;
-
-    /// @notice Withdraws assets from the lending protocol
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata to call the lending protocol
-    /// @param _vault The vault address
-    /// @param _shares The shares to withdraw
-    function withdraw(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        address _vault,
-        uint256 _shares
+        bytes calldata _permit2SignatureForP2pLendingProxy,
+        bool _usePermit2
     )
     external;
 
