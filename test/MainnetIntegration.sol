@@ -55,7 +55,8 @@ contract MainnetIntegration is Test {
         factory = new P2pEthenaProxyFactory(
             p2pSignerAddress,
             P2pTreasury,
-            sUSDe
+            sUSDe,
+            USDe
         );
         vm.stopPrank();
 

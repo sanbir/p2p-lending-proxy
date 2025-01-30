@@ -166,9 +166,8 @@ abstract contract P2pLendingProxyFactory is
         );
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
     function _deposit(
-        bytes calldata _yieldProtocolDepositCalldata,
+        bytes memory _yieldProtocolDepositCalldata,
         bool _usePermit2,
 
         IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,

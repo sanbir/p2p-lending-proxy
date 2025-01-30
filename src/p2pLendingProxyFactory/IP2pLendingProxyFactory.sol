@@ -60,28 +60,6 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
         bytes4 _selector
     ) external;
 
-    /// @dev Deposits the lending protocol
-    /// @param _lendingProtocolAddress The lending protocol address
-    /// @param _lendingProtocolCalldata The lending protocol calldata
-    /// @param _permitSingleForP2pLendingProxy The permit single for P2pLendingProxy
-    /// @param _permit2SignatureForP2pLendingProxy The permit2 signature for P2pLendingProxy
-    /// @param _clientBasisPoints The client basis points
-    /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
-    /// @param _p2pSignerSignature The P2pSigner signature
-    /// @return p2pLendingProxyAddress The client's P2pLendingProxy instance address
-    function deposit(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy,
-
-        uint96 _clientBasisPoints,
-        uint256 _p2pSignerSigDeadline,
-        bytes calldata _p2pSignerSignature
-    )
-    external
-    returns (address p2pLendingProxyAddress);
-
     /// @dev Computes the address of a P2pLendingProxy created by `_createP2pLendingProxy` function
     /// @dev P2pLendingProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
     /// @param _client The address of client

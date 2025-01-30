@@ -206,10 +206,9 @@ abstract contract P2pLendingProxy is
         i_yieldProtocolAddress.functionCall(_yieldProtocolDepositCalldata);
     }
 
-    /// @inheritdoc IP2pLendingProxy
     function _withdraw(
         address _asset,
-        bytes calldata _yieldProtocolWithdrawalCalldata
+        bytes memory _yieldProtocolWithdrawalCalldata
     )
     internal
     onlyClient

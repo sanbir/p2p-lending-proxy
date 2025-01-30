@@ -15,15 +15,18 @@ contract P2pEthenaProxyFactory is P2pLendingProxyFactory, IP2pEthenaProxyFactory
     /// @param _p2pSigner The P2pSigner address
     /// @param _p2pTreasury The P2pTreasury address
     /// @param _stakedUSDeV2 StakedUSDeV2
+    /// @param _USDe USDe address
     constructor(
         address _p2pSigner,
         address _p2pTreasury,
-        address _stakedUSDeV2
+        address _stakedUSDeV2,
+        address _USDe
     ) P2pLendingProxyFactory(_p2pSigner) {
         i_referenceP2pLendingProxy = new P2pEthenaProxy(
             address(this),
             _p2pTreasury,
-            _stakedUSDeV2
+            _stakedUSDeV2,
+            _USDe
         );
     }
 
@@ -39,7 +42,7 @@ contract P2pEthenaProxyFactory is P2pLendingProxyFactory, IP2pEthenaProxyFactory
     returns (address p2pLendingProxyAddress) {
         return _deposit(
             abi.encodeCall(
-                IStakedUSDe.deposit,
+                IERC4626.deposit,
                 (uint256(_permitSingleForP2pLendingProxy.details.amount), address(this))
             ),
             false,

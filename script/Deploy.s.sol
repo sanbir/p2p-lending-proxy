@@ -24,7 +24,8 @@ contract Deploy is Script {
             factory = new P2pEthenaProxyFactory(
                 wallet.addr,
                 P2pTreasury,
-                sUSDe
+                sUSDe,
+                USDe
             );
         vm.stopBroadcast();
 

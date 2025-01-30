@@ -55,7 +55,7 @@ contract P2pEthenaProxy is P2pLendingProxy, IP2pEthenaProxy {
         _withdraw(
             i_USDe,
             abi.encodeCall(
-                IStakedUSDe.withdraw,
+                IERC4626.withdraw,
                 (_assets, address(this), address(this))
             )
         );
@@ -65,7 +65,7 @@ contract P2pEthenaProxy is P2pLendingProxy, IP2pEthenaProxy {
         _withdraw(
             i_USDe,
             abi.encodeCall(
-                IStakedUSDe.redeem,
+                IERC4626.redeem,
                 (_shares, address(this), address(this))
             )
         );
