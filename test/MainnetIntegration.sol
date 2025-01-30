@@ -168,6 +168,9 @@ contract MainnetIntegration is Test {
 
     function _doWithdraw(uint256 denominator) private {
         uint256 sharesBalance = IERC20(sUSDe).balanceOf(proxyAddress);
+        console.log("sharesBalance");
+        console.log(sharesBalance);
+
         uint256 sharesToWithdraw = sharesBalance / denominator;
 
         vm.startPrank(clientAddress);

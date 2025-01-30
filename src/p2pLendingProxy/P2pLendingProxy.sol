@@ -139,14 +139,13 @@ abstract contract P2pLendingProxy is
         emit P2pLendingProxy__Initialized();
     }
 
-    /// @inheritdoc IP2pLendingProxy
-    function deposit(
-        bytes calldata _yieldProtocolDepositCalldata,
+    function _deposit(
+        bytes memory _yieldProtocolDepositCalldata,
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
         bytes calldata _permit2SignatureForP2pLendingProxy,
         bool _usePermit2
     )
-    external
+    internal
     onlyFactory
     {
         address asset = _permitSingleForP2pLendingProxy.details.token;

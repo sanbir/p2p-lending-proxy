@@ -30,32 +30,6 @@ contract P2pEthenaProxyFactory is P2pLendingProxyFactory, IP2pEthenaProxyFactory
         );
     }
 
-    function deposit(
-        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy,
-
-        uint96 _clientBasisPoints,
-        uint256 _p2pSignerSigDeadline,
-        bytes calldata _p2pSignerSignature
-    )
-    external
-    returns (address p2pLendingProxyAddress) {
-        return _deposit(
-            abi.encodeCall(
-                IERC4626.deposit,
-                (uint256(_permitSingleForP2pLendingProxy.details.amount), address(this))
-            ),
-            false,
-
-            _permitSingleForP2pLendingProxy,
-            _permit2SignatureForP2pLendingProxy,
-
-            _clientBasisPoints,
-            _p2pSignerSigDeadline,
-            _p2pSignerSignature
-        );
-    }
-
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId) public view virtual override(P2pLendingProxyFactory) returns (bool) {
         return interfaceId == type(IP2pEthenaProxyFactory).interfaceId ||

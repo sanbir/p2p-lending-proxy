@@ -166,10 +166,7 @@ abstract contract P2pLendingProxyFactory is
         );
     }
 
-    function _deposit(
-        bytes memory _yieldProtocolDepositCalldata,
-        bool _usePermit2,
-
+    function deposit(
         IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
         bytes calldata _permit2SignatureForP2pLendingProxy,
 
@@ -177,7 +174,7 @@ abstract contract P2pLendingProxyFactory is
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
     )
-    internal
+    external
     p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
     p2pSignerSignatureShouldBeValid(_clientBasisPoints, _p2pSignerSigDeadline, _p2pSignerSignature)
     returns (address p2pLendingProxyAddress)
@@ -187,10 +184,8 @@ abstract contract P2pLendingProxyFactory is
 
         // deposit via proxy
         p2pLendingProxy.deposit(
-        _yieldProtocolDepositCalldata,
             _permitSingleForP2pLendingProxy,
-            _permit2SignatureForP2pLendingProxy,
-            _usePermit2
+            _permit2SignatureForP2pLendingProxy
         );
 
         emit P2pLendingProxyFactory__Deposited(msg.sender, _clientBasisPoints);

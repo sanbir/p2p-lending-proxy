@@ -27,6 +27,21 @@ contract P2pEthenaProxy is P2pLendingProxy, IP2pEthenaProxy {
         i_USDe = _USDe;
     }
 
+    function deposit(
+        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
+        bytes calldata _permit2SignatureForP2pLendingProxy
+    ) external {
+        _deposit(
+            abi.encodeCall(
+                IERC4626.deposit,
+                (uint256(_permitSingleForP2pLendingProxy.details.amount), address(this))
+            ),
+        _permitSingleForP2pLendingProxy,
+        _permit2SignatureForP2pLendingProxy,
+            false
+        );
+    }
+
     function cooldownAssets(uint256 _assets)
     external
     onlyClient

@@ -48,14 +48,11 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     external;
 
     /// @notice Deposits assets into the lending protocol
-    /// @param _yieldProtocolDepositCalldata Yield protocol deposit calldata
     /// @param _permitSingleForP2pLendingProxy The permit single for the P2pLendingProxy
     /// @param _permit2SignatureForP2pLendingProxy The permit2 signature for the P2pLendingProxy
     function deposit(
-        bytes calldata _yieldProtocolDepositCalldata,
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy,
-        bool _usePermit2
+        bytes calldata _permit2SignatureForP2pLendingProxy
     )
     external;
 
