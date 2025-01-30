@@ -96,7 +96,8 @@ contract MainnetIntegration is Test {
 
         uint256 assetBalanceAfterAllWithdrawals = IERC20(USDe).balanceOf(clientAddress);
 
-        assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore, 1);
+        uint256 profit = 1414853635425232;
+        assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore + profit, 1);
     }
 
     function _getPermitSingleForP2pLendingProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
@@ -185,6 +186,6 @@ contract MainnetIntegration is Test {
     /// @dev Rolls & warps the given number of blocks forward the blockchain.
     function _forward(uint256 blocks) internal {
         vm.roll(block.number + blocks);
-        vm.warp(block.timestamp + blocks);
+        vm.warp(block.timestamp + blocks * 13);
     }
 }
