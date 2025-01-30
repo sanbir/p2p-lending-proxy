@@ -166,11 +166,7 @@ abstract contract P2pLendingProxyFactory is
         );
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
     function deposit(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-
         IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
         bytes calldata _permit2SignatureForP2pLendingProxy,
 
@@ -178,11 +174,9 @@ abstract contract P2pLendingProxyFactory is
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
     )
-    public
-    virtual
+    external
     p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
     p2pSignerSignatureShouldBeValid(_clientBasisPoints, _p2pSignerSigDeadline, _p2pSignerSignature)
-    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.Deposit)
     returns (address p2pLendingProxyAddress)
     {
         // create proxy if not created yet
@@ -190,8 +184,6 @@ abstract contract P2pLendingProxyFactory is
 
         // deposit via proxy
         p2pLendingProxy.deposit(
-            _lendingProtocolAddress,
-            _lendingProtocolCalldata,
             _permitSingleForP2pLendingProxy,
             _permit2SignatureForP2pLendingProxy
         );

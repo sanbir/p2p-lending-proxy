@@ -34,6 +34,11 @@ error P2pLendingProxy__InvalidClientBasisPoints(uint96 _clientBasisPoints);
 /// @dev Error when the factory is not the caller
 error P2pLendingProxy__NotFactory(address _factory);
 
+error P2pLendingProxy__DifferentActuallyDepositedAmount(
+    uint256 _requestedAmount,
+    uint256 _actualAmount
+);
+
 /// @dev Error when the factory is not the caller
 /// @param _msgSender sender address.
 /// @param _actualFactory the actual factory address.
@@ -70,6 +75,9 @@ abstract contract P2pLendingProxy is
     /// @dev P2pTreasury
     address internal immutable i_p2pTreasury;
 
+    /// @dev Yield protocol address
+    address internal immutable i_yieldProtocolAddress;
+
     /// @dev Client
     address internal s_client;
 
@@ -101,12 +109,15 @@ abstract contract P2pLendingProxy is
     /// @notice Constructor for P2pLendingProxy
     /// @param _factory The factory address
     /// @param _p2pTreasury The P2pTreasury address
+    /// @param _yieldProtocolAddress Yield protocol address
     constructor(
         address _factory,
-        address _p2pTreasury
+        address _p2pTreasury,
+        address _yieldProtocolAddress
     ) {
         i_factory = IP2pLendingProxyFactory(_factory);
         i_p2pTreasury = _p2pTreasury;
+        i_yieldProtocolAddress = _yieldProtocolAddress;
     }
 
     /// @inheritdoc IP2pLendingProxy
@@ -128,14 +139,13 @@ abstract contract P2pLendingProxy is
         emit P2pLendingProxy__Initialized();
     }
 
-    /// @inheritdoc IP2pLendingProxy
-    function deposit(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
+    function _deposit(
+        bytes memory _yieldProtocolDepositCalldata,
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy
+        bytes calldata _permit2SignatureForP2pLendingProxy,
+        bool _usePermit2
     )
-    external
+    internal
     onlyFactory
     {
         address asset = _permitSingleForP2pLendingProxy.details.token;
@@ -166,59 +176,58 @@ abstract contract P2pLendingProxy is
         uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
         uint256 actualAmount = assetAmountAfter - assetAmountBefore;
 
+        require (
+            actualAmount == amount,
+            P2pLendingProxy__DifferentActuallyDepositedAmount(amount, actualAmount)
+        ); // no support for fee-on-transfer or rebasing tokens
+
         uint256 totalDepositedAfter = s_totalDeposited[asset] + actualAmount;
         s_totalDeposited[asset] = totalDepositedAfter;
         emit P2pLendingProxy__Deposited(
-            _lendingProtocolAddress,
+            i_yieldProtocolAddress,
             asset,
             actualAmount,
             totalDepositedAfter
         );
 
-        if (IERC20(asset).allowance(address(this), address(Permit2Lib.PERMIT2)) == 0) {
-            IERC20(asset).safeApprove(
+        if (_usePermit2) {
+            IERC20(asset).safeIncreaseAllowance(
                 address(Permit2Lib.PERMIT2),
-                type(uint256).max
+                actualAmount
+            );
+        } else {
+            IERC20(asset).safeIncreaseAllowance(
+                i_yieldProtocolAddress,
+                actualAmount
             );
         }
 
-        _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
+        i_yieldProtocolAddress.functionCall(_yieldProtocolDepositCalldata);
     }
 
-    /// @inheritdoc IP2pLendingProxy
-    function withdraw(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        address _vault,
-        uint256 _shares
+    function _withdraw(
+        address _asset,
+        bytes memory _yieldProtocolWithdrawalCalldata
     )
-    public
-    virtual
+    internal
     onlyClient
     nonReentrant
-    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.Withdrawal)
     {
-        require (_shares > 0, P2pLendingProxy__ZeroSharesAmount());
-
-        address asset = IERC4626(_vault).asset();
-        uint256 assetAmountBefore = IERC20(asset).balanceOf(address(this));
-
-        // approve shares from Proxy to Protocol
-        IERC20(_vault).safeIncreaseAllowance(_lendingProtocolAddress, _shares);
+        uint256 assetAmountBefore = IERC20(_asset).balanceOf(address(this));
 
         // withdraw assets from Protocol
-        _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
+        i_yieldProtocolAddress.functionCall(_yieldProtocolWithdrawalCalldata);
 
-        uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
+        uint256 assetAmountAfter = IERC20(_asset).balanceOf(address(this));
 
         uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
 
-        uint256 totalWithdrawnBefore = s_totalWithdrawn[asset];
+        uint256 totalWithdrawnBefore = s_totalWithdrawn[_asset];
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
-        uint256 totalDeposited = s_totalDeposited[asset];
+        uint256 totalDeposited = s_totalDeposited[_asset];
 
         // update total withdrawn
-        s_totalWithdrawn[asset] = totalWithdrawnAfter;
+        s_totalWithdrawn[_asset] = totalWithdrawnAfter;
 
         // Calculate profit increment
         // profit = (total withdrawn after this - total deposited)
@@ -244,16 +253,15 @@ abstract contract P2pLendingProxy is
         uint256 clientAmount = newAssetAmount - p2pAmount;
 
         if (p2pAmount > 0) {
-            IERC20(asset).safeTransfer(i_p2pTreasury, p2pAmount);
+            IERC20(_asset).safeTransfer(i_p2pTreasury, p2pAmount);
         }
         // clientAmount must be > 0 at this point
-        IERC20(asset).safeTransfer(s_client, clientAmount);
+        IERC20(_asset).safeTransfer(s_client, clientAmount);
 
         emit P2pLendingProxy__Withdrawn(
-            _lendingProtocolAddress,
-            _vault,
-            asset,
-            _shares,
+            i_yieldProtocolAddress,
+            i_yieldProtocolAddress,
+            _asset,
             newAssetAmount,
             totalWithdrawnAfter,
             newProfit,
