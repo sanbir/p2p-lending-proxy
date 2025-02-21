@@ -1,6 +1,6 @@
-## p2p-lending-proxy
+## p2p-yield-proxy
 
-Contracts for depositing and withdrawing ERC-20 tokens from lending protocols.
+Contracts for depositing and withdrawing ERC-20 tokens from yield protocols.
 
 ## Running tests
 
@@ -19,8 +19,8 @@ forge script script/Deploy.s.sol:Deploy --rpc-url $RPC_URL --private-key $PRIVAT
 
 This script will:
 
-- deploy and verify on Etherscan the **P2pLendingProxyFactory** and **P2pLendingProxy** contracts
-- set the **P2pTreasury** address permanently in the P2pLendingProxyFactory
+- deploy and verify on Etherscan the **P2pYieldProxyFactory** and **P2pYieldProxy** contracts
+- set the **P2pTreasury** address permanently in the P2pYieldProxyFactory
 - set the rules for Morpho specific deposit and withdrawal functions
 
 ## Basic use case
@@ -35,7 +35,7 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L1212) for a referen
 
 2. Backend uses Merchant info to determine the P2P fee (expressed as client basis points in the contracts).
 
-3. Backend calls P2pLendingProxyFactory's `getHashForP2pSigner` function to get the hash for the P2pSigner.
+3. Backend calls P2pYieldProxyFactory's `getHashForP2pSigner` function to get the hash for the P2pSigner.
 
 ```solidity
     /// @dev Gets the hash for the P2pSigner
@@ -54,14 +54,14 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L1212) for a referen
 
 5. Backend returns JSON to the User with (client address, client basis points, signature deadline, and the signature).
 
-6. Client-side JS code prepares all the necessary data for the Morpho deposit function. Since the deposited tokens will first go from the client to the client's P2pLendingProxy instance and then from the P2pLendingProxy instance into the Morpho protocol, both of these transfers are approved by the client via Permit2. The client's P2pLendingProxy instance address is fetched from the P2pLendingProxyFactory contract's `predictP2pLendingProxyAddress` function:
+6. Client-side JS code prepares all the necessary data for the Morpho deposit function. Since the deposited tokens will first go from the client to the client's P2pYieldProxy instance and then from the P2pYieldProxy instance into the Morpho protocol, both of these transfers are approved by the client via Permit2. The client's P2pYieldProxy instance address is fetched from the P2pYieldProxyFactory contract's `predictP2pYieldProxyAddress` function:
 
 ```solidity
-    /// @dev Computes the address of a P2pLendingProxy created by `_createP2pLendingProxy` function
-    /// @dev P2pLendingProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
+    /// @dev Computes the address of a P2pYieldProxy created by `_createP2pYieldProxy` function
+    /// @dev P2pYieldProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
     /// @param _client The address of client
-    /// @return address The address of the P2pLendingProxy instance
-    function predictP2pLendingProxyAddress(
+    /// @return address The address of the P2pYieldProxy instance
+    function predictP2pYieldProxyAddress(
         address _client,
         uint96 _clientBasisPoints
     ) external view returns (address);
@@ -71,33 +71,33 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L1212) for a referen
 
 8. Client-side JS code prompts the User to do `eth_signTypedData_v4` twice:
 
-- first time to sign `PermitSingle` from the P2pLendingProxy instance into the Morpho protocol
-- second time to sign `PermitSingle` from the User's wallet into the P2pLendingProxy instance
+- first time to sign `PermitSingle` from the P2pYieldProxy instance into the Morpho protocol
+- second time to sign `PermitSingle` from the User's wallet into the P2pYieldProxy instance
 
-9. Client-side JS code prompts the User to call the `deposit` function of the P2pLendingProxyFactory contract:
+9. Client-side JS code prompts the User to call the `deposit` function of the P2pYieldProxyFactory contract:
 
 ```solidity
-    /// @dev Deposits the lending protocol
-    /// @param _lendingProtocolAddress The lending protocol address
-    /// @param _lendingProtocolCalldata The lending protocol calldata
-    /// @param _permitSingleForP2pLendingProxy The permit single for P2pLendingProxy
-    /// @param _permit2SignatureForP2pLendingProxy The permit2 signature for P2pLendingProxy
+    /// @dev Deposits the yield protocol
+    /// @param _yieldProtocolAddress The yield protocol address
+    /// @param _yieldProtocolCalldata The yield protocol calldata
+    /// @param _permitSingleForP2pYieldProxy The permit single for P2pYieldProxy
+    /// @param _permit2SignatureForP2pYieldProxy The permit2 signature for P2pYieldProxy
     /// @param _clientBasisPoints The client basis points
     /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
     /// @param _p2pSignerSignature The P2pSigner signature
-    /// @return p2pLendingProxyAddress The client's P2pLendingProxy instance address
+    /// @return p2pYieldProxyAddress The client's P2pYieldProxy instance address
     function deposit(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy,
+        address _yieldProtocolAddress,
+        bytes calldata _yieldProtocolCalldata,
+        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pYieldProxy,
+        bytes calldata _permit2SignatureForP2pYieldProxy,
 
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
     )
     external
-    returns (address p2pLendingProxyAddress);
+    returns (address p2pYieldProxyAddress);
 ```
 
 #### Morpho Withdrawal flow
@@ -106,34 +106,34 @@ Look at [function _doWithdraw()](test/MainnetIntegration.sol#L1260) for a refere
 
 1. Client-side JS code prepares all the necessary data for the Morpho redeem function.
 
-2. Client-side JS code prompts the User to call the `withdraw` function of the client's instance of the P2pLendingProxy contract:
+2. Client-side JS code prompts the User to call the `withdraw` function of the client's instance of the P2pYieldProxy contract:
 
 ```solidity
-    /// @notice Withdraws assets from the lending protocol
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata to call the lending protocol
+    /// @notice Withdraws assets from the yield protocol
+    /// @param _yieldProtocolAddress The address of the yield protocol
+    /// @param _yieldProtocolCalldata The calldata to call the yield protocol
     /// @param _vault The vault address
     /// @param _shares The shares to withdraw
     function withdraw(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
+        address _yieldProtocolAddress,
+        bytes calldata _yieldProtocolCalldata,
         address _vault,
         uint256 _shares
     )
     external;
 ```
 
-The P2pLendingProxy contract will redeem the tokens from Morpho and send them to User. The amount on top of the deposited amount is split between the User and the P2pTreasury according to the client basis points.
+The P2pYieldProxy contract will redeem the tokens from Morpho and send them to User. The amount on top of the deposited amount is split between the User and the P2pTreasury according to the client basis points.
 
 ## Claiming from Morpho Universal Rewards Distributors
 
-This is Morpho specific. This feature is not available in other lending protocols.
+This is Morpho specific. This feature is not available in other yield protocols.
 
 Look at [function test_MorphoClaimingByClient_Mainnet()](test/MainnetMorphoClaiming.sol#L84) for a reference implementation of the flow.
 
 1. Client-side JS code prepares all the necessary data for the Morpho `urdClaim` function according to the [Morpho docs](https://docs.morpho.org/rewards/tutorials/claim-rewards/).
 
-2. Client-side JS code prompts the User to call the `morphoUrdClaim` function of the client's instance of the P2pLendingProxy contract:
+2. Client-side JS code prompts the User to call the `morphoUrdClaim` function of the client's instance of the P2pYieldProxy contract:
 
 ```solidity
     /// @notice Claims Morpho Urd rewards
@@ -151,13 +151,13 @@ Look at [function test_MorphoClaimingByClient_Mainnet()](test/MainnetMorphoClaim
     external;
 ```
 
-The P2pLendingProxy contract will get the reward tokens from Morpho and split them between the User and the P2pTreasury according to the client basis points.
+The P2pYieldProxy contract will get the reward tokens from Morpho and split them between the User and the P2pTreasury according to the client basis points.
 
-## Calling any function on any contracts via P2pLendingProxy
+## Calling any function on any contracts via P2pYieldProxy
 
-It's possible for the User to call any function on any contracts via P2pLendingProxy. This can be useful if it appears that functions of lending protocols beyond simple deposit and withdrawal are needed. Also, it can be useful for claiming any airdrops unknown in advance.
+It's possible for the User to call any function on any contracts via P2pYieldProxy. This can be useful if it appears that functions of yield protocols beyond simple deposit and withdrawal are needed. Also, it can be useful for claiming any airdrops unknown in advance.
 
-Before the User can use this feature, the P2P operator needs to set the rules for the function call via the `setCalldataRules` function of the P2pLendingProxyFactory contract:
+Before the User can use this feature, the P2P operator needs to set the rules for the function call via the `setCalldataRules` function of the P2pYieldProxyFactory contract:
 
 ```solidity
     /// @dev Sets the calldata rules
@@ -173,15 +173,15 @@ Before the User can use this feature, the P2P operator needs to set the rules fo
 
 The rules should be as strict as possible to prevent any undesired function calls.
 
-Once the rules are set, the User can call the permitted function on the permitted contract with the permitted calldata via P2pLendingProxy's `callAnyFunction` function:
+Once the rules are set, the User can call the permitted function on the permitted contract with the permitted calldata via P2pYieldProxy's `callAnyFunction` function:
 
 ```solidity
     /// @notice Calls an arbitrary allowed function
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata to call the lending protocol
+    /// @param _yieldProtocolAddress The address of the yield protocol
+    /// @param _yieldProtocolCalldata The calldata to call the yield protocol
     function callAnyFunction(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata
+        address _yieldProtocolAddress,
+        bytes calldata _yieldProtocolCalldata
     )
     external;
 ```

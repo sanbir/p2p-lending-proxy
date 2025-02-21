@@ -28,7 +28,7 @@ contract Deploy is Script {
             );
         vm.stopBroadcast();
 
-        proxy = P2pEthenaProxy(factory.getReferenceP2pLendingProxy());
+        proxy = P2pEthenaProxy(factory.getReferenceP2pYieldProxy());
 
         return (factory, proxy);
     }

@@ -8,30 +8,30 @@ import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../common/IAllowedCalldataChecker.sol";
 import "../common/P2pStructs.sol";
 
-/// @dev External interface of P2pLendingProxyFactory
-interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
+/// @dev External interface of P2pYieldProxyFactory
+interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
 
     /// @dev Emitted when the P2pSigner is transferred
-    event P2pLendingProxyFactory__P2pSignerTransferred(
+    event P2pYieldProxyFactory__P2pSignerTransferred(
         address indexed _previousP2pSigner,
         address indexed _newP2pSigner
     );
 
     /// @dev Emitted when the calldata rules are set
-    event P2pLendingProxyFactory__CalldataRulesSet(
+    event P2pYieldProxyFactory__CalldataRulesSet(
         address indexed _contract,
         bytes4 indexed _selector,
         P2pStructs.Rule[] _rules
     );
 
     /// @dev Emitted when the calldata rules are removed
-    event P2pLendingProxyFactory__CalldataRulesRemoved(
+    event P2pYieldProxyFactory__CalldataRulesRemoved(
         address indexed _contract,
         bytes4 indexed _selector
     );
 
     /// @dev Emitted when the deposit is made
-    event P2pLendingProxyFactory__Deposited(
+    event P2pYieldProxyFactory__Deposited(
         address indexed _client,
         uint96 indexed _clientBasisPoints
     );
@@ -54,11 +54,11 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
         bytes4 _selector
     ) external;
 
-    /// @dev Computes the address of a P2pLendingProxy created by `_createP2pLendingProxy` function
-    /// @dev P2pLendingProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
+    /// @dev Computes the address of a P2pYieldProxy created by `_createP2pYieldProxy` function
+    /// @dev P2pYieldProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
     /// @param _client The address of client
-    /// @return address The address of the P2pLendingProxy instance
-    function predictP2pLendingProxyAddress(
+    /// @return address The address of the P2pYieldProxy instance
+    function predictP2pYieldProxyAddress(
         address _client,
         uint96 _clientBasisPoints
     ) external view returns (address);
@@ -69,9 +69,9 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
         address _newP2pSigner
     ) external;
 
-    /// @dev Returns a template set by P2P to be used for new P2pLendingProxy instances
-    /// @return a template set by P2P to be used for new P2pLendingProxy instances
-    function getReferenceP2pLendingProxy() external view returns (address);
+    /// @dev Returns a template set by P2P to be used for new P2pYieldProxy instances
+    /// @return a template set by P2P to be used for new P2pYieldProxy instances
+    function getReferenceP2pYieldProxy() external view returns (address);
 
     /// @dev Gets the hash for the P2pSigner
     /// @param _client The address of client

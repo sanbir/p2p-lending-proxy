@@ -8,7 +8,7 @@ import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../src/access/P2pOperator.sol";
 import "../src/adapters/ethena/p2pEthenaProxyFactory/P2pEthenaProxyFactory.sol";
 import "../src/common/P2pStructs.sol";
-import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
+import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
@@ -59,7 +59,7 @@ contract MainnetIntegration is Test {
         );
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
+        proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
     }
 
     function test_happyPath_Mainnet() public {
@@ -99,7 +99,7 @@ contract MainnetIntegration is Test {
         assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore + profit, 1);
     }
 
-    function _getPermitSingleForP2pLendingProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
+    function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
             amount: uint160(DepositAmount),
@@ -109,20 +109,20 @@ contract MainnetIntegration is Test {
         nonce++;
 
         // data for factory
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy = IAllowanceTransfer.PermitSingle({
+        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = IAllowanceTransfer.PermitSingle({
             details: permitDetails,
             spender: proxyAddress,
             sigDeadline: SigDeadline
         });
 
-        return permitSingleForP2pLendingProxy;
+        return permitSingleForP2pYieldProxy;
     }
 
-    function _getPermit2SignatureForP2pLendingProxy(IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy) private view returns(bytes memory) {
-        bytes32 permitSingleForP2pLendingProxyHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingleForP2pLendingProxy));
-        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(clientPrivateKey, permitSingleForP2pLendingProxyHash);
-        bytes memory permit2SignatureForP2pLendingProxy = abi.encodePacked(r1, s1, v1);
-        return permit2SignatureForP2pLendingProxy;
+    function _getPermit2SignatureForP2pYieldProxy(IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy) private view returns(bytes memory) {
+        bytes32 permitSingleForP2pYieldProxyHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingleForP2pYieldProxy));
+        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(clientPrivateKey, permitSingleForP2pYieldProxyHash);
+        bytes memory permit2SignatureForP2pYieldProxy = abi.encodePacked(r1, s1, v1);
+        return permit2SignatureForP2pYieldProxy;
     }
 
     function _getP2pSignerSignature(
@@ -143,8 +143,8 @@ contract MainnetIntegration is Test {
     }
 
     function _doDeposit() private {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy = _getPermitSingleForP2pLendingProxy();
-        bytes memory permit2SignatureForP2pLendingProxy = _getPermit2SignatureForP2pLendingProxy(permitSingleForP2pLendingProxy);
+        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = _getPermitSingleForP2pYieldProxy();
+        bytes memory permit2SignatureForP2pYieldProxy = _getPermit2SignatureForP2pYieldProxy(permitSingleForP2pYieldProxy);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
@@ -156,8 +156,8 @@ contract MainnetIntegration is Test {
             IERC20(USDe).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
         }
         factory.deposit(
-            permitSingleForP2pLendingProxy,
-            permit2SignatureForP2pLendingProxy,
+            permitSingleForP2pYieldProxy,
+            permit2SignatureForP2pYieldProxy,
 
             ClientBasisPoints,
             SigDeadline,
