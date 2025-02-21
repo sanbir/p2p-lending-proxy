@@ -7,7 +7,6 @@ import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../src/access/P2pOperator.sol";
 import "../src/adapters/ethena/p2pEthenaProxyFactory/P2pEthenaProxyFactory.sol";
-import "../src/common/IMorphoBundler.sol";
 import "../src/common/P2pStructs.sol";
 import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
 import "forge-std/Test.sol";

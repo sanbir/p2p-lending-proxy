@@ -13,7 +13,6 @@ import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@permit2/libraries/Permit2Lib.sol";
 import "../@permit2/libraries/SignatureVerification.sol";
 import "../common/AllowedCalldataChecker.sol";
-import "../common/IMorphoBundler.sol";
 import "../common/P2pStructs.sol";
 import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
 import "./IP2pLendingProxy.sol";
