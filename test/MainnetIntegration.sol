@@ -250,6 +250,49 @@ contract MainnetIntegration is Test {
         );
     }
 
+    function test_depositDirectlyOnProxy_Mainnet() public {
+        vm.startPrank(clientAddress);
+
+        // Add this line to give initial tokens to the client
+        deal(USDe, clientAddress, DepositAmount);
+
+        // Add this line to approve tokens for Permit2
+        IERC20(USDe).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+
+        // Get the permit details
+        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
+
+        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
+
+        // Create proxy first via factory
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        factory.deposit(
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+
+        // Now try to call deposit directly on the proxy
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pYieldProxy__NotFactoryCalled.selector,
+                clientAddress,
+                address(factory)
+            )
+        );
+        P2pEthenaProxy(proxyAddress).deposit(
+            permitSingle,
+            permit2Signature
+        );
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
