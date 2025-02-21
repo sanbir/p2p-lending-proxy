@@ -11,7 +11,7 @@ import {IERC4626} from "../../../@openzeppelin/contracts/interfaces/IERC4626.sol
 
 contract P2pEthenaProxyFactory is P2pLendingProxyFactory, IP2pEthenaProxyFactory {
 
-    /// @notice Constructor for P2pMorphoProxyFactory
+    /// @notice Constructor for P2pEthenaProxyFactory
     /// @param _p2pSigner The P2pSigner address
     /// @param _p2pTreasury The P2pTreasury address
     /// @param _stakedUSDeV2 StakedUSDeV2

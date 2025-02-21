@@ -13,7 +13,7 @@ contract P2pEthenaProxy is P2pLendingProxy, IP2pEthenaProxy {
     /// @dev USDe address
     address internal immutable i_USDe;
 
-    /// @notice Constructor for P2pMorphoProxy
+    /// @notice Constructor for P2pEthenaProxy
     /// @param _factory Factory address
     /// @param _p2pTreasury P2pTreasury address
     /// @param _stakedUSDeV2 StakedUSDeV2 address

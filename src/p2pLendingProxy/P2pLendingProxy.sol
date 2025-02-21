@@ -56,7 +56,6 @@ error P2pLendingProxy__NotClientCalled(
 
 /// @title P2pLendingProxy
 /// @notice P2pLendingProxy is a contract that allows a client to deposit and withdraw assets from a lending protocol.
-/// @dev The reference implementation is based on Morpho's lending protocol.
 abstract contract P2pLendingProxy is
     AllowedCalldataChecker,
     P2pStructs,
