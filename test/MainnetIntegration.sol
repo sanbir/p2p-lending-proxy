@@ -176,6 +176,28 @@ contract MainnetIntegration is Test {
         factory.removeCalldataRules(address(0), bytes4(0));
     }
 
+    function test_clientBasisPointsGreaterThan10000_Mainnet() public {
+        uint96 invalidBasisPoints = 10001;
+
+        vm.startPrank(clientAddress);
+        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
+        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            invalidBasisPoints,
+            SigDeadline
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__InvalidClientBasisPoints.selector, invalidBasisPoints));
+        factory.deposit(
+            permitSingle,
+            permit2Signature,
+            invalidBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
