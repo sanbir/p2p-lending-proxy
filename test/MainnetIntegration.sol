@@ -198,6 +198,32 @@ contract MainnetIntegration is Test {
         );
     }
 
+    function test_zeroAddressAsset_Mainnet() public {
+        vm.startPrank(clientAddress);
+
+        // Get the permit details
+        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
+
+        // Set token to zero address
+        permitSingle.details.token = address(0);
+
+        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        vm.expectRevert(P2pYieldProxy__ZeroAddressAsset.selector);
+        factory.deposit(
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
