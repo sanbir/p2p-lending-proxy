@@ -134,6 +134,11 @@ abstract contract P2pYieldProxy is
         emit P2pYieldProxy__Initialized();
     }
 
+    /// @notice Deposit assets into yield protocol
+    /// @param _yieldProtocolDepositCalldata calldata for deposit function of yield protocol
+    /// @param _permitSingleForP2pYieldProxy PermitSingle for P2pYieldProxy to pull assets from client
+    /// @param _permit2SignatureForP2pYieldProxy signature of PermitSingle for P2pYieldProxy
+    /// @param _usePermit2 whether should use Permit2 or native ERC-20 transferFrom
     function _deposit(
         bytes memory _yieldProtocolDepositCalldata,
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
@@ -200,6 +205,9 @@ abstract contract P2pYieldProxy is
         i_yieldProtocolAddress.functionCall(_yieldProtocolDepositCalldata);
     }
 
+    /// @notice Withdraw assets from yield protocol
+    /// @param _asset ERC-20 asset address
+    /// @param _yieldProtocolWithdrawalCalldata calldata for withdraw function of yield protocol
     function _withdraw(
         address _asset,
         bytes memory _yieldProtocolWithdrawalCalldata
