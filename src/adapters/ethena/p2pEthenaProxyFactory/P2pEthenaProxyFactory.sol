@@ -9,6 +9,7 @@ import "../p2pEthenaProxy/P2pEthenaProxy.sol";
 import "./IP2pEthenaProxyFactory.sol";
 import {IERC4626} from "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
+/// @title Entry point for depositing into Ethena with P2P.org
 contract P2pEthenaProxyFactory is P2pYieldProxyFactory, IP2pEthenaProxyFactory {
 
     /// @notice Constructor for P2pEthenaProxyFactory

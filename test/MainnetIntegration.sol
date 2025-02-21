@@ -99,6 +99,39 @@ contract MainnetIntegration is Test {
         assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore + profit, 1);
     }
 
+    function test_profitSplit_Mainnet() public {
+        deal(USDe, clientAddress, 100e18);
+
+        uint256 clientAssetBalanceBefore = IERC20(USDe).balanceOf(clientAddress);
+        uint256 p2pAssetBalanceBefore = IERC20(USDe).balanceOf(P2pTreasury);
+
+        _doDeposit();
+
+        uint256 shares = IERC20(sUSDe).balanceOf(proxyAddress);
+        uint256 assetsInEthenaBefore = IERC4626(sUSDe).convertToAssets(shares);
+
+        _forward(10000000);
+
+        uint256 assetsInEthenaAfter = IERC4626(sUSDe).convertToAssets(shares);
+        uint256 profit = assetsInEthenaAfter - assetsInEthenaBefore;
+
+        _doWithdraw(1);
+
+        uint256 clientAssetBalanceAfter = IERC20(USDe).balanceOf(clientAddress);
+        uint256 p2pAssetBalanceAfter = IERC20(USDe).balanceOf(P2pTreasury);
+        uint256 clientBalanceChange = clientAssetBalanceAfter - clientAssetBalanceBefore;
+        uint256 p2pBalanceChange = p2pAssetBalanceAfter - p2pAssetBalanceBefore;
+        uint256 sumOfBalanceChanges = clientBalanceChange + p2pBalanceChange;
+
+        assertApproxEqAbs(sumOfBalanceChanges, profit, 1);
+
+        uint256 clientBasisPointsDeFacto = clientBalanceChange * 10_000 / sumOfBalanceChanges;
+        uint256 p2pBasisPointsDeFacto = p2pBalanceChange * 10_000 / sumOfBalanceChanges;
+
+        assertApproxEqAbs(ClientBasisPoints, clientBasisPointsDeFacto, 1);
+        assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,

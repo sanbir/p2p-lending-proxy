@@ -160,6 +160,7 @@ abstract contract P2pYieldProxyFactory is
         );
     }
 
+    /// @inheritdoc IP2pYieldProxyFactory
     function deposit(
         IAllowanceTransfer.PermitSingle memory _permitSingleForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
