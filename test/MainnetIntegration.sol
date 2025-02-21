@@ -339,6 +339,45 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_withdrawOnProxyOnlyCallableByClient_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(USDe, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(USDe).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+
+        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
+
+        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        factory.deposit(
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+        vm.stopPrank();
+
+        // Try to withdraw as non-client
+        vm.startPrank(nobody);
+        P2pEthenaProxy proxy = P2pEthenaProxy(proxyAddress);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pYieldProxy__NotClientCalled.selector,
+                nobody,        // _msgSender (the nobody address trying to call)
+                clientAddress  // _actualClient (the actual client address)
+            )
+        );
+        proxy.withdrawAfterCooldown();
+        vm.stopPrank();
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
