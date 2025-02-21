@@ -161,12 +161,10 @@ Before the User can use this feature, the P2P operator needs to set the rules fo
 
 ```solidity
     /// @dev Sets the calldata rules
-    /// @param _functionType The function type
     /// @param _contract The contract address
     /// @param _selector The selector
     /// @param _rules The rules
     function setCalldataRules(
-        P2pStructs.FunctionType _functionType,
         address _contract,
         bytes4 _selector,
         P2pStructs.Rule[] calldata _rules

@@ -17,19 +17,16 @@ abstract contract AllowedCalldataChecker is IAllowedCalldataChecker {
     /// @dev Modifier for checking if a calldata is allowed
     /// @param _lendingProtocolAddress The address of the lending protocol
     /// @param _lendingProtocolCalldata The calldata (encoded signature + arguments) to be passed to the lending protocol
-    /// @param _functionType Deposit, Withdraw, or None
     modifier calldataShouldBeAllowed(
         address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        P2pStructs.FunctionType _functionType
+        bytes calldata _lendingProtocolCalldata
     ) {
         // validate lendingProtocolCalldata for lendingProtocolAddress
         bytes4 selector = _getFunctionSelector(_lendingProtocolCalldata);
         checkCalldata(
             _lendingProtocolAddress,
             selector,
-            _lendingProtocolCalldata[4:],
-            _functionType
+            _lendingProtocolCalldata[4:]
         );
         _;
     }
@@ -48,11 +45,9 @@ abstract contract AllowedCalldataChecker is IAllowedCalldataChecker {
     /// @param _target The address of the lending protocol
     /// @param _selector The selector of the function
     /// @param _calldataAfterSelector The calldata after the selector
-    /// @param _functionType Deposit, Withdraw, or None
     function checkCalldata(
         address _target,
         bytes4 _selector,
-        bytes calldata _calldataAfterSelector,
-        P2pStructs.FunctionType _functionType
+        bytes calldata _calldataAfterSelector
     ) public virtual view;
 }

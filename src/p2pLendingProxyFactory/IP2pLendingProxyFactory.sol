@@ -19,7 +19,6 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
 
     /// @dev Emitted when the calldata rules are set
     event P2pLendingProxyFactory__CalldataRulesSet(
-        P2pStructs.FunctionType indexed _functionType,
         address indexed _contract,
         bytes4 indexed _selector,
         P2pStructs.Rule[] _rules
@@ -27,7 +26,6 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
 
     /// @dev Emitted when the calldata rules are removed
     event P2pLendingProxyFactory__CalldataRulesRemoved(
-        P2pStructs.FunctionType indexed _functionType,
         address indexed _contract,
         bytes4 indexed _selector
     );
@@ -39,23 +37,19 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
     );
 
     /// @dev Sets the calldata rules
-    /// @param _functionType The function type
     /// @param _contract The contract address
     /// @param _selector The selector
     /// @param _rules The rules
     function setCalldataRules(
-        P2pStructs.FunctionType _functionType,
         address _contract,
         bytes4 _selector,
         P2pStructs.Rule[] calldata _rules
     ) external;
 
     /// @dev Removes the calldata rules
-    /// @param _functionType The function type
     /// @param _contract The contract address
     /// @param _selector The selector
     function removeCalldataRules(
-        P2pStructs.FunctionType _functionType,
         address _contract,
         bytes4 _selector
     ) external;
@@ -106,12 +100,10 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
     function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32);
 
     /// @dev Gets the calldata rules
-    /// @param _functionType The function type
     /// @param _contract The contract address
     /// @param _selector The selector
     /// @return The calldata rules
     function getCalldataRules(
-        P2pStructs.FunctionType _functionType,
         address _contract,
         bytes4 _selector
     ) external view returns (P2pStructs.Rule[] memory);

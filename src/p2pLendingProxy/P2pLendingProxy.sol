@@ -3,7 +3,6 @@
 
 pragma solidity 0.8.27;
 
-import "../@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "../@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
@@ -11,7 +10,6 @@ import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@permit2/libraries/Permit2Lib.sol";
-import "../@permit2/libraries/SignatureVerification.sol";
 import "../common/AllowedCalldataChecker.sol";
 import "../common/P2pStructs.sol";
 import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
@@ -61,8 +59,7 @@ abstract contract P2pLendingProxy is
     P2pStructs,
     ReentrancyGuard,
     ERC165,
-    IP2pLendingProxy,
-    IERC1271 {
+    IP2pLendingProxy {
 
     using SafeERC20 for IERC20;
     using Address for address;
@@ -276,7 +273,7 @@ abstract contract P2pLendingProxy is
     external
     onlyClient
     nonReentrant
-    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.None)
+    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata)
     {
         emit P2pLendingProxy__CalledAsAnyFunction(_lendingProtocolAddress);
         _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
@@ -286,21 +283,13 @@ abstract contract P2pLendingProxy is
     function checkCalldata(
         address _target,
         bytes4 _selector,
-        bytes calldata _calldataAfterSelector,
-        FunctionType _functionType
+        bytes calldata _calldataAfterSelector
     ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) {
         i_factory.checkCalldata(
             _target,
             _selector,
-            _calldataAfterSelector,
-            _functionType
+            _calldataAfterSelector
         );
-    }
-
-    function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue) {
-        SignatureVerification.verify(signature, hash, s_client);
-
-        return IERC1271.isValidSignature.selector;
     }
 
     /// @inheritdoc IP2pLendingProxy

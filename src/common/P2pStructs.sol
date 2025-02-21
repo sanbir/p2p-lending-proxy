@@ -16,16 +16,6 @@ abstract contract P2pStructs {
         EndsWith
     }
 
-    /// @title Enum
-    enum FunctionType {
-        /// @notice Any other function type (not deposit or withdrawal)
-        None,
-        /// @notice Deposit function type
-        Deposit,
-        /// @notice Withdrawal function type    
-        Withdrawal
-    }
-
     /// @notice Struct representing a rule for allowed calldata
     /// @param ruleType The type of rule
     /// @param index The start (or end, depending on StartsWith/EndsWith) index of the bytes to check

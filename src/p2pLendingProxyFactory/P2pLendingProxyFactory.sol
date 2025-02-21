@@ -28,14 +28,12 @@ error P2pLendingProxyFactory__P2pSignerSignatureExpired(
 
 /// @dev Error when no rules are defined
 error P2pLendingProxyFactory__NoRulesDefined(
-    P2pStructs.FunctionType _functionType,
     address _target,
     bytes4 _selector
 );
 
 /// @dev Error when no calldata is allowed
 error P2pLendingProxyFactory__NoCalldataAllowed(
-    P2pStructs.FunctionType _functionType,
     address _target,
     bytes4 _selector
 );
@@ -82,9 +80,9 @@ abstract contract P2pLendingProxyFactory is
     /// @notice Reference P2pLendingProxy contract
     P2pLendingProxy internal immutable i_referenceP2pLendingProxy;
 
-    // FunctionType => Contract => Selector => Rule[]
-    // all rules must be followed for (FunctionType, Contract, Selector)
-    mapping(FunctionType => mapping(address => mapping(bytes4 => Rule[]))) internal s_calldataRules;
+    // Contract => Selector => Rule[]
+    // all rules must be followed for (Contract, Selector)
+    mapping(address => mapping(bytes4 => Rule[])) internal s_calldataRules;
 
     /// @notice P2pSigner address   
     address internal s_p2pSigner;
@@ -138,14 +136,12 @@ abstract contract P2pLendingProxyFactory is
 
     /// @inheritdoc IP2pLendingProxyFactory
     function setCalldataRules(
-        FunctionType _functionType,
         address _contract,
         bytes4 _selector,
         Rule[] calldata _rules
     ) external onlyP2pOperator {
-        s_calldataRules[_functionType][_contract][_selector] = _rules;
+        s_calldataRules[_contract][_selector] = _rules;
         emit P2pLendingProxyFactory__CalldataRulesSet(
-            _functionType,
             _contract,
             _selector,
             _rules
@@ -154,13 +150,11 @@ abstract contract P2pLendingProxyFactory is
 
     /// @inheritdoc IP2pLendingProxyFactory
     function removeCalldataRules(
-        FunctionType _functionType,
         address _contract,
         bytes4 _selector
     ) external onlyP2pOperator {
-        delete s_calldataRules[_functionType][_contract][_selector];
+        delete s_calldataRules[_contract][_selector];
         emit P2pLendingProxyFactory__CalldataRulesRemoved(
-            _functionType,
             _contract,
             _selector
         );
@@ -250,13 +244,12 @@ abstract contract P2pLendingProxyFactory is
     function checkCalldata(
         address _target,
         bytes4 _selector,
-        bytes calldata _calldataAfterSelector,
-        FunctionType _functionType
+        bytes calldata _calldataAfterSelector
     ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) {
-        Rule[] memory rules = s_calldataRules[_functionType][_target][_selector];
+        Rule[] memory rules = s_calldataRules[_target][_selector];
         require (
             rules.length > 0,
-            P2pLendingProxyFactory__NoRulesDefined(_functionType, _target, _selector)
+            P2pLendingProxyFactory__NoRulesDefined(_target, _selector)
         );
 
         for (uint256 i = 0; i < rules.length; i++) {
@@ -265,7 +258,7 @@ abstract contract P2pLendingProxyFactory is
 
             require (
                 ruleType != RuleType.None || _calldataAfterSelector.length == 0,
-                P2pLendingProxyFactory__NoCalldataAllowed(_functionType, _target, _selector)
+                P2pLendingProxyFactory__NoCalldataAllowed(_target, _selector)
             );
 
             uint32 bytesCount = uint32(rule.allowedBytes.length);
@@ -358,11 +351,10 @@ abstract contract P2pLendingProxyFactory is
 
     /// @inheritdoc IP2pLendingProxyFactory
     function getCalldataRules(
-        FunctionType _functionType,
         address _contract,
         bytes4 _selector
     ) external view returns (Rule[] memory) {
-        return s_calldataRules[_functionType][_contract][_selector];
+        return s_calldataRules[_contract][_selector];
     }
 
     /// @inheritdoc IP2pLendingProxyFactory
