@@ -132,6 +132,21 @@ contract MainnetIntegration is Test {
         assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
     }
 
+    function test_transferP2pSigner_Mainnet() public {
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.transferP2pSigner(nobody);
+
+        address oldSigner = factory.getP2pSigner();
+        assertEq(oldSigner, p2pSignerAddress);
+
+        vm.startPrank(p2pOperatorAddress);
+        factory.transferP2pSigner(nobody);
+
+        address newSigner = factory.getP2pSigner();
+        assertEq(newSigner, nobody);
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
