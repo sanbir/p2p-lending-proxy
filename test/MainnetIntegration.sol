@@ -162,6 +162,20 @@ contract MainnetIntegration is Test {
         factory.setCalldataRules(address(0), bytes4(0), new P2pStructs.Rule[](0));
     }
 
+    function test_removeCalldataRules_Mainnet() public {
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.removeCalldataRules(address(0), bytes4(0));
+
+        vm.startPrank(p2pOperatorAddress);
+        vm.expectEmit();
+        emit IP2pYieldProxyFactory.P2pYieldProxyFactory__CalldataRulesRemoved(
+            address(0),
+            bytes4(0)
+        );
+        factory.removeCalldataRules(address(0), bytes4(0));
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
