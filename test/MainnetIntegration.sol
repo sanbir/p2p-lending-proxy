@@ -664,6 +664,56 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_getP2pLendingProxyFactory__NoRulesDefined_Mainnet() public {
+        // Create proxy first via factory
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
+        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
+
+        // Add this line to give tokens to the client before attempting deposit
+        deal(USDe, clientAddress, DepositAmount);
+
+        vm.startPrank(clientAddress);
+
+        // Add this line to approve tokens for Permit2
+        IERC20(USDe).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+
+        factory.deposit(
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+
+        // Try to call a function with no rules defined
+        bytes memory someCalldata = abi.encodeWithSelector(
+            IERC20.transfer.selector,
+            address(0),
+            0
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pYieldProxyFactory__NoRulesDefined.selector,
+                USDe,
+                IERC20.transfer.selector
+            )
+        );
+
+        P2pEthenaProxy(proxyAddress).callAnyFunction(
+            USDe,
+            someCalldata
+        );
+
+        vm.stopPrank();
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
