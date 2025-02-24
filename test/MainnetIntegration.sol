@@ -858,6 +858,43 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_viewFunctions_Mainnet() public {
+        // Add this line to give tokens to the client before attempting deposit
+        deal(USDe, clientAddress, DepositAmount);
+
+        vm.startPrank(clientAddress);
+
+        // Add this line to approve tokens for Permit2
+        IERC20(USDe).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+
+        // Create proxy first via factory
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
+        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
+
+        factory.deposit(
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+
+        P2pEthenaProxy proxy = P2pEthenaProxy(proxyAddress);
+        assertEq(proxy.getFactory(), address(factory));
+        assertEq(proxy.getP2pTreasury(), P2pTreasury);
+        assertEq(proxy.getClient(), clientAddress);
+        assertEq(proxy.getClientBasisPoints(), ClientBasisPoints);
+        assertEq(proxy.getTotalDeposited(USDe), DepositAmount);
+        assertEq(factory.getP2pSigner(), p2pSignerAddress);
+        assertEq(factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints), proxyAddress);
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
