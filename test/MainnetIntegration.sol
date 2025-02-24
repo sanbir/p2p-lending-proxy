@@ -739,6 +739,56 @@ contract MainnetIntegration is Test {
         assertEq(actualHash, expectedHash);
     }
 
+    function test_getPermit2HashTypedData_Mainnet() public view {
+        // Create a permit single struct
+        IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
+            details: IAllowanceTransfer.PermitDetails({
+            token: USDe,
+            amount: uint160(DepositAmount),
+            expiration: uint48(SigDeadline),
+            nonce: 0
+        }),
+            spender: proxyAddress,
+            sigDeadline: SigDeadline
+        });
+
+        // Get the permit hash
+        bytes32 permitHash = factory.getPermitHash(permitSingle);
+
+        // Get the typed data hash
+        bytes32 actualTypedDataHash = factory.getPermit2HashTypedData(permitHash);
+
+        // Calculate expected hash
+        bytes32 expectedTypedDataHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                Permit2Lib.PERMIT2.DOMAIN_SEPARATOR(),
+                permitHash
+            )
+        );
+
+        assertEq(actualTypedDataHash, expectedTypedDataHash);
+
+        // Test the overloaded function that takes PermitSingle directly
+        bytes32 actualTypedDataHashFromPermitSingle = factory.getPermit2HashTypedData(permitSingle);
+        assertEq(actualTypedDataHashFromPermitSingle, expectedTypedDataHash);
+    }
+
+    function test_supportsInterface_Mainnet() public view {
+        // Test IP2pLendingProxyFactory interface support
+        bool supportsP2pLendingProxyFactory = factory.supportsInterface(type(IP2pYieldProxyFactory).interfaceId);
+        assertTrue(supportsP2pLendingProxyFactory);
+
+        // Test IERC165 interface support
+        bool supportsERC165 = factory.supportsInterface(type(IERC165).interfaceId);
+        assertTrue(supportsERC165);
+
+        // Test non-supported interface
+        bytes4 nonSupportedInterfaceId = bytes4(keccak256("nonSupportedInterface()"));
+        bool supportsNonSupported = factory.supportsInterface(nonSupportedInterfaceId);
+        assertFalse(supportsNonSupported);
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
