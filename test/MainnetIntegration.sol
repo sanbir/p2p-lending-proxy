@@ -609,6 +609,61 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_callBalanceOfViaCallAnyFunction_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(USDe, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(USDe).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+
+        // Do initial deposit
+        _doDeposit();
+        vm.stopPrank();
+
+        bytes memory balanceOfCalldata = abi.encodeWithSelector(
+            IERC20.balanceOf.selector,
+            proxyAddress
+        );
+
+        vm.startPrank(clientAddress);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pYieldProxyFactory__NoRulesDefined.selector,
+                sUSDe,
+                IERC20.balanceOf.selector
+            )
+        );
+        P2pEthenaProxy(proxyAddress).callAnyFunction(
+            sUSDe,
+            balanceOfCalldata
+        );
+        vm.stopPrank();
+
+        P2pStructs.Rule[] memory rules = new P2pStructs.Rule[](1);
+        rules[0] = P2pStructs.Rule({
+            ruleType: P2pStructs.RuleType.AnyCalldata,
+            index: 0,
+            allowedBytes: ""
+        });
+
+        vm.startPrank(p2pOperatorAddress);
+        factory.setCalldataRules(
+            sUSDe,
+            IERC20.balanceOf.selector,
+            rules
+        );
+        vm.stopPrank();
+
+        // Call balanceOf via callAnyFunction
+        vm.startPrank(clientAddress);
+        P2pEthenaProxy proxy = P2pEthenaProxy(proxyAddress);
+        proxy.callAnyFunction(
+            sUSDe,
+            balanceOfCalldata
+        );
+        vm.stopPrank();
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
