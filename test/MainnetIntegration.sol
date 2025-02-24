@@ -824,6 +824,40 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_invalidP2pSignerSignature_Mainnet() public {
+        // Add this line to give tokens to the client before attempting deposit
+        deal(USDe, clientAddress, DepositAmount);
+
+        vm.startPrank(clientAddress);
+        IERC20(USDe).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+
+        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
+        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
+
+        // Create an invalid signature by using a different private key
+        uint256 wrongPrivateKey = 0x12345; // Some random private key
+        bytes32 messageHash = ECDSA.toEthSignedMessageHash(
+            factory.getHashForP2pSigner(
+                clientAddress,
+                ClientBasisPoints,
+                SigDeadline
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPrivateKey, messageHash);
+        bytes memory invalidSignature = abi.encodePacked(r, s, v);
+
+        vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
+
+        factory.deposit(
+            permitSingle,
+            permit2Signature,
+            ClientBasisPoints,
+            SigDeadline,
+            invalidSignature
+        );
+        vm.stopPrank();
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
