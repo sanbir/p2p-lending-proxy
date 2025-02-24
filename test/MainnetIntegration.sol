@@ -714,6 +714,31 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_getP2pLendingProxyFactory__ZeroP2pSignerAddress_Mainnet() public {
+        vm.startPrank(p2pOperatorAddress);
+        vm.expectRevert(P2pYieldProxyFactory__ZeroP2pSignerAddress.selector);
+        factory.transferP2pSigner(address(0));
+        vm.stopPrank();
+    }
+
+    function test_getHashForP2pSigner_Mainnet() public view {
+        bytes32 expectedHash = keccak256(abi.encode(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline,
+            address(factory),
+            block.chainid
+        ));
+
+        bytes32 actualHash = factory.getHashForP2pSigner(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        assertEq(actualHash, expectedHash);
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
