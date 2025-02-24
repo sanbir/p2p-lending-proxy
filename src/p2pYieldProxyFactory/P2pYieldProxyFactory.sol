@@ -12,79 +12,77 @@ import "../@permit2/libraries/PermitHash.sol";
 import "../access/P2pOperator2Step.sol";
 import "../common/AllowedCalldataChecker.sol";
 import "../common/P2pStructs.sol";
-import "../p2pLendingProxy/P2pLendingProxy.sol";
-import "./IP2pLendingProxyFactory.sol";
+import "../p2pYieldProxy/P2pYieldProxy.sol";
+import "./IP2pYieldProxyFactory.sol";
 
 /// @dev Error when the P2pSigner address is zero
-error P2pLendingProxyFactory__ZeroP2pSignerAddress();
+error P2pYieldProxyFactory__ZeroP2pSignerAddress();
 
 /// @dev Error when the P2pSigner signature is invalid
-error P2pLendingProxyFactory__InvalidP2pSignerSignature();
+error P2pYieldProxyFactory__InvalidP2pSignerSignature();
 
 /// @dev Error when the P2pSigner signature is expired
-error P2pLendingProxyFactory__P2pSignerSignatureExpired(
+error P2pYieldProxyFactory__P2pSignerSignatureExpired(
     uint256 _p2pSignerSigDeadline
 );
 
 /// @dev Error when no rules are defined
-error P2pLendingProxyFactory__NoRulesDefined(
-    P2pStructs.FunctionType _functionType,
+error P2pYieldProxyFactory__NoRulesDefined(
     address _target,
     bytes4 _selector
 );
 
 /// @dev Error when no calldata is allowed
-error P2pLendingProxyFactory__NoCalldataAllowed(
-    P2pStructs.FunctionType _functionType,
+error P2pYieldProxyFactory__NoCalldataAllowed(
     address _target,
     bytes4 _selector
 );
 
 /// @dev Error when the calldata is too short for the start with rule
-error P2pLendingProxyFactory__CalldataTooShortForStartsWithRule(
+error P2pYieldProxyFactory__CalldataTooShortForStartsWithRule(
     uint256 _calldataAfterSelectorLength,
     uint32 _ruleIndex,
     uint32 _bytesCount
 );
 
 /// @dev Error when the calldata starts with rule is violated
-error P2pLendingProxyFactory__CalldataStartsWithRuleViolated(
+error P2pYieldProxyFactory__CalldataStartsWithRuleViolated(
     bytes _actual,
     bytes _expected
 );
 
 /// @dev Error when the calldata is too short for the ends with rule
-error P2pLendingProxyFactory__CalldataTooShortForEndsWithRule(
+error P2pYieldProxyFactory__CalldataTooShortForEndsWithRule(
     uint256 _calldataAfterSelectorLength,
     uint32 _bytesCount
 );
 
 /// @dev Error when the calldata ends with rule is violated
-error P2pLendingProxyFactory__CalldataEndsWithRuleViolated(
+error P2pYieldProxyFactory__CalldataEndsWithRuleViolated(
     bytes _actual,
     bytes _expected
 );
 
-/// @title P2pLendingProxyFactory
+/// @title P2pYieldProxyFactory
 /// @author P2P Validator <info@p2p.org>
-/// @notice P2pLendingProxyFactory is a factory contract for creating P2pLendingProxy contracts
-abstract contract P2pLendingProxyFactory is
+/// @notice P2pYieldProxyFactory is a factory contract for creating P2pYieldProxy contracts
+abstract contract P2pYieldProxyFactory is
     AllowedCalldataChecker,
     P2pOperator2Step,
     P2pStructs,
     ERC165,
-    IP2pLendingProxyFactory {
+    IP2pYieldProxyFactory {
 
     using SafeCast160 for uint256;
     using SignatureChecker for address;
     using ECDSA for bytes32;
 
-    /// @notice Reference P2pLendingProxy contract
-    P2pLendingProxy internal immutable i_referenceP2pLendingProxy;
+    /// @notice Reference P2pYieldProxy contract
+    P2pYieldProxy internal immutable i_referenceP2pYieldProxy;
 
-    // FunctionType => Contract => Selector => Rule[]
-    // all rules must be followed for (FunctionType, Contract, Selector)
-    mapping(FunctionType => mapping(address => mapping(bytes4 => Rule[]))) internal s_calldataRules;
+    // Contract => Selector => Rule[]
+    // all rules must be followed for (Contract, Selector)
+    mapping(address => mapping(bytes4 => Rule[])) internal s_calldataRules;
 
     /// @notice P2pSigner address   
     address internal s_p2pSigner;
@@ -96,7 +94,7 @@ abstract contract P2pLendingProxyFactory is
     modifier p2pSignerSignatureShouldNotExpire(uint256 _p2pSignerSigDeadline) {
         require (
             block.timestamp < _p2pSignerSigDeadline,
-            P2pLendingProxyFactory__P2pSignerSignatureExpired(_p2pSignerSigDeadline)
+            P2pYieldProxyFactory__P2pSignerSignatureExpired(_p2pSignerSigDeadline)
         );
         _;
     }
@@ -116,12 +114,12 @@ abstract contract P2pLendingProxyFactory is
                 ).toEthSignedMessageHash(),
         _p2pSignerSignature
             ),
-            P2pLendingProxyFactory__InvalidP2pSignerSignature()
+            P2pYieldProxyFactory__InvalidP2pSignerSignature()
         );
         _;
     }
 
-    /// @notice Constructor for P2pLendingProxyFactory
+    /// @notice Constructor for P2pYieldProxyFactory
     /// @param _p2pSigner The P2pSigner address
     constructor(
         address _p2pSigner
@@ -129,46 +127,43 @@ abstract contract P2pLendingProxyFactory is
         _transferP2pSigner(_p2pSigner);
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
+    /// @inheritdoc IP2pYieldProxyFactory
     function transferP2pSigner(
         address _newP2pSigner
     ) external onlyP2pOperator {
         _transferP2pSigner(_newP2pSigner);
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
+    /// @inheritdoc IP2pYieldProxyFactory
     function setCalldataRules(
-        FunctionType _functionType,
         address _contract,
         bytes4 _selector,
         Rule[] calldata _rules
     ) external onlyP2pOperator {
-        s_calldataRules[_functionType][_contract][_selector] = _rules;
-        emit P2pLendingProxyFactory__CalldataRulesSet(
-            _functionType,
+        s_calldataRules[_contract][_selector] = _rules;
+        emit P2pYieldProxyFactory__CalldataRulesSet(
             _contract,
             _selector,
             _rules
         );
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
+    /// @inheritdoc IP2pYieldProxyFactory
     function removeCalldataRules(
-        FunctionType _functionType,
         address _contract,
         bytes4 _selector
     ) external onlyP2pOperator {
-        delete s_calldataRules[_functionType][_contract][_selector];
-        emit P2pLendingProxyFactory__CalldataRulesRemoved(
-            _functionType,
+        delete s_calldataRules[_contract][_selector];
+        emit P2pYieldProxyFactory__CalldataRulesRemoved(
             _contract,
             _selector
         );
     }
 
+    /// @inheritdoc IP2pYieldProxyFactory
     function deposit(
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy,
+        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pYieldProxy,
+        bytes calldata _permit2SignatureForP2pYieldProxy,
 
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
@@ -177,47 +172,47 @@ abstract contract P2pLendingProxyFactory is
     external
     p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
     p2pSignerSignatureShouldBeValid(_clientBasisPoints, _p2pSignerSigDeadline, _p2pSignerSignature)
-    returns (address p2pLendingProxyAddress)
+    returns (address p2pYieldProxyAddress)
     {
         // create proxy if not created yet
-        P2pLendingProxy p2pLendingProxy = _getOrCreateP2pLendingProxy(_clientBasisPoints);
+        P2pYieldProxy p2pYieldProxy = _getOrCreateP2pYieldProxy(_clientBasisPoints);
 
         // deposit via proxy
-        p2pLendingProxy.deposit(
-            _permitSingleForP2pLendingProxy,
-            _permit2SignatureForP2pLendingProxy
+        p2pYieldProxy.deposit(
+            _permitSingleForP2pYieldProxy,
+            _permit2SignatureForP2pYieldProxy
         );
 
-        emit P2pLendingProxyFactory__Deposited(msg.sender, _clientBasisPoints);
+        emit P2pYieldProxyFactory__Deposited(msg.sender, _clientBasisPoints);
 
-        p2pLendingProxyAddress = address(p2pLendingProxy);
+        p2pYieldProxyAddress = address(p2pYieldProxy);
     }
 
     function _transferP2pSigner(
         address _newP2pSigner
     ) private {
-        require (_newP2pSigner != address(0), P2pLendingProxyFactory__ZeroP2pSignerAddress());
-        emit P2pLendingProxyFactory__P2pSignerTransferred(s_p2pSigner, _newP2pSigner);
+        require (_newP2pSigner != address(0), P2pYieldProxyFactory__ZeroP2pSignerAddress());
+        emit P2pYieldProxyFactory__P2pSignerTransferred(s_p2pSigner, _newP2pSigner);
         s_p2pSigner = _newP2pSigner;
     }
 
-    /// @notice Creates a new P2pLendingProxy contract instance if not created yet
-    function _getOrCreateP2pLendingProxy(uint96 _clientBasisPoints)
+    /// @notice Creates a new P2pYieldProxy contract instance if not created yet
+    function _getOrCreateP2pYieldProxy(uint96 _clientBasisPoints)
     private
-    returns (P2pLendingProxy p2pLendingProxy)
+    returns (P2pYieldProxy p2pYieldProxy)
     {
-        address p2pLendingProxyAddress = predictP2pLendingProxyAddress(
+        address p2pYieldProxyAddress = predictP2pYieldProxyAddress(
             msg.sender,
             _clientBasisPoints
         );
-        uint256 codeSize = p2pLendingProxyAddress.code.length;
+        uint256 codeSize = p2pYieldProxyAddress.code.length;
         if (codeSize > 0) {
-            return P2pLendingProxy(p2pLendingProxyAddress);
+            return P2pYieldProxy(p2pYieldProxyAddress);
         }
 
-        p2pLendingProxy = P2pLendingProxy(
+        p2pYieldProxy = P2pYieldProxy(
                 Clones.cloneDeterministic(
-                address(i_referenceP2pLendingProxy),
+                address(i_referenceP2pYieldProxy),
                 _getSalt(
                     msg.sender,
                     _clientBasisPoints
@@ -225,12 +220,12 @@ abstract contract P2pLendingProxyFactory is
             )
         );
 
-        p2pLendingProxy.initialize(
+        p2pYieldProxy.initialize(
             msg.sender,
             _clientBasisPoints
         );
 
-        s_allProxies.push(address(p2pLendingProxy));
+        s_allProxies.push(address(p2pYieldProxy));
     }
 
     /// @notice Calculates the salt required for deterministic clone creation
@@ -250,13 +245,12 @@ abstract contract P2pLendingProxyFactory is
     function checkCalldata(
         address _target,
         bytes4 _selector,
-        bytes calldata _calldataAfterSelector,
-        FunctionType _functionType
+        bytes calldata _calldataAfterSelector
     ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) {
-        Rule[] memory rules = s_calldataRules[_functionType][_target][_selector];
+        Rule[] memory rules = s_calldataRules[_target][_selector];
         require (
             rules.length > 0,
-            P2pLendingProxyFactory__NoRulesDefined(_functionType, _target, _selector)
+            P2pYieldProxyFactory__NoRulesDefined(_target, _selector)
         );
 
         for (uint256 i = 0; i < rules.length; i++) {
@@ -265,7 +259,7 @@ abstract contract P2pLendingProxyFactory is
 
             require (
                 ruleType != RuleType.None || _calldataAfterSelector.length == 0,
-                P2pLendingProxyFactory__NoCalldataAllowed(_functionType, _target, _selector)
+                P2pYieldProxyFactory__NoCalldataAllowed(_target, _selector)
             );
 
             uint32 bytesCount = uint32(rule.allowedBytes.length);
@@ -273,7 +267,7 @@ abstract contract P2pLendingProxyFactory is
                 // Ensure the calldata is at least as long as the range defined by startIndex and bytesCount
                 require (
                     _calldataAfterSelector.length >= rule.index + bytesCount,
-                    P2pLendingProxyFactory__CalldataTooShortForStartsWithRule(
+                    P2pYieldProxyFactory__CalldataTooShortForStartsWithRule(
                         _calldataAfterSelector.length,
                         rule.index,
                         bytesCount
@@ -282,7 +276,7 @@ abstract contract P2pLendingProxyFactory is
                 // Compare the specified range in the calldata with the allowed bytes
                 require (
                     keccak256(_calldataAfterSelector[rule.index:rule.index + bytesCount]) == keccak256(rule.allowedBytes),
-                    P2pLendingProxyFactory__CalldataStartsWithRuleViolated(
+                    P2pYieldProxyFactory__CalldataStartsWithRuleViolated(
                         _calldataAfterSelector[rule.index:rule.index + bytesCount],
                         rule.allowedBytes
                     )
@@ -292,7 +286,7 @@ abstract contract P2pLendingProxyFactory is
                 // Ensure the calldata is at least as long as bytesCount
                 require (
                     _calldataAfterSelector.length >= bytesCount,
-                    P2pLendingProxyFactory__CalldataTooShortForEndsWithRule(
+                    P2pYieldProxyFactory__CalldataTooShortForEndsWithRule(
                         _calldataAfterSelector.length,
                         bytesCount
                     )
@@ -300,7 +294,7 @@ abstract contract P2pLendingProxyFactory is
                 // Compare the end of the calldata with the allowed bytes
                 require (
                     keccak256(_calldataAfterSelector[_calldataAfterSelector.length - bytesCount:]) == keccak256(rule.allowedBytes),
-                    P2pLendingProxyFactory__CalldataEndsWithRuleViolated(
+                    P2pYieldProxyFactory__CalldataEndsWithRuleViolated(
                         _calldataAfterSelector[_calldataAfterSelector.length - bytesCount:],
                         rule.allowedBytes
                     )
@@ -310,23 +304,23 @@ abstract contract P2pLendingProxyFactory is
         }
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
-    function predictP2pLendingProxyAddress(
+    /// @inheritdoc IP2pYieldProxyFactory
+    function predictP2pYieldProxyAddress(
         address _client,
         uint96 _clientBasisPoints
     ) public view returns (address) {
         return Clones.predictDeterministicAddress(
-            address(i_referenceP2pLendingProxy),
+            address(i_referenceP2pYieldProxy),
             _getSalt(_client, _clientBasisPoints)
         );
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
-    function getReferenceP2pLendingProxy() external view returns (address) {
-        return address(i_referenceP2pLendingProxy);
+    /// @inheritdoc IP2pYieldProxyFactory
+    function getReferenceP2pYieldProxy() external view returns (address) {
+        return address(i_referenceP2pYieldProxy);
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
+    /// @inheritdoc IP2pYieldProxyFactory
     function getHashForP2pSigner(
         address _client,
         uint96 _clientBasisPoints,
@@ -341,43 +335,42 @@ abstract contract P2pLendingProxyFactory is
         ));
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
+    /// @inheritdoc IP2pYieldProxyFactory
     function getPermit2HashTypedData(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32) {
         return getPermit2HashTypedData(getPermitHash(_permitSingle));
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
+    /// @inheritdoc IP2pYieldProxyFactory
     function getPermit2HashTypedData(bytes32 _dataHash) public view returns (bytes32) {
         return keccak256(abi.encodePacked("\x19\x01", Permit2Lib.PERMIT2.DOMAIN_SEPARATOR(), _dataHash));
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
+    /// @inheritdoc IP2pYieldProxyFactory
     function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) public pure returns (bytes32) {
         return PermitHash.hash(_permitSingle);
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
+    /// @inheritdoc IP2pYieldProxyFactory
     function getCalldataRules(
-        FunctionType _functionType,
         address _contract,
         bytes4 _selector
     ) external view returns (Rule[] memory) {
-        return s_calldataRules[_functionType][_contract][_selector];
+        return s_calldataRules[_contract][_selector];
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
+    /// @inheritdoc IP2pYieldProxyFactory
     function getP2pSigner() external view returns (address) {
         return s_p2pSigner;
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
+    /// @inheritdoc IP2pYieldProxyFactory
     function getAllProxies() external view returns (address[] memory) {
         return s_allProxies;
     }
 
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(IP2pLendingProxyFactory).interfaceId ||
+        return interfaceId == type(IP2pYieldProxyFactory).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 }

@@ -12,7 +12,6 @@ interface IAllowedCalldataChecker {
     function checkCalldata(
         address _target,
         bytes4 _selector,
-        bytes calldata _calldataAfterSelector,
-        P2pStructs.FunctionType _functionType
+        bytes calldata _calldataAfterSelector
     ) external view;
 }

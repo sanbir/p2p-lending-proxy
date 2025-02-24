@@ -4,5 +4,6 @@
 pragma solidity 0.8.27;
 import "../../../@permit2/interfaces/IAllowanceTransfer.sol";
 
+/// @dev External interface of P2pEthenaProxyFactory
 interface IP2pEthenaProxyFactory {
 }

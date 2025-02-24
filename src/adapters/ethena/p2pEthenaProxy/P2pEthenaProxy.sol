@@ -3,17 +3,17 @@
 
 pragma solidity 0.8.27;
 
-import "../../../p2pLendingProxy/P2pLendingProxy.sol";
+import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "../IStakedUSDe.sol";
 import "./IP2pEthenaProxy.sol";
 
-contract P2pEthenaProxy is P2pLendingProxy, IP2pEthenaProxy {
+contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
     using SafeERC20 for IERC20;
 
     /// @dev USDe address
     address internal immutable i_USDe;
 
-    /// @notice Constructor for P2pMorphoProxy
+    /// @notice Constructor for P2pEthenaProxy
     /// @param _factory Factory address
     /// @param _p2pTreasury P2pTreasury address
     /// @param _stakedUSDeV2 StakedUSDeV2 address
@@ -23,25 +23,27 @@ contract P2pEthenaProxy is P2pLendingProxy, IP2pEthenaProxy {
         address _p2pTreasury,
         address _stakedUSDeV2,
         address _USDe
-    ) P2pLendingProxy(_factory, _p2pTreasury, _stakedUSDeV2) {
+    ) P2pYieldProxy(_factory, _p2pTreasury, _stakedUSDeV2) {
         i_USDe = _USDe;
     }
 
+    /// @inheritdoc IP2pYieldProxy
     function deposit(
-        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy
+        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
+        bytes calldata _permit2SignatureForP2pYieldProxy
     ) external {
         _deposit(
             abi.encodeCall(
                 IERC4626.deposit,
-                (uint256(_permitSingleForP2pLendingProxy.details.amount), address(this))
+                (uint256(_permitSingleForP2pYieldProxy.details.amount), address(this))
             ),
-        _permitSingleForP2pLendingProxy,
-        _permit2SignatureForP2pLendingProxy,
+        _permitSingleForP2pYieldProxy,
+        _permit2SignatureForP2pYieldProxy,
             false
         );
     }
 
+    /// @inheritdoc IP2pEthenaProxy
     function cooldownAssets(uint256 _assets)
     external
     onlyClient
@@ -49,6 +51,7 @@ contract P2pEthenaProxy is P2pLendingProxy, IP2pEthenaProxy {
         return IStakedUSDe(i_yieldProtocolAddress).cooldownAssets(_assets);
     }
 
+    /// @inheritdoc IP2pEthenaProxy
     function cooldownShares(uint256 _shares)
     external
     onlyClient
@@ -56,6 +59,7 @@ contract P2pEthenaProxy is P2pLendingProxy, IP2pEthenaProxy {
         return IStakedUSDe(i_yieldProtocolAddress).cooldownShares(_shares);
     }
 
+    /// @inheritdoc IP2pEthenaProxy
     function withdrawAfterCooldown() external {
         _withdraw(
             i_USDe,
@@ -66,6 +70,7 @@ contract P2pEthenaProxy is P2pLendingProxy, IP2pEthenaProxy {
         );
     }
 
+    /// @inheritdoc IP2pEthenaProxy
     function withdrawWithoutCooldown(uint256 _assets) external {
         _withdraw(
             i_USDe,
@@ -76,6 +81,7 @@ contract P2pEthenaProxy is P2pLendingProxy, IP2pEthenaProxy {
         );
     }
 
+    /// @inheritdoc IP2pEthenaProxy
     function redeemWithoutCooldown(uint256 _shares) external {
         _withdraw(
             i_USDe,
@@ -87,7 +93,7 @@ contract P2pEthenaProxy is P2pLendingProxy, IP2pEthenaProxy {
     }
 
     /// @inheritdoc ERC165
-    function supportsInterface(bytes4 interfaceId) public view virtual override(P2pLendingProxy) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(P2pYieldProxy) returns (bool) {
         return interfaceId == type(IP2pEthenaProxy).interfaceId ||
             super.supportsInterface(interfaceId);
     }
