@@ -378,6 +378,84 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_withdrawViaCallAnyFunction_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(USDe, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(USDe).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+
+        // Do initial deposit
+        _doDeposit();
+
+        // Try to withdraw using callAnyFunction
+        P2pEthenaProxy proxy = P2pEthenaProxy(proxyAddress);
+        bytes memory withdrawalCallData = abi.encodeCall(
+            IStakedUSDe.unstake,
+            clientAddress
+        );
+
+        vm.startPrank(clientAddress);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pYieldProxyFactory__NoRulesDefined.selector,
+                USDe,
+                IStakedUSDe.unstake.selector
+            )
+        );
+
+        proxy.callAnyFunction(
+            USDe,
+            withdrawalCallData
+        );
+        vm.stopPrank();
+    }
+
+    function test_calldataTooShortForStartsWithRule_Mainnet() public {
+        // Create proxy and do initial deposit
+        deal(USDe, clientAddress, DepositAmount);
+        vm.startPrank(clientAddress);
+        IERC20(USDe).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+
+        // Do initial deposit
+        _doDeposit();
+        vm.stopPrank();
+
+        // Set rule that requires first 32 bytes to match
+        P2pStructs.Rule[] memory rules = new P2pStructs.Rule[](1);
+        rules[0] = P2pStructs.Rule({
+            ruleType: P2pStructs.RuleType.StartsWith,
+            index: 0,
+            allowedBytes: new bytes(32)
+        });
+
+        vm.startPrank(p2pOperatorAddress);
+        factory.setCalldataRules(
+            sUSDe,
+            IERC20.balanceOf.selector,
+            rules
+        );
+        vm.stopPrank();
+
+        // Create calldata that's too short (only 4 bytes)
+        bytes memory shortCalldata = abi.encodeWithSelector(IERC20.balanceOf.selector);
+
+        vm.startPrank(clientAddress);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pYieldProxyFactory__CalldataTooShortForStartsWithRule.selector,
+                0, // calldata length after selector
+                0, // rule index
+                32 // required bytes count
+            )
+        );
+        P2pEthenaProxy(proxyAddress).callAnyFunction(
+            sUSDe,
+            shortCalldata
+        );
+        vm.stopPrank();
+    }
+
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDe,
