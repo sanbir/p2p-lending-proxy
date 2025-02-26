@@ -3,7 +3,6 @@
 
 pragma solidity 0.8.27;
 
-import "../@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "../@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
@@ -11,64 +10,68 @@ import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@permit2/libraries/Permit2Lib.sol";
-import "../@permit2/libraries/SignatureVerification.sol";
 import "../common/AllowedCalldataChecker.sol";
-import "../common/IMorphoBundler.sol";
 import "../common/P2pStructs.sol";
-import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
-import "./IP2pLendingProxy.sol";
+import "../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
+import "./IP2pYieldProxy.sol";
 import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 /// @dev Error when the asset address is zero   
-error P2pLendingProxy__ZeroAddressAsset();
+error P2pYieldProxy__ZeroAddressAsset();
 
 /// @dev Error when the asset amount is zero
-error P2pLendingProxy__ZeroAssetAmount();
+error P2pYieldProxy__ZeroAssetAmount();
 
 /// @dev Error when the shares amount is zero
-error P2pLendingProxy__ZeroSharesAmount();
+error P2pYieldProxy__ZeroSharesAmount();
 
 /// @dev Error when the client basis points are invalid
-error P2pLendingProxy__InvalidClientBasisPoints(uint96 _clientBasisPoints);
+error P2pYieldProxy__InvalidClientBasisPoints(uint96 _clientBasisPoints);
 
 /// @dev Error when the factory is not the caller
-error P2pLendingProxy__NotFactory(address _factory);
+error P2pYieldProxy__NotFactory(address _factory);
+
+error P2pYieldProxy__DifferentActuallyDepositedAmount(
+    uint256 _requestedAmount,
+    uint256 _actualAmount
+);
 
 /// @dev Error when the factory is not the caller
 /// @param _msgSender sender address.
 /// @param _actualFactory the actual factory address.
-error P2pLendingProxy__NotFactoryCalled(
+error P2pYieldProxy__NotFactoryCalled(
     address _msgSender,
-    IP2pLendingProxyFactory _actualFactory
+    IP2pYieldProxyFactory _actualFactory
 );
 
 /// @dev Error when the client is not the caller
 /// @param _msgSender sender address.
 /// @param _actualClient the actual client address.
-error P2pLendingProxy__NotClientCalled(
+error P2pYieldProxy__NotClientCalled(
     address _msgSender,
     address _actualClient
 );
 
-/// @title P2pLendingProxy
-/// @notice P2pLendingProxy is a contract that allows a client to deposit and withdraw assets from a lending protocol.
-/// @dev The reference implementation is based on Morpho's lending protocol.
-abstract contract P2pLendingProxy is
+/// @title P2pYieldProxy
+/// @notice P2pYieldProxy is a contract that allows a client to deposit and withdraw assets from a yield protocol.
+abstract contract P2pYieldProxy is
     AllowedCalldataChecker,
     P2pStructs,
     ReentrancyGuard,
     ERC165,
-    IP2pLendingProxy,
-    IERC1271 {
+    IP2pYieldProxy {
 
     using SafeERC20 for IERC20;
     using Address for address;
 
-    /// @dev P2pLendingProxyFactory
-    IP2pLendingProxyFactory internal immutable i_factory;
+    /// @dev P2pYieldProxyFactory
+    IP2pYieldProxyFactory internal immutable i_factory;
 
     /// @dev P2pTreasury
     address internal immutable i_p2pTreasury;
+
+    /// @dev Yield protocol address
+    address internal immutable i_yieldProtocolAddress;
 
     /// @dev Client
     address internal s_client;
@@ -85,7 +88,7 @@ abstract contract P2pLendingProxy is
     /// @notice If caller is not factory, revert
     modifier onlyFactory() {
         if (msg.sender != address(i_factory)) {
-            revert P2pLendingProxy__NotFactoryCalled(msg.sender, i_factory);
+            revert P2pYieldProxy__NotFactoryCalled(msg.sender, i_factory);
         }
         _;
     }
@@ -93,23 +96,26 @@ abstract contract P2pLendingProxy is
     /// @notice If caller is not client, revert
     modifier onlyClient() {
         if (msg.sender != s_client) {
-            revert P2pLendingProxy__NotClientCalled(msg.sender, s_client);
+            revert P2pYieldProxy__NotClientCalled(msg.sender, s_client);
         }
         _;
     }
 
-    /// @notice Constructor for P2pLendingProxy
+    /// @notice Constructor for P2pYieldProxy
     /// @param _factory The factory address
     /// @param _p2pTreasury The P2pTreasury address
+    /// @param _yieldProtocolAddress Yield protocol address
     constructor(
         address _factory,
-        address _p2pTreasury
+        address _p2pTreasury,
+        address _yieldProtocolAddress
     ) {
-        i_factory = IP2pLendingProxyFactory(_factory);
+        i_factory = IP2pYieldProxyFactory(_factory);
         i_p2pTreasury = _p2pTreasury;
+        i_yieldProtocolAddress = _yieldProtocolAddress;
     }
 
-    /// @inheritdoc IP2pLendingProxy
+    /// @inheritdoc IP2pYieldProxy
     function initialize(
         address _client,
         uint96 _clientBasisPoints
@@ -119,38 +125,42 @@ abstract contract P2pLendingProxy is
     {
         require(
             _clientBasisPoints > 0 && _clientBasisPoints <= 10_000,
-            P2pLendingProxy__InvalidClientBasisPoints(_clientBasisPoints)
+            P2pYieldProxy__InvalidClientBasisPoints(_clientBasisPoints)
         );
 
         s_client = _client;
         s_clientBasisPoints = _clientBasisPoints;
 
-        emit P2pLendingProxy__Initialized();
+        emit P2pYieldProxy__Initialized();
     }
 
-    /// @inheritdoc IP2pLendingProxy
-    function deposit(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy
+    /// @notice Deposit assets into yield protocol
+    /// @param _yieldProtocolDepositCalldata calldata for deposit function of yield protocol
+    /// @param _permitSingleForP2pYieldProxy PermitSingle for P2pYieldProxy to pull assets from client
+    /// @param _permit2SignatureForP2pYieldProxy signature of PermitSingle for P2pYieldProxy
+    /// @param _usePermit2 whether should use Permit2 or native ERC-20 transferFrom
+    function _deposit(
+        bytes memory _yieldProtocolDepositCalldata,
+        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
+        bytes calldata _permit2SignatureForP2pYieldProxy,
+        bool _usePermit2
     )
-    external
+    internal
     onlyFactory
     {
-        address asset = _permitSingleForP2pLendingProxy.details.token;
-        require (asset != address(0), P2pLendingProxy__ZeroAddressAsset());
+        address asset = _permitSingleForP2pYieldProxy.details.token;
+        require (asset != address(0), P2pYieldProxy__ZeroAddressAsset());
 
-        uint160 amount = _permitSingleForP2pLendingProxy.details.amount;
-        require (amount > 0, P2pLendingProxy__ZeroAssetAmount());
+        uint160 amount = _permitSingleForP2pYieldProxy.details.amount;
+        require (amount > 0, P2pYieldProxy__ZeroAssetAmount());
 
         address client = s_client;
 
         // transfer tokens into Proxy
         try Permit2Lib.PERMIT2.permit(
             client,
-            _permitSingleForP2pLendingProxy,
-            _permit2SignatureForP2pLendingProxy
+            _permitSingleForP2pYieldProxy,
+            _permit2SignatureForP2pYieldProxy
         ) {}
         catch {} // prevent unintended reverts due to invalidated nonce
 
@@ -166,59 +176,61 @@ abstract contract P2pLendingProxy is
         uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
         uint256 actualAmount = assetAmountAfter - assetAmountBefore;
 
+        require (
+            actualAmount == amount,
+            P2pYieldProxy__DifferentActuallyDepositedAmount(amount, actualAmount)
+        ); // no support for fee-on-transfer or rebasing tokens
+
         uint256 totalDepositedAfter = s_totalDeposited[asset] + actualAmount;
         s_totalDeposited[asset] = totalDepositedAfter;
-        emit P2pLendingProxy__Deposited(
-            _lendingProtocolAddress,
+        emit P2pYieldProxy__Deposited(
+            i_yieldProtocolAddress,
             asset,
             actualAmount,
             totalDepositedAfter
         );
 
-        if (IERC20(asset).allowance(address(this), address(Permit2Lib.PERMIT2)) == 0) {
-            IERC20(asset).safeApprove(
+        if (_usePermit2) {
+            IERC20(asset).safeIncreaseAllowance(
                 address(Permit2Lib.PERMIT2),
-                type(uint256).max
+                actualAmount
+            );
+        } else {
+            IERC20(asset).safeIncreaseAllowance(
+                i_yieldProtocolAddress,
+                actualAmount
             );
         }
 
-        _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
+        i_yieldProtocolAddress.functionCall(_yieldProtocolDepositCalldata);
     }
 
-    /// @inheritdoc IP2pLendingProxy
-    function withdraw(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        address _vault,
-        uint256 _shares
+    /// @notice Withdraw assets from yield protocol
+    /// @param _asset ERC-20 asset address
+    /// @param _yieldProtocolWithdrawalCalldata calldata for withdraw function of yield protocol
+    function _withdraw(
+        address _asset,
+        bytes memory _yieldProtocolWithdrawalCalldata
     )
-    public
-    virtual
+    internal
     onlyClient
     nonReentrant
-    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.Withdrawal)
     {
-        require (_shares > 0, P2pLendingProxy__ZeroSharesAmount());
-
-        address asset = IERC4626(_vault).asset();
-        uint256 assetAmountBefore = IERC20(asset).balanceOf(address(this));
-
-        // approve shares from Proxy to Protocol
-        IERC20(_vault).safeIncreaseAllowance(_lendingProtocolAddress, _shares);
+        uint256 assetAmountBefore = IERC20(_asset).balanceOf(address(this));
 
         // withdraw assets from Protocol
-        _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
+        i_yieldProtocolAddress.functionCall(_yieldProtocolWithdrawalCalldata);
 
-        uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
+        uint256 assetAmountAfter = IERC20(_asset).balanceOf(address(this));
 
         uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
 
-        uint256 totalWithdrawnBefore = s_totalWithdrawn[asset];
+        uint256 totalWithdrawnBefore = s_totalWithdrawn[_asset];
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
-        uint256 totalDeposited = s_totalDeposited[asset];
+        uint256 totalDeposited = s_totalDeposited[_asset];
 
         // update total withdrawn
-        s_totalWithdrawn[asset] = totalWithdrawnAfter;
+        s_totalWithdrawn[_asset] = totalWithdrawnAfter;
 
         // Calculate profit increment
         // profit = (total withdrawn after this - total deposited)
@@ -244,16 +256,15 @@ abstract contract P2pLendingProxy is
         uint256 clientAmount = newAssetAmount - p2pAmount;
 
         if (p2pAmount > 0) {
-            IERC20(asset).safeTransfer(i_p2pTreasury, p2pAmount);
+            IERC20(_asset).safeTransfer(i_p2pTreasury, p2pAmount);
         }
         // clientAmount must be > 0 at this point
-        IERC20(asset).safeTransfer(s_client, clientAmount);
+        IERC20(_asset).safeTransfer(s_client, clientAmount);
 
-        emit P2pLendingProxy__Withdrawn(
-            _lendingProtocolAddress,
-            _vault,
-            asset,
-            _shares,
+        emit P2pYieldProxy__Withdrawn(
+            i_yieldProtocolAddress,
+            i_yieldProtocolAddress,
+            _asset,
             newAssetAmount,
             totalWithdrawnAfter,
             newProfit,
@@ -262,74 +273,66 @@ abstract contract P2pLendingProxy is
         );
     }
 
-    /// @inheritdoc IP2pLendingProxy
+    /// @inheritdoc IP2pYieldProxy
     function callAnyFunction(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata
+        address _yieldProtocolAddress,
+        bytes calldata _yieldProtocolCalldata
     )
     external
     onlyClient
     nonReentrant
-    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.None)
+    calldataShouldBeAllowed(_yieldProtocolAddress, _yieldProtocolCalldata)
     {
-        emit P2pLendingProxy__CalledAsAnyFunction(_lendingProtocolAddress);
-        _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
+        emit P2pYieldProxy__CalledAsAnyFunction(_yieldProtocolAddress);
+        _yieldProtocolAddress.functionCall(_yieldProtocolCalldata);
     }
 
     /// @inheritdoc IAllowedCalldataChecker
     function checkCalldata(
         address _target,
         bytes4 _selector,
-        bytes calldata _calldataAfterSelector,
-        FunctionType _functionType
+        bytes calldata _calldataAfterSelector
     ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) {
         i_factory.checkCalldata(
             _target,
             _selector,
-            _calldataAfterSelector,
-            _functionType
+            _calldataAfterSelector
         );
     }
 
-    function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue) {
-        SignatureVerification.verify(signature, hash, s_client);
-
-        return IERC1271.isValidSignature.selector;
-    }
-
-    /// @inheritdoc IP2pLendingProxy
+    /// @inheritdoc IP2pYieldProxy
     function getFactory() external view returns (address) {
         return address(i_factory);
     }
 
-    /// @inheritdoc IP2pLendingProxy
+    /// @inheritdoc IP2pYieldProxy
     function getP2pTreasury() external view returns (address) {
         return i_p2pTreasury;
     }
 
-    /// @inheritdoc IP2pLendingProxy
+    /// @inheritdoc IP2pYieldProxy
     function getClient() external view returns (address) {
         return s_client;
     }
 
-    /// @inheritdoc IP2pLendingProxy
+    /// @inheritdoc IP2pYieldProxy
     function getClientBasisPoints() external view returns (uint96) {
         return s_clientBasisPoints;
     }
 
-    /// @inheritdoc IP2pLendingProxy
+    /// @inheritdoc IP2pYieldProxy
     function getTotalDeposited(address _asset) external view returns (uint256) {
         return s_totalDeposited[_asset];
     }
 
-    /// @inheritdoc IP2pLendingProxy
+    /// @inheritdoc IP2pYieldProxy
     function getTotalWithdrawn(address _asset) external view returns (uint256) {
         return s_totalWithdrawn[_asset];
     }
 
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(IP2pLendingProxy).interfaceId ||
+        return interfaceId == type(IP2pYieldProxy).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 }

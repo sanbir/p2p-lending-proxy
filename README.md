@@ -1,6 +1,7 @@
-## p2p-lending-proxy
+## p2p-yield-proxy
 
-Contracts for depositing and withdrawing ERC-20 tokens from lending protocols.
+Contracts for depositing and withdrawing ERC-20 tokens from yield protocols.
+The current implementation is only compatible with [Ethena](https://ethena.fi/) protocol. 
 
 ## Running tests
 
@@ -19,23 +20,23 @@ forge script script/Deploy.s.sol:Deploy --rpc-url $RPC_URL --private-key $PRIVAT
 
 This script will:
 
-- deploy and verify on Etherscan the **P2pLendingProxyFactory** and **P2pLendingProxy** contracts
-- set the **P2pTreasury** address permanently in the P2pLendingProxyFactory
-- set the rules for Morpho specific deposit and withdrawal functions
+- deploy and verify on Etherscan the **P2pEthenaProxyFactory** and **P2pEthenaProxy** contracts
+- set the **P2pTreasury** address permanently in the P2pEthenaProxyFactory
+- set the rules for Ethena specific deposit and withdrawal functions
 
 ## Basic use case
 
 ![Basic use case diagram](image-1.png)
 
-#### Morpho Deposit flow
+#### Ethena Deposit flow
 
-Look at [function _doDeposit()](test/MainnetIntegration.sol#L1212) for a reference implementation of the flow.
+Look at [function _doDeposit()](test/MainnetIntegration.sol#L1000) for a reference implementation of the flow.
 
 1. Website User (called Client in contracts) calls Backend with its (User's) Ethereum address and some Merchant info.
 
 2. Backend uses Merchant info to determine the P2P fee (expressed as client basis points in the contracts).
 
-3. Backend calls P2pLendingProxyFactory's `getHashForP2pSigner` function to get the hash for the P2pSigner.
+3. Backend calls P2pEthenaProxyFactory's `getHashForP2pSigner` function to get the hash for the P2pSigner.
 
 ```solidity
     /// @dev Gets the hash for the P2pSigner
@@ -54,14 +55,14 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L1212) for a referen
 
 5. Backend returns JSON to the User with (client address, client basis points, signature deadline, and the signature).
 
-6. Client-side JS code prepares all the necessary data for the Morpho deposit function. Since the deposited tokens will first go from the client to the client's P2pLendingProxy instance and then from the P2pLendingProxy instance into the Morpho protocol, both of these transfers are approved by the client via Permit2. The client's P2pLendingProxy instance address is fetched from the P2pLendingProxyFactory contract's `predictP2pLendingProxyAddress` function:
+6. Client-side JS code prepares all the necessary data for the Morpho deposit function. Since the deposited tokens will first go from the client to the client's P2pEthenaProxy instance and then from the P2pEthenaProxy instance into the Ethena protocol, both of these transfers are approved by the client via Permit2. The client's P2pEthenaProxy instance address is fetched from the P2pEthenaProxyFactory contract's `predictP2pEthenaProxyAddress` function:
 
 ```solidity
-    /// @dev Computes the address of a P2pLendingProxy created by `_createP2pLendingProxy` function
-    /// @dev P2pLendingProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
+    /// @dev Computes the address of a P2pEthenaProxy created by `_createP2pEthenaProxy` function
+    /// @dev P2pEthenaProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
     /// @param _client The address of client
-    /// @return address The address of the P2pLendingProxy instance
-    function predictP2pLendingProxyAddress(
+    /// @return address The address of the P2pEthenaProxy instance
+    function predictP2pEthenaProxyAddress(
         address _client,
         uint96 _clientBasisPoints
     ) external view returns (address);
@@ -69,104 +70,68 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L1212) for a referen
 
 7. Client-side JS code checks if User has already approved the required amount of the deposited token for Permit2. If not, it prompts the User to call the `approve` function of the deposited token contract with the uint256 MAX value and Permit2 contract as the spender.
 
-8. Client-side JS code prompts the User to do `eth_signTypedData_v4` twice:
+8. Client-side JS code prompts the User to do `eth_signTypedData_v4` to sign `PermitSingle` from the User's wallet into the P2pEthenaProxy instance
 
-- first time to sign `PermitSingle` from the P2pLendingProxy instance into the Morpho protocol
-- second time to sign `PermitSingle` from the User's wallet into the P2pLendingProxy instance
-
-9. Client-side JS code prompts the User to call the `deposit` function of the P2pLendingProxyFactory contract:
+9. Client-side JS code prompts the User to call the `deposit` function of the P2pEthenaProxyFactory contract:
 
 ```solidity
-    /// @dev Deposits the lending protocol
-    /// @param _lendingProtocolAddress The lending protocol address
-    /// @param _lendingProtocolCalldata The lending protocol calldata
-    /// @param _permitSingleForP2pLendingProxy The permit single for P2pLendingProxy
-    /// @param _permit2SignatureForP2pLendingProxy The permit2 signature for P2pLendingProxy
+    /// @dev Deposits the yield protocol
+    /// @param _permitSingleForP2pEthenaProxy The permit single for P2pEthenaProxy
+    /// @param _permit2SignatureForP2pEthenaProxy The permit2 signature for P2pEthenaProxy
     /// @param _clientBasisPoints The client basis points
     /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
     /// @param _p2pSignerSignature The P2pSigner signature
-    /// @return p2pLendingProxyAddress The client's P2pLendingProxy instance address
+    /// @return P2pEthenaProxyAddress The client's P2pEthenaProxy instance address
     function deposit(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy,
+        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pEthenaProxy,
+        bytes calldata _permit2SignatureForP2pEthenaProxy,
 
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
     )
     external
-    returns (address p2pLendingProxyAddress);
+    returns (address P2pEthenaProxyAddress);
 ```
 
-#### Morpho Withdrawal flow
+#### Ethena Withdrawal flow
 
-Look at [function _doWithdraw()](test/MainnetIntegration.sol#L1260) for a reference implementation of the flow.
+Look at [function _doWithdraw()](test/MainnetIntegration.sol#L1024) for a reference implementation of the flow.
 
-1. Client-side JS code prepares all the necessary data for the Morpho redeem function.
+1. Client-side JS code prepares all the necessary data for the Ethena `cooldownShares` function.
 
-2. Client-side JS code prompts the User to call the `withdraw` function of the client's instance of the P2pLendingProxy contract:
+2. Client-side JS code prompts the User to call the `cooldownShares` function of the client's instance of the P2pEthenaProxy contract:
 
 ```solidity
-    /// @notice Withdraws assets from the lending protocol
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata to call the lending protocol
-    /// @param _vault The vault address
-    /// @param _shares The shares to withdraw
-    function withdraw(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        address _vault,
-        uint256 _shares
-    )
-    external;
+    /// @notice redeem shares into assets and starts a cooldown to claim the converted underlying asset
+    /// @param _shares shares to redeem
+    function cooldownShares(uint256 _shares) external returns (uint256 assets);
 ```
 
-The P2pLendingProxy contract will redeem the tokens from Morpho and send them to User. The amount on top of the deposited amount is split between the User and the P2pTreasury according to the client basis points.
+3. Wait for the [cooldownDuration](https://etherscan.io/address/0x9d39a5de30e57443bff2a8307a4256c8797a3497#readContract#F9). (Currently, 7 days).
 
-## Claiming from Morpho Universal Rewards Distributors
-
-This is Morpho specific. This feature is not available in other lending protocols.
-
-Look at [function test_MorphoClaimingByClient_Mainnet()](test/MainnetMorphoClaiming.sol#L84) for a reference implementation of the flow.
-
-1. Client-side JS code prepares all the necessary data for the Morpho `urdClaim` function according to the [Morpho docs](https://docs.morpho.org/rewards/tutorials/claim-rewards/).
-
-2. Client-side JS code prompts the User to call the `morphoUrdClaim` function of the client's instance of the P2pLendingProxy contract:
+2. Client-side JS code prompts the User to call the `withdrawAfterCooldown` function of the client's instance of the P2pEthenaProxy contract:
 
 ```solidity
-    /// @notice Claims Morpho Urd rewards
-    /// @dev This function is Morpho specific. Cannot be reused for other protocols.
-    /// @param _distributor The distributor address
-    /// @param _reward The reward address
-    /// @param _amount The amount to claim
-    /// @param _proof The proof for the claim
-    function morphoUrdClaim(
-        address _distributor,
-        address _reward,
-        uint256 _amount,
-        bytes32[] calldata _proof
-    )
-    external;
+    /// @notice withdraw assets after cooldown has elapsed
+    function withdrawAfterCooldown() external;
 ```
 
-The P2pLendingProxy contract will get the reward tokens from Morpho and split them between the User and the P2pTreasury according to the client basis points.
+The P2pEthenaProxy contract will redeem the tokens from Ethena and send them to User. The amount on top of the deposited amount is split between the User and the P2pTreasury according to the client basis points.
 
-## Calling any function on any contracts via P2pLendingProxy
 
-It's possible for the User to call any function on any contracts via P2pLendingProxy. This can be useful if it appears that functions of lending protocols beyond simple deposit and withdrawal are needed. Also, it can be useful for claiming any airdrops unknown in advance.
+## Calling any function on any contracts via P2pEthenaProxy
 
-Before the User can use this feature, the P2P operator needs to set the rules for the function call via the `setCalldataRules` function of the P2pLendingProxyFactory contract:
+It's possible for the User to call any function on any contracts via P2pEthenaProxy. This can be useful if it appears that functions of yield protocols beyond simple deposit and withdrawal are needed. Also, it can be useful for claiming any airdrops unknown in advance.
+
+Before the User can use this feature, the P2P operator needs to set the rules for the function call via the `setCalldataRules` function of the P2pEthenaProxyFactory contract:
 
 ```solidity
     /// @dev Sets the calldata rules
-    /// @param _functionType The function type
     /// @param _contract The contract address
     /// @param _selector The selector
     /// @param _rules The rules
     function setCalldataRules(
-        P2pStructs.FunctionType _functionType,
         address _contract,
         bytes4 _selector,
         P2pStructs.Rule[] calldata _rules
@@ -175,15 +140,15 @@ Before the User can use this feature, the P2P operator needs to set the rules fo
 
 The rules should be as strict as possible to prevent any undesired function calls.
 
-Once the rules are set, the User can call the permitted function on the permitted contract with the permitted calldata via P2pLendingProxy's `callAnyFunction` function:
+Once the rules are set, the User can call the permitted function on the permitted contract with the permitted calldata via P2pEthenaProxy's `callAnyFunction` function:
 
 ```solidity
     /// @notice Calls an arbitrary allowed function
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata to call the lending protocol
+    /// @param _yieldProtocolAddress The address of the yield protocol
+    /// @param _yieldProtocolCalldata The calldata to call the yield protocol
     function callAnyFunction(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata
+        address _yieldProtocolAddress,
+        bytes calldata _yieldProtocolCalldata
     )
     external;
 ```

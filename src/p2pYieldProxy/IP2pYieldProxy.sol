@@ -7,26 +7,25 @@ import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../common/IAllowedCalldataChecker.sol";
 
-/// @dev External interface of P2pLendingProxy declared to support ERC165 detection.
-interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
+/// @dev External interface of P2pYieldProxy declared to support ERC165 detection.
+interface IP2pYieldProxy is IAllowedCalldataChecker, IERC165 {
 
-    /// @notice Emitted when the P2pLendingProxy is initialized
-    event P2pLendingProxy__Initialized();
+    /// @notice Emitted when the P2pYieldProxy is initialized
+    event P2pYieldProxy__Initialized();
 
     /// @notice Emitted when a deposit is made
-    event P2pLendingProxy__Deposited(
-        address indexed _lendingProtocolAddress,
+    event P2pYieldProxy__Deposited(
+        address indexed _yieldProtocolAddress,
         address indexed _asset,
         uint256 _amount,
         uint256 _totalDepositedAfter
     );
 
     /// @notice Emitted when a withdrawal is made
-    event P2pLendingProxy__Withdrawn(
-        address indexed _lendingProtocolAddress,
+    event P2pYieldProxy__Withdrawn(
+        address indexed _yieldProtocolAddress,
         address indexed _vault,
         address indexed _asset,
-        uint256 _shares,
         uint256 _assets,
         uint256 _totalWithdrawnAfter,
         uint256 _newProfit,
@@ -35,11 +34,11 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     );
 
     /// @notice Emitted when an arbitrary allowed function is called
-    event P2pLendingProxy__CalledAsAnyFunction(
-        address indexed _lendingProtocolAddress
+    event P2pYieldProxy__CalledAsAnyFunction(
+        address indexed _yieldProtocolAddress
     );
 
-    /// @notice Initializes the P2pLendingProxy
+    /// @notice Initializes the P2pYieldProxy
     /// @param _client The client address
     /// @param _clientBasisPoints The client basis points
     function initialize(
@@ -48,38 +47,21 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     )
     external;
 
-    /// @notice Deposits assets into the lending protocol
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata to call the lending protocol
-    /// @param _permitSingleForP2pLendingProxy The permit single for the P2pLendingProxy
-    /// @param _permit2SignatureForP2pLendingProxy The permit2 signature for the P2pLendingProxy
+    /// @notice Deposits assets into the yield protocol
+    /// @param _permitSingleForP2pYieldProxy The permit single for the P2pYieldProxy
+    /// @param _permit2SignatureForP2pYieldProxy The permit2 signature for the P2pYieldProxy
     function deposit(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy
-    )
-    external;
-
-    /// @notice Withdraws assets from the lending protocol
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata to call the lending protocol
-    /// @param _vault The vault address
-    /// @param _shares The shares to withdraw
-    function withdraw(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        address _vault,
-        uint256 _shares
+        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
+        bytes calldata _permit2SignatureForP2pYieldProxy
     )
     external;
 
     /// @notice Calls an arbitrary allowed function
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata to call the lending protocol
+    /// @param _yieldProtocolAddress The address of the yield protocol
+    /// @param _yieldProtocolCalldata The calldata to call the yield protocol
     function callAnyFunction(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata
+        address _yieldProtocolAddress,
+        bytes calldata _yieldProtocolCalldata
     )
     external;
 

@@ -15,21 +15,18 @@ error AllowedCalldataChecker__DataTooShort();
 abstract contract AllowedCalldataChecker is IAllowedCalldataChecker {
 
     /// @dev Modifier for checking if a calldata is allowed
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata (encoded signature + arguments) to be passed to the lending protocol
-    /// @param _functionType Deposit, Withdraw, or None
+    /// @param _yieldProtocolAddress The address of the yield protocol
+    /// @param _yieldProtocolCalldata The calldata (encoded signature + arguments) to be passed to the yield protocol
     modifier calldataShouldBeAllowed(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        P2pStructs.FunctionType _functionType
+        address _yieldProtocolAddress,
+        bytes calldata _yieldProtocolCalldata
     ) {
-        // validate lendingProtocolCalldata for lendingProtocolAddress
-        bytes4 selector = _getFunctionSelector(_lendingProtocolCalldata);
+        // validate yieldProtocolCalldata for yieldProtocolAddress
+        bytes4 selector = _getFunctionSelector(_yieldProtocolCalldata);
         checkCalldata(
-            _lendingProtocolAddress,
+            _yieldProtocolAddress,
             selector,
-            _lendingProtocolCalldata[4:],
-            _functionType
+            _yieldProtocolCalldata[4:]
         );
         _;
     }
@@ -45,14 +42,12 @@ abstract contract AllowedCalldataChecker is IAllowedCalldataChecker {
     }
 
     /// @notice Checks if the calldata is allowed
-    /// @param _target The address of the lending protocol
+    /// @param _target The address of the yield protocol
     /// @param _selector The selector of the function
     /// @param _calldataAfterSelector The calldata after the selector
-    /// @param _functionType Deposit, Withdraw, or None
     function checkCalldata(
         address _target,
         bytes4 _selector,
-        bytes calldata _calldataAfterSelector,
-        P2pStructs.FunctionType _functionType
+        bytes calldata _calldataAfterSelector
     ) public virtual view;
 }
