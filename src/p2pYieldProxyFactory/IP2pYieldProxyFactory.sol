@@ -36,6 +36,13 @@ interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
         uint96 indexed _clientBasisPoints
     );
 
+    /// @dev Emitted when the a new proxy is created
+    event P2pYieldProxyFactory__ProxyCreated(
+        address _proxy,
+        address _client,
+        uint96 _clientBasisPoints
+    );
+
     /// @dev Deposits the yield protocol
     /// @param _permitSingleForP2pYieldProxy The permit single for P2pYieldProxy
     /// @param _permit2SignatureForP2pYieldProxy The permit2 signature for P2pYieldProxy

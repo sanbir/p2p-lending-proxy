@@ -226,6 +226,12 @@ abstract contract P2pYieldProxyFactory is
         );
 
         s_allProxies.push(address(p2pYieldProxy));
+
+        emit P2pYieldProxyFactory__ProxyCreated(
+            address(p2pYieldProxy),
+            msg.sender,
+            _clientBasisPoints
+        );
     }
 
     /// @notice Calculates the salt required for deterministic clone creation
