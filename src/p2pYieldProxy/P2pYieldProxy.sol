@@ -81,9 +81,9 @@ abstract contract P2pYieldProxy is
     /// @dev Client basis points
     uint96 internal s_clientBasisPoints;
 
-    mapping(address asset => uint256 amount) internal s_totalDeposited;
+    mapping(uint256 vaultId => mapping(address asset => uint256 amount)) internal s_totalDeposited;
 
-    mapping(address asset => uint256 amount) internal s_totalWithdrawn;
+    mapping(uint256 vaultId => mapping(address asset => uint256 amount)) internal s_totalWithdrawn;
 
     /// @notice If caller is not factory, revert
     modifier onlyFactory() {
@@ -135,22 +135,26 @@ abstract contract P2pYieldProxy is
     }
 
     /// @notice Deposit assets into yield protocol
+    /// @param _vaultId vault ID
     /// @param _yieldProtocolDepositCalldata calldata for deposit function of yield protocol
     /// @param _permitSingleForP2pYieldProxy PermitSingle for P2pYieldProxy to pull assets from client
     /// @param _permit2SignatureForP2pYieldProxy signature of PermitSingle for P2pYieldProxy
     /// @param _usePermit2 whether should use Permit2 or native ERC-20 transferFrom
+    /// @param _isNative whether ETH (native currency) is being deposited
     function _deposit(
+        uint256 _vaultId,
         bytes memory _yieldProtocolDepositCalldata,
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
-        bool _usePermit2
+        bool _usePermit2,
+        bool _isNative
     )
     internal
     onlyFactory
     {
-        if (msg.value > 0) {
-            uint256 totalDepositedAfter = s_totalDeposited[NATIVE] + msg.value;
-            s_totalDeposited[NATIVE] = totalDepositedAfter;
+        if (_isNative) {
+            uint256 totalDepositedAfter = s_totalDeposited[_vaultId][NATIVE] + msg.value;
+            s_totalDeposited[_vaultId][NATIVE] = totalDepositedAfter;
             emit P2pYieldProxy__Deposited(
                 i_yieldProtocolAddress,
                 NATIVE,
@@ -191,8 +195,8 @@ abstract contract P2pYieldProxy is
                 P2pYieldProxy__DifferentActuallyDepositedAmount(amount, actualAmount)
             ); // no support for fee-on-transfer or rebasing tokens
 
-            uint256 totalDepositedAfter = s_totalDeposited[asset] + actualAmount;
-            s_totalDeposited[asset] = totalDepositedAfter;
+            uint256 totalDepositedAfter = s_totalDeposited[_vaultId][asset] + actualAmount;
+            s_totalDeposited[_vaultId][asset] = totalDepositedAfter;
             emit P2pYieldProxy__Deposited(
                 i_yieldProtocolAddress,
                 asset,

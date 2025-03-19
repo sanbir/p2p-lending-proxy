@@ -31,41 +31,32 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
     function deposit(
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
-
-        SingleDirectSingleVaultStateReq memory _req
+        bytes calldata _superformCalldata
     ) external payable {
-        LiqRequest memory liqRequest = LiqRequest({
-            txData: "",
-            token: (msg.value > 0) ? NATIVE : _permitSingleForP2pYieldProxy.details.token,
-            interimToken: address(0),
-            bridgeId: bridgeId,
-            liqDstChainId: block.chainid,
-            nativeAmount: msg.value
-        });
+        require (_superformCalldata.length > 4);
+        bytes4 selector = bytes4(_superformCalldata[:4]);
 
-        SingleVaultSFData memory superformData = SingleVaultSFData({
-            superformId: _superformId,
-            amount: (msg.value > 0) ? msg.value : _permitSingleForP2pYieldProxy.details.amount,
-            outputAmount: _outputAmount,
-            maxSlippage: 50,
-            liqRequest: liqRequest,
-            permit2data: "",
-            hasDstSwap: false,
-            retain4626: false,
-            receiverAddress: address(this),
-            receiverAddressSP: address(this),
-            extraFormData: ""
-        });
-        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({superformData: superformData});
+        SingleDirectSingleVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectSingleVaultStateReq));
+
+        bool isNative = req.superformData.liqRequest.token == NATIVE;
+        if (isNative) {
+            require(msg.value >= req.superformData.liqRequest.nativeAmount);
+            require(msg.value >= req.superformData.amount);
+        } else {
+            require(req.superformData.liqRequest.token == _permitSingleForP2pYieldProxy.details.token);
+            // ETH can still be used to pay for bridging, swaps, etc., so msg.value can be > 0
+        }
+        require(!req.superformData.retain4626);
+        require(req.superformData.receiverAddress == address(this));
+        require(req.superformData.receiverAddressSP == address(this));
 
         _deposit(
-            abi.encodeCall(
-                IBaseRouter.singleDirectSingleVaultDeposit,
-                _req
-            ),
+        req.superformData.superformId,
+            _superformCalldata,
         _permitSingleForP2pYieldProxy,
         _permit2SignatureForP2pYieldProxy,
-            false
+            false,
+            isNative
         );
 
 
