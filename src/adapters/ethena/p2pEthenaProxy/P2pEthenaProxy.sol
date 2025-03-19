@@ -7,6 +7,8 @@ import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "../IStakedUSDe.sol";
 import "./IP2pEthenaProxy.sol";
 
+error P2pEthenaProxy__ZeroAddressUSDe();
+
 contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
     using SafeERC20 for IERC20;
 
@@ -24,6 +26,8 @@ contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
         address _stakedUSDeV2,
         address _USDe
     ) P2pYieldProxy(_factory, _p2pTreasury, _stakedUSDeV2) {
+        require(_USDe != address(0), P2pEthenaProxy__ZeroAddressUSDe());
+
         i_USDe = _USDe;
     }
 
