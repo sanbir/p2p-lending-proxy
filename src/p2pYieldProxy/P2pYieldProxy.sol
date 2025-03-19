@@ -64,6 +64,8 @@ abstract contract P2pYieldProxy is
     using SafeERC20 for IERC20;
     using Address for address;
 
+    address constant NATIVE = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     /// @dev P2pYieldProxyFactory
     IP2pYieldProxyFactory internal immutable i_factory;
 
@@ -79,11 +81,9 @@ abstract contract P2pYieldProxy is
     /// @dev Client basis points
     uint96 internal s_clientBasisPoints;
 
-    // asset => amount
-    mapping(address => uint256) internal s_totalDeposited;
+    mapping(address asset => uint256 amount) internal s_totalDeposited;
 
-    // asset => amount
-    mapping(address => uint256) internal s_totalWithdrawn;
+    mapping(address asset => uint256 amount) internal s_totalWithdrawn;
 
     /// @notice If caller is not factory, revert
     modifier onlyFactory() {
@@ -148,61 +148,75 @@ abstract contract P2pYieldProxy is
     internal
     onlyFactory
     {
-        address asset = _permitSingleForP2pYieldProxy.details.token;
-        require (asset != address(0), P2pYieldProxy__ZeroAddressAsset());
-
-        uint160 amount = _permitSingleForP2pYieldProxy.details.amount;
-        require (amount > 0, P2pYieldProxy__ZeroAssetAmount());
-
-        address client = s_client;
-
-        // transfer tokens into Proxy
-        try Permit2Lib.PERMIT2.permit(
-            client,
-            _permitSingleForP2pYieldProxy,
-            _permit2SignatureForP2pYieldProxy
-        ) {}
-        catch {} // prevent unintended reverts due to invalidated nonce
-
-        uint256 assetAmountBefore = IERC20(asset).balanceOf(address(this));
-
-        Permit2Lib.PERMIT2.transferFrom(
-            client,
-            address(this),
-            amount,
-            asset
-        );
-
-        uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
-        uint256 actualAmount = assetAmountAfter - assetAmountBefore;
-
-        require (
-            actualAmount == amount,
-            P2pYieldProxy__DifferentActuallyDepositedAmount(amount, actualAmount)
-        ); // no support for fee-on-transfer or rebasing tokens
-
-        uint256 totalDepositedAfter = s_totalDeposited[asset] + actualAmount;
-        s_totalDeposited[asset] = totalDepositedAfter;
-        emit P2pYieldProxy__Deposited(
-            i_yieldProtocolAddress,
-            asset,
-            actualAmount,
-            totalDepositedAfter
-        );
-
-        if (_usePermit2) {
-            IERC20(asset).safeIncreaseAllowance(
-                address(Permit2Lib.PERMIT2),
-                actualAmount
+        if (msg.value > 0) {
+            uint256 totalDepositedAfter = s_totalDeposited[NATIVE] + msg.value;
+            s_totalDeposited[NATIVE] = totalDepositedAfter;
+            emit P2pYieldProxy__Deposited(
+                i_yieldProtocolAddress,
+                NATIVE,
+                msg.value,
+                totalDepositedAfter
             );
         } else {
-            IERC20(asset).safeIncreaseAllowance(
-                i_yieldProtocolAddress,
-                actualAmount
+            address asset = _permitSingleForP2pYieldProxy.details.token;
+            require (asset != address(0), P2pYieldProxy__ZeroAddressAsset());
+
+            uint160 amount = _permitSingleForP2pYieldProxy.details.amount;
+            require (amount > 0, P2pYieldProxy__ZeroAssetAmount());
+
+            address client = s_client;
+
+            // transfer tokens into Proxy
+            try Permit2Lib.PERMIT2.permit(
+                client,
+                _permitSingleForP2pYieldProxy,
+                _permit2SignatureForP2pYieldProxy
+            ) {}
+            catch {} // prevent unintended reverts due to invalidated nonce
+
+            uint256 assetAmountBefore = IERC20(asset).balanceOf(address(this));
+
+            Permit2Lib.PERMIT2.transferFrom(
+                client,
+                address(this),
+                amount,
+                asset
             );
+
+            uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
+            uint256 actualAmount = assetAmountAfter - assetAmountBefore;
+
+            require (
+                actualAmount == amount,
+                P2pYieldProxy__DifferentActuallyDepositedAmount(amount, actualAmount)
+            ); // no support for fee-on-transfer or rebasing tokens
+
+            uint256 totalDepositedAfter = s_totalDeposited[asset] + actualAmount;
+            s_totalDeposited[asset] = totalDepositedAfter;
+            emit P2pYieldProxy__Deposited(
+                i_yieldProtocolAddress,
+                asset,
+                actualAmount,
+                totalDepositedAfter
+            );
+
+            if (_usePermit2) {
+                IERC20(asset).safeIncreaseAllowance(
+                    address(Permit2Lib.PERMIT2),
+                    actualAmount
+                );
+            } else {
+                IERC20(asset).safeIncreaseAllowance(
+                    i_yieldProtocolAddress,
+                    actualAmount
+                );
+            }
         }
 
-        i_yieldProtocolAddress.functionCall(_yieldProtocolDepositCalldata);
+        i_yieldProtocolAddress.functionCallWithValue(
+            _yieldProtocolDepositCalldata,
+            msg.value
+        );
     }
 
     /// @notice Withdraw assets from yield protocol

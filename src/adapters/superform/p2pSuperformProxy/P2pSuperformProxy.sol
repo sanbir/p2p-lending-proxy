@@ -10,23 +10,21 @@ import "./IP2pSuperformProxy.sol";
 contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
     using SafeERC20 for IERC20;
 
-    address constant NATIVE = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-
     /// @dev USDe address
-    address internal immutable i_USDe;
+    address internal immutable i_superPositions;
 
     /// @notice Constructor for P2pEthenaProxy
     /// @param _factory Factory address
     /// @param _p2pTreasury P2pTreasury address
-    /// @param _stakedUSDeV2 StakedUSDeV2 address
-    /// @param _USDe USDe address
+    /// @param _superformRouter SuperformRouter address
+    /// @param _SuperPositions SuperPositions address
     constructor(
         address _factory,
         address _p2pTreasury,
-        address _stakedUSDeV2,
-        address _USDe
-    ) P2pYieldProxy(_factory, _p2pTreasury, _stakedUSDeV2) {
-        i_USDe = _USDe;
+        address _superformRouter,
+        address _superPositions
+    ) P2pYieldProxy(_factory, _p2pTreasury, _superformRouter) {
+        i_superPositions = _superPositions;
     }
 
     /// @inheritdoc IP2pYieldProxy
@@ -34,9 +32,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
 
-        uint256 _superformId,
-        uint256 _outputAmount,
-        uint8 bridgeId
+        SingleDirectSingleVaultStateReq memory _req
     ) external payable {
         LiqRequest memory liqRequest = LiqRequest({
             txData: "",
@@ -65,12 +61,14 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         _deposit(
             abi.encodeCall(
                 IBaseRouter.singleDirectSingleVaultDeposit,
-                (uint256(_permitSingleForP2pYieldProxy.details.amount), address(this))
+                _req
             ),
         _permitSingleForP2pYieldProxy,
         _permit2SignatureForP2pYieldProxy,
             false
         );
+
+
     }
 
     /// @inheritdoc IP2pEthenaProxy
