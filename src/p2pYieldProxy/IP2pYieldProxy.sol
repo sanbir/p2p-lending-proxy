@@ -24,7 +24,7 @@ interface IP2pYieldProxy is IAllowedCalldataChecker, IERC165 {
     /// @notice Emitted when a withdrawal is made
     event P2pYieldProxy__Withdrawn(
         address indexed _yieldProtocolAddress,
-        address indexed _vault,
+        uint256 indexed _vaultId,
         address indexed _asset,
         uint256 _assets,
         uint256 _totalWithdrawnAfter,

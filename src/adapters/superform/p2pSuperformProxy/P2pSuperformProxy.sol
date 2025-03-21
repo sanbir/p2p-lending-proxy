@@ -13,6 +13,23 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
     /// @dev USDe address
     address internal immutable i_superPositions;
 
+    bytes4[6] internal constant ALLOWED_DEPOSIT_SELECTORS = [
+        IBaseRouter.multiDstMultiVaultDeposit.selector,
+        IBaseRouter.multiDstSingleVaultDeposit.selector,
+        IBaseRouter.singleDirectMultiVaultDeposit.selector,
+        IBaseRouter.singleDirectSingleVaultDeposit.selector,
+        IBaseRouter.singleXChainMultiVaultDeposit.selector,
+        IBaseRouter.singleXChainSingleVaultDeposit.selector
+    ];
+    bytes4[6] internal constant ALLOWED_WITHDRAW_SELECTORS = [
+        IBaseRouter.multiDstMultiVaultWithdraw.selector,
+        IBaseRouter.multiDstSingleVaultWithdraw.selector,
+        IBaseRouter.singleDirectMultiVaultWithdraw.selector,
+        IBaseRouter.singleDirectSingleVaultWithdraw.selector,
+        IBaseRouter.singleXChainMultiVaultWithdraw.selector,
+        IBaseRouter.singleXChainSingleVaultWithdraw.selector
+    ];
+
     /// @notice Constructor for P2pEthenaProxy
     /// @param _factory Factory address
     /// @param _p2pTreasury P2pTreasury address
@@ -34,7 +51,16 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         bytes calldata _superformCalldata
     ) external payable {
         require (_superformCalldata.length > 4);
+
         bytes4 selector = bytes4(_superformCalldata[:4]);
+        bool isAllowedSelector;
+        for (uint256 i = 0; i < ALLOWED_DEPOSIT_SELECTORS.length; i++) {
+            if (selector == ALLOWED_DEPOSIT_SELECTORS[i]) {
+                isAllowedSelector = true;
+                break;
+            }
+        }
+        require (isAllowedSelector);
 
         SingleDirectSingleVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectSingleVaultStateReq));
 
@@ -58,28 +84,10 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             false,
             isNative
         );
-
-
     }
 
     /// @inheritdoc IP2pEthenaProxy
-    function cooldownAssets(uint256 _assets)
-    external
-    onlyClient
-    returns (uint256 shares) {
-        return IStakedUSDe(i_yieldProtocolAddress).cooldownAssets(_assets);
-    }
-
-    /// @inheritdoc IP2pEthenaProxy
-    function cooldownShares(uint256 _shares)
-    external
-    onlyClient
-    returns (uint256 assets) {
-        return IStakedUSDe(i_yieldProtocolAddress).cooldownShares(_shares);
-    }
-
-    /// @inheritdoc IP2pEthenaProxy
-    function withdrawAfterCooldown() external {
+    function withdraw() external {
         _withdraw(
             i_USDe,
             abi.encodeCall(

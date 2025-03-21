@@ -233,9 +233,11 @@ abstract contract P2pYieldProxy is
     }
 
     /// @notice Withdraw assets from yield protocol
+    /// @param _vaultId vault ID
     /// @param _asset ERC-20 asset address
     /// @param _yieldProtocolWithdrawalCalldata calldata for withdraw function of yield protocol
     function _withdraw(
+        uint256 _vaultId,
         address _asset,
         bytes memory _yieldProtocolWithdrawalCalldata
     )
@@ -252,12 +254,12 @@ abstract contract P2pYieldProxy is
 
         uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
 
-        uint256 totalWithdrawnBefore = s_totalWithdrawn[_asset];
+        uint256 totalWithdrawnBefore = s_totalWithdrawn[_vaultId][_asset];
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
-        uint256 totalDeposited = s_totalDeposited[_asset];
+        uint256 totalDeposited = s_totalDeposited[_vaultId][_asset];
 
         // update total withdrawn
-        s_totalWithdrawn[_asset] = totalWithdrawnAfter;
+        s_totalWithdrawn[_vaultId][_asset] = totalWithdrawnAfter;
 
         // Calculate profit increment
         // profit = (total withdrawn after this - total deposited)
@@ -290,7 +292,7 @@ abstract contract P2pYieldProxy is
 
         emit P2pYieldProxy__Withdrawn(
             i_yieldProtocolAddress,
-            i_yieldProtocolAddress,
+            _vaultId,
             _asset,
             newAssetAmount,
             totalWithdrawnAfter,
