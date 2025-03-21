@@ -30,7 +30,7 @@ This script will:
 
 #### Ethena Deposit flow
 
-Look at [function _doDeposit()](test/MainnetIntegration.sol#L1000) for a reference implementation of the flow.
+Look at [function _doDeposit()](test/BaseIntegration.sol#L1000) for a reference implementation of the flow.
 
 1. Website User (called Client in contracts) calls Backend with its (User's) Ethereum address and some Merchant info.
 
@@ -96,7 +96,7 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L1000) for a referen
 
 #### Ethena Withdrawal flow
 
-Look at [function _doWithdraw()](test/MainnetIntegration.sol#L1024) for a reference implementation of the flow.
+Look at [function _doWithdraw()](test/BaseIntegration.sol#L1024) for a reference implementation of the flow.
 
 1. Client-side JS code prepares all the necessary data for the Ethena `cooldownShares` function.
 

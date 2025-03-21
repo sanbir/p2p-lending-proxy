@@ -13,28 +13,11 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
     /// @dev USDe address
     address internal immutable i_superPositions;
 
-    bytes4[6] internal constant ALLOWED_DEPOSIT_SELECTORS = [
-        IBaseRouter.multiDstMultiVaultDeposit.selector,
-        IBaseRouter.multiDstSingleVaultDeposit.selector,
-        IBaseRouter.singleDirectMultiVaultDeposit.selector,
-        IBaseRouter.singleDirectSingleVaultDeposit.selector,
-        IBaseRouter.singleXChainMultiVaultDeposit.selector,
-        IBaseRouter.singleXChainSingleVaultDeposit.selector
-    ];
-    bytes4[6] internal constant ALLOWED_WITHDRAW_SELECTORS = [
-        IBaseRouter.multiDstMultiVaultWithdraw.selector,
-        IBaseRouter.multiDstSingleVaultWithdraw.selector,
-        IBaseRouter.singleDirectMultiVaultWithdraw.selector,
-        IBaseRouter.singleDirectSingleVaultWithdraw.selector,
-        IBaseRouter.singleXChainMultiVaultWithdraw.selector,
-        IBaseRouter.singleXChainSingleVaultWithdraw.selector
-    ];
-
     /// @notice Constructor for P2pEthenaProxy
     /// @param _factory Factory address
     /// @param _p2pTreasury P2pTreasury address
     /// @param _superformRouter SuperformRouter address
-    /// @param _SuperPositions SuperPositions address
+    /// @param _superPositions SuperPositions address
     constructor(
         address _factory,
         address _p2pTreasury,
@@ -53,14 +36,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         require (_superformCalldata.length > 4);
 
         bytes4 selector = bytes4(_superformCalldata[:4]);
-        bool isAllowedSelector;
-        for (uint256 i = 0; i < ALLOWED_DEPOSIT_SELECTORS.length; i++) {
-            if (selector == ALLOWED_DEPOSIT_SELECTORS[i]) {
-                isAllowedSelector = true;
-                break;
-            }
-        }
-        require (isAllowedSelector);
+        require (selector == IBaseRouter.singleDirectSingleVaultDeposit.selector, "Selector not supported");
 
         SingleDirectSingleVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectSingleVaultStateReq));
 
@@ -77,7 +53,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         require(req.superformData.receiverAddressSP == address(this));
 
         _deposit(
-        req.superformData.superformId,
+            req.superformData.superformId,
             _superformCalldata,
         _permitSingleForP2pYieldProxy,
         _permit2SignatureForP2pYieldProxy,
@@ -86,21 +62,34 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         );
     }
 
-    /// @inheritdoc IP2pEthenaProxy
-    function withdraw() external {
+    function withdraw(
+        bytes calldata _superformCalldata
+    ) external {
+        require (_superformCalldata.length > 4);
+        bytes4 selector = bytes4(_superformCalldata[:4]);
+
+        require (selector == IBaseRouter.singleDirectSingleVaultWithdraw.selector, "Selector not supported");
+
+        SingleDirectSingleVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectSingleVaultStateReq));
+
+        require(req.superformData.receiverAddress == address(this));
+        require(req.superformData.receiverAddressSP == address(this));
+
+        address superform = address(uint160(req.superformData.superformId));
+        IERC4626 vault = IERC4626(superform);
+        address asset = vault.asset();
+
         _withdraw(
-            i_USDe,
-            abi.encodeCall(
-                IStakedUSDe.unstake,
-                (address(this))
-            )
+            req.superformData.superformId,
+            asset,
+            _superformCalldata
         );
     }
 
 
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId) public view virtual override(P2pYieldProxy) returns (bool) {
-        return interfaceId == type(IP2pEthenaProxy).interfaceId ||
+        return interfaceId == type(IP2pSuperformProxy).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 }
