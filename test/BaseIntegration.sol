@@ -39,9 +39,10 @@ contract BaseIntegration is Test {
     address private p2pOperatorAddress;
     address private nobody;
 
-    uint256 constant SigDeadline = 1734464723;
+    uint256 constant SigDeadline = 1742805206;
     uint96 constant ClientBasisPoints = 8700; // 13% fee
     uint256 constant DepositAmount = 1234568;
+    uint256 constant SharesAmount = 1222092;
 
     address proxyAddress;
 
@@ -104,7 +105,7 @@ contract BaseIntegration is Test {
         assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore + profit, 1);
     }
 
-    function _getVaultAddress() private returns(address) {
+    function _getVaultAddress() private pure returns(address) {
         return address(uint160(SuperformId));
     }
 
@@ -164,9 +165,39 @@ contract BaseIntegration is Test {
         if (IERC20(USDC).allowance(clientAddress, address(Permit2Lib.PERMIT2)) == 0) {
             IERC20(USDC).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
         }
+
+        LiqRequest memory liqRequest = LiqRequest({
+            txData: "",
+            token: USDC,
+            interimToken: address(0),
+            bridgeId: 1,
+            liqDstChainId: 0,
+            nativeAmount: 0
+        });
+        SingleVaultSFData memory superformData = SingleVaultSFData({
+            superformId: SuperformId,
+            amount: DepositAmount,
+            outputAmount: SharesAmount,
+            maxSlippage: 50,
+            liqRequest: liqRequest,
+            permit2data: "",
+            hasDstSwap: false,
+            retain4626: false,
+            receiverAddress: proxyAddress,
+            receiverAddressSP: proxyAddress,
+            extraFormData: ""
+        });
+        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({
+            superformData: superformData
+        });
+
+        bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
+
         factory.deposit(
             permitSingleForP2pYieldProxy,
             permit2SignatureForP2pYieldProxy,
+
+        superformCalldata,
 
             ClientBasisPoints,
             SigDeadline,
@@ -206,7 +237,7 @@ contract BaseIntegration is Test {
         SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({
             superformData: superformData
         });
-        bytes calldata superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultWithdraw, (req));
+        bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultWithdraw, (req));
 
         vm.startPrank(clientAddress);
         P2pSuperformProxy(proxyAddress).withdraw(superformCalldata);

@@ -46,6 +46,7 @@ interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @dev Deposits the yield protocol
     /// @param _permitSingleForP2pYieldProxy The permit single for P2pYieldProxy
     /// @param _permit2SignatureForP2pYieldProxy The permit2 signature for P2pYieldProxy
+    /// @param _yieldProtocolCalldata Yield protocol calldata
     /// @param _clientBasisPoints The client basis points
     /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
     /// @param _p2pSignerSignature The P2pSigner signature
@@ -53,6 +54,8 @@ interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
     function deposit(
         IAllowanceTransfer.PermitSingle memory _permitSingleForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
+
+        bytes calldata _yieldProtocolCalldata,
 
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,

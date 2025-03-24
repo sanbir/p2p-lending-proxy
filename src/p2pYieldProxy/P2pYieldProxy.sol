@@ -143,6 +143,12 @@ abstract contract P2pYieldProxy is
         emit P2pYieldProxy__Initialized();
     }
 
+    function deposit(
+        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
+        bytes calldata _permit2SignatureForP2pYieldProxy,
+        bytes calldata _superformCalldata
+    ) external virtual payable;
+
     /// @notice Deposit assets into yield protocol
     /// @param _vaultId vault ID
     /// @param _yieldProtocolDepositCalldata calldata for deposit function of yield protocol
@@ -350,13 +356,13 @@ abstract contract P2pYieldProxy is
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getTotalDeposited(address _asset) external view returns (uint256) {
-        return s_totalDeposited[_asset];
+    function getTotalDeposited(uint256 _vaultId, address _asset) external view returns (uint256) {
+        return s_totalDeposited[_vaultId][_asset];
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getTotalWithdrawn(address _asset) external view returns (uint256) {
-        return s_totalWithdrawn[_asset];
+    function getTotalWithdrawn(uint256 _vaultId, address _asset) external view returns (uint256) {
+        return s_totalWithdrawn[_vaultId][_asset];
     }
 
     /// @inheritdoc ERC165
