@@ -14,7 +14,6 @@ import "forge-std/Vm.sol";
 import "forge-std/console.sol";
 import "forge-std/console2.sol";
 import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
-import {IERC1155} from "../lib/forge-std/src/interfaces/IERC1155.sol";
 
 
 contract BaseIntegration is Test {
@@ -223,7 +222,7 @@ contract BaseIntegration is Test {
         });
         SingleVaultSFData memory superformData = SingleVaultSFData({
             superformId: SuperformId,
-            amount: DepositAmount / denominator,
+            amount: DepositAmount * 4 / denominator,
             outputAmount: sharesToWithdraw,
             maxSlippage: 50,
             liqRequest: liqRequest,

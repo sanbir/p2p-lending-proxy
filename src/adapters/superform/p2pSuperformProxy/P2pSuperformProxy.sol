@@ -5,12 +5,12 @@ pragma solidity 0.8.27;
 
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "../IBaseRouter.sol";
+import "../IERC1155A.sol";
 import "./IP2pSuperformProxy.sol";
 
 contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
     using SafeERC20 for IERC20;
 
-    /// @dev USDe address
     address internal immutable i_superPositions;
 
     /// @notice Constructor for P2pEthenaProxy
@@ -78,6 +78,12 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         address superform = address(uint160(req.superformData.superformId));
         IERC4626 vault = IERC4626(superform);
         address asset = vault.asset();
+
+        IERC1155A(i_superPositions).setApprovalForOne(
+            i_yieldProtocolAddress,
+            req.superformData.superformId,
+            req.superformData.amount
+        );
 
         _withdraw(
             req.superformData.superformId,
