@@ -16,7 +16,7 @@ import "forge-std/console2.sol";
 import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
 
-contract BaseIntegration is Test {
+contract BaseIntegrationMorpho is Test {
     using SafeERC20 for IERC20;
 
     address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
@@ -67,7 +67,7 @@ contract BaseIntegration is Test {
         proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
     }
 
-    function test_happyPath_Mainnet() public {
+    function test_happyPath_Morpho() public {
         deal(USDC, clientAddress, 10000e18);
 
         uint256 assetBalanceBefore = IERC20(USDC).balanceOf(clientAddress);
@@ -95,13 +95,6 @@ contract BaseIntegration is Test {
 
         _doWithdraw(5);
         _doWithdraw(3);
-//        _doWithdraw(2);
-//        _doWithdraw(1);
-
-        uint256 assetBalanceAfterAllWithdrawals = IERC20(USDC).balanceOf(clientAddress);
-
-//        uint256 profit = 1414853635425232;
-//        assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore + profit, 1);
     }
 
     function _getVaultAddress() private pure returns(address) {
