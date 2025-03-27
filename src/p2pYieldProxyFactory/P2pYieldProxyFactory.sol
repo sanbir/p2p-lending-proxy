@@ -165,6 +165,8 @@ abstract contract P2pYieldProxyFactory is
         IAllowanceTransfer.PermitSingle memory _permitSingleForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
 
+        bytes calldata _yieldProtocolCalldata,
+
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
@@ -180,7 +182,8 @@ abstract contract P2pYieldProxyFactory is
         // deposit via proxy
         p2pYieldProxy.deposit(
             _permitSingleForP2pYieldProxy,
-            _permit2SignatureForP2pYieldProxy
+            _permit2SignatureForP2pYieldProxy,
+            _yieldProtocolCalldata
         );
 
         emit P2pYieldProxyFactory__Deposited(msg.sender, _clientBasisPoints);
@@ -226,6 +229,12 @@ abstract contract P2pYieldProxyFactory is
         );
 
         s_allProxies.push(address(p2pYieldProxy));
+
+        emit P2pYieldProxyFactory__ProxyCreated(
+            address(p2pYieldProxy),
+            msg.sender,
+            _clientBasisPoints
+        );
     }
 
     /// @notice Calculates the salt required for deterministic clone creation

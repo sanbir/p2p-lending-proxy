@@ -24,7 +24,7 @@ interface IP2pYieldProxy is IAllowedCalldataChecker, IERC165 {
     /// @notice Emitted when a withdrawal is made
     event P2pYieldProxy__Withdrawn(
         address indexed _yieldProtocolAddress,
-        address indexed _vault,
+        uint256 indexed _vaultId,
         address indexed _asset,
         uint256 _assets,
         uint256 _totalWithdrawnAfter,
@@ -47,14 +47,11 @@ interface IP2pYieldProxy is IAllowedCalldataChecker, IERC165 {
     )
     external;
 
-    /// @notice Deposits assets into the yield protocol
-    /// @param _permitSingleForP2pYieldProxy The permit single for the P2pYieldProxy
-    /// @param _permit2SignatureForP2pYieldProxy The permit2 signature for the P2pYieldProxy
     function deposit(
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
-        bytes calldata _permit2SignatureForP2pYieldProxy
-    )
-    external;
+        bytes calldata _permit2SignatureForP2pYieldProxy,
+        bytes calldata _superformCalldata
+    ) external payable;
 
     /// @notice Calls an arbitrary allowed function
     /// @param _yieldProtocolAddress The address of the yield protocol
@@ -82,12 +79,14 @@ interface IP2pYieldProxy is IAllowedCalldataChecker, IERC165 {
     function getClientBasisPoints() external view returns (uint96);
 
     /// @notice Gets the total deposited for an asset
+    /// @param _vaultId vault ID
     /// @param _asset The asset address
     /// @return The total deposited
-    function getTotalDeposited(address _asset) external view returns (uint256);
+    function getTotalDeposited(uint256 _vaultId, address _asset) external view returns (uint256);
 
     /// @notice Gets the total withdrawn for an asset
+    /// @param _vaultId vault ID
     /// @param _asset The asset address
     /// @return The total withdrawn
-    function getTotalWithdrawn(address _asset) external view returns (uint256);
+    function getTotalWithdrawn(uint256 _vaultId, address _asset) external view returns (uint256);
 }
