@@ -32,6 +32,7 @@ contract RunTestBase is Script {
         Vm.Wallet memory wallet = vm.createWallet(deployerKey);
 
         factory = P2pSuperformProxyFactory(0x2b2CBe3Cb583EDDa67B6121E29962405C9856FE9);
+        proxyAddress = factory.predictP2pYieldProxyAddress(wallet.addr, ClientBasisPoints);
 
         IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = _getPermitSingleForP2pYieldProxy();
         bytes memory permit2SignatureForP2pYieldProxy = _getPermit2SignatureForP2pYieldProxy(permitSingleForP2pYieldProxy);
