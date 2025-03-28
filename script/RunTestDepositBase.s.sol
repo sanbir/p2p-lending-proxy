@@ -8,7 +8,7 @@ import "../src/adapters/superform/p2pSuperformProxyFactory/P2pSuperformProxyFact
 import {Script} from "forge-std/Script.sol";
 import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
-contract RunTestBase is Script {
+contract RunTestDepositBase is Script {
     using SafeERC20 for IERC20;
 
     address constant SuperformRouter = 0xa195608C2306A26f727d5199D5A382a4508308DA;
