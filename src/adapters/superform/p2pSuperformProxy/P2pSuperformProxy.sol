@@ -81,9 +81,14 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         require(req.superformData.receiverAddress == address(this));
         require(req.superformData.receiverAddressSP == address(this));
 
-        address superform = address(uint160(req.superformData.superformId));
-        IERC4626 vault = IERC4626(superform);
-        address asset = vault.asset();
+        address asset;
+        if (req.superformData.liqRequest.token == address(0)) {
+            address superform = address(uint160(req.superformData.superformId));
+            IERC4626 vault = IERC4626(superform);
+            asset = vault.asset();
+        } else {
+            asset = req.superformData.liqRequest.token;
+        }
 
         _withdraw(
             req.superformData.superformId,
