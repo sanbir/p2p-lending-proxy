@@ -5,10 +5,9 @@ pragma solidity 0.8.27;
 
 import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
-import "../common/IAllowedCalldataChecker.sol";
 
 /// @dev External interface of P2pYieldProxy declared to support ERC165 detection.
-interface IP2pYieldProxy is IAllowedCalldataChecker, IERC165 {
+interface IP2pYieldProxy is IERC165 {
 
     /// @notice Emitted when the P2pYieldProxy is initialized
     event P2pYieldProxy__Initialized();

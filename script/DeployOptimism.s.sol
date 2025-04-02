@@ -4,7 +4,9 @@
 pragma solidity 0.8.27;
 
 import "../lib/forge-std/src/Vm.sol";
+import "../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../src/adapters/superform/p2pSuperformProxyFactory/P2pSuperformProxyFactory.sol";
+import "../src/common/AllowedCalldataChecker.sol";
 import {Script} from "forge-std/Script.sol";
 
 contract DeployOptimism is Script {
@@ -20,12 +22,23 @@ contract DeployOptimism is Script {
         Vm.Wallet memory wallet = vm.createWallet(deployerKey);
 
         vm.startBroadcast(deployerKey);
+
+        AllowedCalldataChecker implementation = new AllowedCalldataChecker();
+        ProxyAdmin admin = new ProxyAdmin();
+        bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
+        TransparentUpgradeableProxy tup = new TransparentUpgradeableProxy(
+            address(implementation),
+            address(admin),
+            initData
+        );
         factory = new P2pSuperformProxyFactory(
             wallet.addr,
             P2pTreasury,
             SuperformRouter,
-            SuperPositions
+            SuperPositions,
+            address(tup)
         );
+
         vm.stopBroadcast();
 
         proxy = P2pSuperformProxy(factory.getReferenceP2pYieldProxy());

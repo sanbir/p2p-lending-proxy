@@ -5,29 +5,14 @@ pragma solidity 0.8.27;
 
 import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
-import "../common/IAllowedCalldataChecker.sol";
-import "../common/P2pStructs.sol";
 
 /// @dev External interface of P2pYieldProxyFactory
-interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
+interface IP2pYieldProxyFactory is IERC165 {
 
     /// @dev Emitted when the P2pSigner is transferred
     event P2pYieldProxyFactory__P2pSignerTransferred(
         address indexed _previousP2pSigner,
         address indexed _newP2pSigner
-    );
-
-    /// @dev Emitted when the calldata rules are set
-    event P2pYieldProxyFactory__CalldataRulesSet(
-        address indexed _contract,
-        bytes4 indexed _selector,
-        P2pStructs.Rule[] _rules
-    );
-
-    /// @dev Emitted when the calldata rules are removed
-    event P2pYieldProxyFactory__CalldataRulesRemoved(
-        address indexed _contract,
-        bytes4 indexed _selector
     );
 
     /// @dev Emitted when the deposit is made
@@ -63,24 +48,6 @@ interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
     )
     external
     returns (address p2pYieldProxyAddress);
-
-    /// @dev Sets the calldata rules
-    /// @param _contract The contract address
-    /// @param _selector The selector
-    /// @param _rules The rules
-    function setCalldataRules(
-        address _contract,
-        bytes4 _selector,
-        P2pStructs.Rule[] calldata _rules
-    ) external;
-
-    /// @dev Removes the calldata rules
-    /// @param _contract The contract address
-    /// @param _selector The selector
-    function removeCalldataRules(
-        address _contract,
-        bytes4 _selector
-    ) external;
 
     /// @dev Computes the address of a P2pYieldProxy created by `_createP2pYieldProxy` function
     /// @dev P2pYieldProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
@@ -126,15 +93,6 @@ interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @param _permitSingle The permit single
     /// @return The permit hash
     function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32);
-
-    /// @dev Gets the calldata rules
-    /// @param _contract The contract address
-    /// @param _selector The selector
-    /// @return The calldata rules
-    function getCalldataRules(
-        address _contract,
-        bytes4 _selector
-    ) external view returns (P2pStructs.Rule[] memory);
 
     /// @dev Gets the P2pSigner
     /// @return The P2pSigner address

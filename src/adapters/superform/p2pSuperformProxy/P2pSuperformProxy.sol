@@ -41,12 +41,14 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
     /// @param _p2pTreasury P2pTreasury address
     /// @param _superformRouter SuperformRouter address
     /// @param _superPositions SuperPositions address
+    /// @param _allowedCalldataChecker AllowedCalldataChecker
     constructor(
         address _factory,
         address _p2pTreasury,
         address _superformRouter,
-        address _superPositions
-    ) P2pYieldProxy(_factory, _p2pTreasury, _superformRouter) {
+        address _superPositions,
+        address _allowedCalldataChecker
+    ) P2pYieldProxy(_factory, _p2pTreasury, _superformRouter, _allowedCalldataChecker) {
         i_superPositions = _superPositions;
     }
 
