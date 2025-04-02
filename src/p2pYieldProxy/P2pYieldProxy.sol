@@ -55,6 +55,7 @@ error P2pYieldProxy__NotClientCalled(
 error P2pYieldProxy__ZeroAddressFactory();
 error P2pYieldProxy__ZeroAddressP2pTreasury();
 error P2pYieldProxy__ZeroAddressYieldProtocolAddress();
+error P2pYieldProxy__ZeroNewAssetAmount();
 
 /// @title P2pYieldProxy
 /// @notice P2pYieldProxy is a contract that allows a client to deposit and withdraw assets from a yield protocol.
@@ -114,13 +115,13 @@ abstract contract P2pYieldProxy is
         address _p2pTreasury,
         address _yieldProtocolAddress
     ) {
-        require(_factory != address(0), P2pYieldProxy__ZeroAddressFactory());
+        require (_factory != address(0), P2pYieldProxy__ZeroAddressFactory());
         i_factory = IP2pYieldProxyFactory(_factory);
 
-        require(_p2pTreasury != address(0), P2pYieldProxy__ZeroAddressP2pTreasury());
+        require (_p2pTreasury != address(0), P2pYieldProxy__ZeroAddressP2pTreasury());
         i_p2pTreasury = _p2pTreasury;
 
-        require(_yieldProtocolAddress != address(0), P2pYieldProxy__ZeroAddressYieldProtocolAddress());
+        require (_yieldProtocolAddress != address(0), P2pYieldProxy__ZeroAddressYieldProtocolAddress());
         i_yieldProtocolAddress = _yieldProtocolAddress;
     }
 
@@ -132,7 +133,7 @@ abstract contract P2pYieldProxy is
     external
     onlyFactory
     {
-        require(
+        require (
             _clientBasisPoints > 0 && _clientBasisPoints <= 10_000,
             P2pYieldProxy__InvalidClientBasisPoints(_clientBasisPoints)
         );
@@ -259,6 +260,8 @@ abstract contract P2pYieldProxy is
         uint256 assetAmountAfter = IERC20(_asset).balanceOf(address(this));
 
         uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
+
+        require (newAssetAmount != 0, P2pYieldProxy__ZeroNewAssetAmount());
 
         uint256 totalWithdrawnBefore = s_totalWithdrawn[_vaultId][_asset];
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;

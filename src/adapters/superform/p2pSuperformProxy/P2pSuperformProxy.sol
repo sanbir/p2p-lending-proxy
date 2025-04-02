@@ -8,6 +8,29 @@ import "../IBaseRouter.sol";
 import "../IERC1155A.sol";
 import "./IP2pSuperformProxy.sol";
 
+error P2pSuperformProxy__SuperformCalldataTooShort();
+error P2pSuperformProxy__SelectorNotSupported(bytes4 _selector);
+error P2pSuperformProxy__MsgValueLessThanliqRequestNativeAmount(
+    uint256 _msgValue,
+    uint256 _liqRequestNativeAmount
+);
+error P2pSuperformProxy__MsgValueLessThanAmount(
+    uint256 _msgValue,
+    uint256 _amount
+);
+error P2pSuperformProxy__LiqRequestTokenShouldBeEqualToPermitSingleForP2pYieldProxyToken(
+    address _liqRequestToken,
+    address _permitSingleForP2pYieldProxyToken
+);
+error P2pSuperformProxy__ShouldNotRetain4626();
+error P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy(
+    address _receiverAddress
+);
+error P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(
+    address _receiverAddressSP
+);
+error P2pSuperformProxy__AssetShouldNotBeZeroAddress();
+
 contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
     using SafeERC20 for IERC20;
 
@@ -33,24 +56,45 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         bytes calldata _permit2SignatureForP2pYieldProxy,
         bytes calldata _superformCalldata
     ) external override payable {
-        require (_superformCalldata.length > 4);
+        require (_superformCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
 
         bytes4 selector = bytes4(_superformCalldata[:4]);
-        require (selector == IBaseRouter.singleDirectSingleVaultDeposit.selector, "Selector not supported");
+        require (
+            selector == IBaseRouter.singleDirectSingleVaultDeposit.selector,
+            P2pSuperformProxy__SelectorNotSupported(selector)
+        );
 
         SingleDirectSingleVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectSingleVaultStateReq));
 
         bool isNative = req.superformData.liqRequest.token == NATIVE;
         if (isNative) {
-            require(msg.value >= req.superformData.liqRequest.nativeAmount);
-            require(msg.value >= req.superformData.amount);
+            require (
+                msg.value >= req.superformData.liqRequest.nativeAmount,
+                P2pSuperformProxy__MsgValueLessThanliqRequestNativeAmount(msg.value, req.superformData.liqRequest.nativeAmount)
+            );
+            require (
+                msg.value >= req.superformData.amount,
+                P2pSuperformProxy__MsgValueLessThanAmount(msg.value, req.superformData.amount)
+            );
         } else {
-            require(req.superformData.liqRequest.token == _permitSingleForP2pYieldProxy.details.token);
+            require (
+                req.superformData.liqRequest.token == _permitSingleForP2pYieldProxy.details.token,
+                P2pSuperformProxy__LiqRequestTokenShouldBeEqualToPermitSingleForP2pYieldProxyToken(
+                    req.superformData.liqRequest.token,
+                    _permitSingleForP2pYieldProxy.details.token
+                )
+            );
             // ETH can still be used to pay for bridging, swaps, etc., so msg.value can be > 0
         }
-        require(!req.superformData.retain4626);
-        require(req.superformData.receiverAddress == address(this));
-        require(req.superformData.receiverAddressSP == address(this));
+        require (!req.superformData.retain4626, P2pSuperformProxy__ShouldNotRetain4626());
+        require (
+            req.superformData.receiverAddress == address(this),
+            P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy(req.superformData.receiverAddress)
+        );
+        require (
+            req.superformData.receiverAddressSP == address(this),
+            P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(req.superformData.receiverAddressSP)
+        );
 
         _deposit(
             req.superformData.superformId,
@@ -71,15 +115,24 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
     function withdraw(
         bytes calldata _superformCalldata
     ) external {
-        require (_superformCalldata.length > 4);
+        require (_superformCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
         bytes4 selector = bytes4(_superformCalldata[:4]);
 
-        require (selector == IBaseRouter.singleDirectSingleVaultWithdraw.selector, "Selector not supported");
+        require (
+            selector == IBaseRouter.singleDirectSingleVaultWithdraw.selector,
+            P2pSuperformProxy__SelectorNotSupported(selector)
+        );
 
         SingleDirectSingleVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectSingleVaultStateReq));
 
-        require(req.superformData.receiverAddress == address(this));
-        require(req.superformData.receiverAddressSP == address(this));
+        require (
+            req.superformData.receiverAddress == address(this),
+            P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy(req.superformData.receiverAddress)
+        );
+        require (
+            req.superformData.receiverAddressSP == address(this),
+            P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(req.superformData.receiverAddressSP)
+        );
 
         address asset;
         if (req.superformData.liqRequest.token == address(0)) {
@@ -89,6 +142,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         } else {
             asset = req.superformData.liqRequest.token;
         }
+        require (asset != address(0), P2pSuperformProxy__AssetShouldNotBeZeroAddress());
 
         _withdraw(
             req.superformData.superformId,
