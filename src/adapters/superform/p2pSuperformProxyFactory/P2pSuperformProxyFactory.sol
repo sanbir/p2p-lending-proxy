@@ -17,17 +17,20 @@ contract P2pSuperformProxyFactory is P2pYieldProxyFactory, IP2pSuperformProxyFac
     /// @param _p2pTreasury The P2pTreasury address
     /// @param _superformRouter SuperformRouter address
     /// @param _superPositions SuperPositions address
+    /// @param _allowedCalldataChecker AllowedCalldataChecker
     constructor(
         address _p2pSigner,
         address _p2pTreasury,
         address _superformRouter,
-        address _superPositions
+        address _superPositions,
+        address _allowedCalldataChecker
     ) P2pYieldProxyFactory(_p2pSigner) {
         i_referenceP2pYieldProxy = new P2pSuperformProxy(
             address(this),
             _p2pTreasury,
             _superformRouter,
-            _superPositions
+            _superPositions,
+            _allowedCalldataChecker
         );
     }
 

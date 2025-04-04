@@ -10,8 +10,6 @@ import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@permit2/libraries/PermitHash.sol";
 import "../access/P2pOperator2Step.sol";
-import "../common/AllowedCalldataChecker.sol";
-import "../common/P2pStructs.sol";
 import "../p2pYieldProxy/P2pYieldProxy.sol";
 import "./IP2pYieldProxyFactory.sol";
 
@@ -26,50 +24,11 @@ error P2pYieldProxyFactory__P2pSignerSignatureExpired(
     uint256 _p2pSignerSigDeadline
 );
 
-/// @dev Error when no rules are defined
-error P2pYieldProxyFactory__NoRulesDefined(
-    address _target,
-    bytes4 _selector
-);
-
-/// @dev Error when no calldata is allowed
-error P2pYieldProxyFactory__NoCalldataAllowed(
-    address _target,
-    bytes4 _selector
-);
-
-/// @dev Error when the calldata is too short for the start with rule
-error P2pYieldProxyFactory__CalldataTooShortForStartsWithRule(
-    uint256 _calldataAfterSelectorLength,
-    uint32 _ruleIndex,
-    uint32 _bytesCount
-);
-
-/// @dev Error when the calldata starts with rule is violated
-error P2pYieldProxyFactory__CalldataStartsWithRuleViolated(
-    bytes _actual,
-    bytes _expected
-);
-
-/// @dev Error when the calldata is too short for the ends with rule
-error P2pYieldProxyFactory__CalldataTooShortForEndsWithRule(
-    uint256 _calldataAfterSelectorLength,
-    uint32 _bytesCount
-);
-
-/// @dev Error when the calldata ends with rule is violated
-error P2pYieldProxyFactory__CalldataEndsWithRuleViolated(
-    bytes _actual,
-    bytes _expected
-);
-
 /// @title P2pYieldProxyFactory
 /// @author P2P Validator <info@p2p.org>
 /// @notice P2pYieldProxyFactory is a factory contract for creating P2pYieldProxy contracts
 abstract contract P2pYieldProxyFactory is
-    AllowedCalldataChecker,
     P2pOperator2Step,
-    P2pStructs,
     ERC165,
     IP2pYieldProxyFactory {
 
@@ -79,10 +38,6 @@ abstract contract P2pYieldProxyFactory is
 
     /// @notice Reference P2pYieldProxy contract
     P2pYieldProxy internal immutable i_referenceP2pYieldProxy;
-
-    // Contract => Selector => Rule[]
-    // all rules must be followed for (Contract, Selector)
-    mapping(address => mapping(bytes4 => Rule[])) internal s_calldataRules;
 
     /// @notice P2pSigner address   
     address internal s_p2pSigner;
@@ -132,32 +87,6 @@ abstract contract P2pYieldProxyFactory is
         address _newP2pSigner
     ) external onlyP2pOperator {
         _transferP2pSigner(_newP2pSigner);
-    }
-
-    /// @inheritdoc IP2pYieldProxyFactory
-    function setCalldataRules(
-        address _contract,
-        bytes4 _selector,
-        Rule[] calldata _rules
-    ) external onlyP2pOperator {
-        s_calldataRules[_contract][_selector] = _rules;
-        emit P2pYieldProxyFactory__CalldataRulesSet(
-            _contract,
-            _selector,
-            _rules
-        );
-    }
-
-    /// @inheritdoc IP2pYieldProxyFactory
-    function removeCalldataRules(
-        address _contract,
-        bytes4 _selector
-    ) external onlyP2pOperator {
-        delete s_calldataRules[_contract][_selector];
-        emit P2pYieldProxyFactory__CalldataRulesRemoved(
-            _contract,
-            _selector
-        );
     }
 
     /// @inheritdoc IP2pYieldProxyFactory
@@ -250,69 +179,6 @@ abstract contract P2pYieldProxyFactory is
         return keccak256(abi.encode(_clientAddress, _clientBasisPoints));
     }
 
-    /// @inheritdoc IAllowedCalldataChecker
-    function checkCalldata(
-        address _target,
-        bytes4 _selector,
-        bytes calldata _calldataAfterSelector
-    ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) {
-        Rule[] memory rules = s_calldataRules[_target][_selector];
-        require (
-            rules.length > 0,
-            P2pYieldProxyFactory__NoRulesDefined(_target, _selector)
-        );
-
-        for (uint256 i = 0; i < rules.length; i++) {
-            Rule memory rule = rules[i];
-            RuleType ruleType = rule.ruleType;
-
-            require (
-                ruleType != RuleType.None || _calldataAfterSelector.length == 0,
-                P2pYieldProxyFactory__NoCalldataAllowed(_target, _selector)
-            );
-
-            uint32 bytesCount = uint32(rule.allowedBytes.length);
-            if (ruleType == RuleType.StartsWith) {
-                // Ensure the calldata is at least as long as the range defined by startIndex and bytesCount
-                require (
-                    _calldataAfterSelector.length >= rule.index + bytesCount,
-                    P2pYieldProxyFactory__CalldataTooShortForStartsWithRule(
-                        _calldataAfterSelector.length,
-                        rule.index,
-                        bytesCount
-                    )
-                );
-                // Compare the specified range in the calldata with the allowed bytes
-                require (
-                    keccak256(_calldataAfterSelector[rule.index:rule.index + bytesCount]) == keccak256(rule.allowedBytes),
-                    P2pYieldProxyFactory__CalldataStartsWithRuleViolated(
-                        _calldataAfterSelector[rule.index:rule.index + bytesCount],
-                        rule.allowedBytes
-                    )
-                );
-            }
-            if (ruleType == RuleType.EndsWith) {
-                // Ensure the calldata is at least as long as bytesCount
-                require (
-                    _calldataAfterSelector.length >= bytesCount,
-                    P2pYieldProxyFactory__CalldataTooShortForEndsWithRule(
-                        _calldataAfterSelector.length,
-                        bytesCount
-                    )
-                );
-                // Compare the end of the calldata with the allowed bytes
-                require (
-                    keccak256(_calldataAfterSelector[_calldataAfterSelector.length - bytesCount:]) == keccak256(rule.allowedBytes),
-                    P2pYieldProxyFactory__CalldataEndsWithRuleViolated(
-                        _calldataAfterSelector[_calldataAfterSelector.length - bytesCount:],
-                        rule.allowedBytes
-                    )
-                );
-            }
-            // if (ruleType == RuleType.AnyCalldata) do nothing
-        }
-    }
-
     /// @inheritdoc IP2pYieldProxyFactory
     function predictP2pYieldProxyAddress(
         address _client,
@@ -357,14 +223,6 @@ abstract contract P2pYieldProxyFactory is
     /// @inheritdoc IP2pYieldProxyFactory
     function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) public pure returns (bytes32) {
         return PermitHash.hash(_permitSingle);
-    }
-
-    /// @inheritdoc IP2pYieldProxyFactory
-    function getCalldataRules(
-        address _contract,
-        bytes4 _selector
-    ) external view returns (Rule[] memory) {
-        return s_calldataRules[_contract][_selector];
     }
 
     /// @inheritdoc IP2pYieldProxyFactory

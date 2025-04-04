@@ -9,7 +9,7 @@ import "../src/adapters/superform/p2pSuperformProxyFactory/P2pSuperformProxyFact
 import "../src/common/AllowedCalldataChecker.sol";
 import {Script} from "forge-std/Script.sol";
 
-contract DeployBase is Script {
+contract DeployOptimism is Script {
     address constant SuperformRouter = 0xa195608C2306A26f727d5199D5A382a4508308DA;
     address constant SuperPositions = 0x01dF6fb6a28a89d6bFa53b2b3F20644AbF417678;
     address constant P2pTreasury = 0x641ca805C75cC5D1ffa78C0181Aba1F77BD17904;

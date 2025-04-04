@@ -4,10 +4,11 @@
 pragma solidity 0.8.27;
 
 import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
+import "../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../src/access/P2pOperator.sol";
 import "../src/adapters/superform/p2pSuperformProxyFactory/P2pSuperformProxyFactory.sol";
-import "../src/common/P2pStructs.sol";
+import "../src/common/AllowedCalldataChecker.sol";
 import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
@@ -56,12 +57,23 @@ contract BaseIntegrationMorpho is Test {
         nobody = makeAddr("nobody");
 
         vm.startPrank(p2pOperatorAddress);
+
+        AllowedCalldataChecker implementation = new AllowedCalldataChecker();
+        ProxyAdmin admin = new ProxyAdmin();
+        bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
+        TransparentUpgradeableProxy tup = new TransparentUpgradeableProxy(
+            address(implementation),
+            address(admin),
+            initData
+        );
         factory = new P2pSuperformProxyFactory(
             p2pSignerAddress,
             P2pTreasury,
             SuperformRouter,
-            SuperPositions
+            SuperPositions,
+            address(tup)
         );
+
         vm.stopPrank();
 
         proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
