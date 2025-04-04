@@ -31,7 +31,7 @@ contract RunTestDepositBase is Script {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         Vm.Wallet memory wallet = vm.createWallet(deployerKey);
 
-        factory = P2pSuperformProxyFactory(0x2b2CBe3Cb583EDDa67B6121E29962405C9856FE9);
+        factory = P2pSuperformProxyFactory(0x27aC94F64Fa26d8E26e3833c6E0ce7e24227656D);
         proxyAddress = factory.predictP2pYieldProxyAddress(wallet.addr, ClientBasisPoints);
 
         IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = _getPermitSingleForP2pYieldProxy();

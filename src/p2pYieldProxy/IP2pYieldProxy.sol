@@ -17,7 +17,8 @@ interface IP2pYieldProxy is IERC165 {
         address indexed _yieldProtocolAddress,
         address indexed _asset,
         uint256 _amount,
-        uint256 _totalDepositedAfter
+        uint256 _totalDepositedAfter,
+        uint256 _vaultId
     );
 
     /// @notice Emitted when a withdrawal is made

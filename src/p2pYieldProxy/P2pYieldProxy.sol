@@ -240,7 +240,8 @@ abstract contract P2pYieldProxy is
                 i_yieldProtocolAddress,
                 asset,
                 actualAmount,
-                totalDepositedAfter
+                totalDepositedAfter,
+                _vaultId
             );
 
             if (_usePermit2) {
