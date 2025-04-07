@@ -6,6 +6,8 @@ pragma solidity 0.8.27;
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "../IBaseRouter.sol";
 import "../IERC1155A.sol";
+import "../IRewardsDistributor.sol";
+import "../p2pSuperformProxyFactory/IP2pSuperformProxyFactory.sol";
 import "./IP2pSuperformProxy.sol";
 
 error P2pSuperformProxy__SuperformCalldataTooShort();
@@ -30,11 +32,14 @@ error P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(
     address _receiverAddressSP
 );
 error P2pSuperformProxy__AssetShouldNotBeZeroAddress();
+error P2pSuperformProxy__NotClaimed(address _token);
+
 
 contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
     using SafeERC20 for IERC20;
 
     address internal immutable i_superPositions;
+    IRewardsDistributor internal immutable i_rewardsDistributor;
 
     /// @notice Constructor for P2pEthenaProxy
     /// @param _factory Factory address
@@ -42,14 +47,17 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
     /// @param _superformRouter SuperformRouter address
     /// @param _superPositions SuperPositions address
     /// @param _allowedCalldataChecker AllowedCalldataChecker
+    /// @param _rewardsDistributor RewardsDistributor
     constructor(
         address _factory,
         address _p2pTreasury,
         address _superformRouter,
         address _superPositions,
-        address _allowedCalldataChecker
+        address _allowedCalldataChecker,
+        address _rewardsDistributor
     ) P2pYieldProxy(_factory, _p2pTreasury, _superformRouter, _allowedCalldataChecker) {
         i_superPositions = _superPositions;
+        i_rewardsDistributor = IRewardsDistributor(_rewardsDistributor);
     }
 
     /// @inheritdoc IP2pYieldProxy
@@ -151,6 +159,92 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             asset,
             _superformCalldata
         );
+    }
+
+    function batchClaim(
+        uint256[] calldata _periodIds,
+        address[][] calldata _rewardTokens,
+        uint256[][] calldata _amountsClaimed,
+        bytes32[][] calldata _proofs
+    )
+    external
+    nonReentrant
+    {
+        if (msg.sender != s_client) {
+            IP2pSuperformProxyFactory(address(i_factory)).checkClaim(
+                msg.sender
+            );
+        }
+
+        // Determine the worst-case total number of token addresses.
+        uint256 totalTokens = 0;
+        for (uint256 i = 0; i < _rewardTokens.length; i++) {
+            totalTokens += _rewardTokens[i].length;
+        }
+
+        // Allocate a memory array for potential unique tokens.
+        address[] memory uniqueTokens = new address[](totalTokens);
+        uint256 uniqueCount = 0;
+
+        // Loop through each subarray and each token.
+        // For every token, perform a linear search on the uniqueTokens array.
+        // If the token is not already present, add it.
+        for (uint256 i = 0; i < _rewardTokens.length; i++) {
+            address[] calldata tokenGroup = _rewardTokens[i];
+            for (uint256 j = 0; j < tokenGroup.length; j++) {
+                address token = tokenGroup[j];
+                bool found = false;
+                for (uint256 k = 0; k < uniqueCount; k++) {
+                    if (uniqueTokens[k] == token) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    uniqueTokens[uniqueCount] = token;
+                    uniqueCount++;
+                }
+            }
+        }
+
+        uint256[] memory assetAmountsBefore = new uint256[](uniqueCount);
+        for (uint256 i = 0; i < uniqueCount; i++) {
+            address token = uniqueTokens[i];
+            assetAmountsBefore[i] = IERC20(token).balanceOf(address(this));
+        }
+
+        // claim _reward token from Superform
+        i_rewardsDistributor.batchClaim(
+            address(this),
+            _periodIds,
+            _rewardTokens,
+            _amountsClaimed,
+            _proofs
+        );
+
+        for (uint256 i = 0; i < uniqueCount; i++) {
+            address token = uniqueTokens[i];
+            uint256 assetAmountAfter = IERC20(token).balanceOf(address(this));
+
+            uint256 newAssetAmount = assetAmountAfter - assetAmountsBefore[i];
+            require (newAssetAmount > 0, P2pSuperformProxy__NotClaimed(token));
+
+            uint256 p2pAmount = (newAssetAmount * (10_000 - s_clientBasisPoints)) / 10_000;
+            uint256 clientAmount = newAssetAmount - p2pAmount;
+
+            if (p2pAmount > 0) {
+                IERC20(token).safeTransfer(i_p2pTreasury, p2pAmount);
+            }
+            // clientAmount must be > 0 at this point
+            IERC20(token).safeTransfer(s_client, clientAmount);
+
+            emit P2pSuperformProxy__Claimed(
+                token,
+                newAssetAmount,
+                p2pAmount,
+                clientAmount
+            );
+        }
     }
 
     function onERC1155Received(

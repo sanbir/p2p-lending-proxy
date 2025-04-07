@@ -198,7 +198,8 @@ abstract contract P2pYieldProxy is
                 i_yieldProtocolAddress,
                 NATIVE,
                 msg.value,
-                totalDepositedAfter
+                totalDepositedAfter,
+                _vaultId
             );
         } else {
             address asset = _permitSingleForP2pYieldProxy.details.token;
