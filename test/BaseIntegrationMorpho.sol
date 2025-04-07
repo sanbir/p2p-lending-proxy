@@ -42,9 +42,11 @@ contract BaseIntegrationMorpho is Test {
 
     uint256 constant SigDeadline = 1742805206;
     uint48 constant ClientBasisPointsOfProfit = 8700; // 13% fee
-    uint48 constant ClientBasisPointsOfDeposit = 0; // 0% fee
+    uint48 constant ClientBasisPointsOfDeposit = 10_000; // 0% fee
     uint256 constant DepositAmount = 1234568;
     uint256 constant SharesAmount = 1222092;
+
+    uint256 DepositAmountWithFee;
 
     address proxyAddress;
 
@@ -84,6 +86,8 @@ contract BaseIntegrationMorpho is Test {
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit
         );
+
+        DepositAmountWithFee = DepositAmount + DepositAmount * (10_000 - ClientBasisPointsOfDeposit) / 10_000;
     }
 
     function test_happyPath_Morpho() public {
@@ -94,12 +98,12 @@ contract BaseIntegrationMorpho is Test {
         _doDeposit();
 
         uint256 assetBalanceAfter1 = IERC20(USDC).balanceOf(clientAddress);
-        assertEq(assetBalanceBefore - assetBalanceAfter1, DepositAmount);
+        assertEq(assetBalanceBefore - assetBalanceAfter1, DepositAmountWithFee);
 
         _doDeposit();
 
         uint256 assetBalanceAfter2 = IERC20(USDC).balanceOf(clientAddress);
-        assertEq(assetBalanceAfter1 - assetBalanceAfter2, DepositAmount);
+        assertEq(assetBalanceAfter1 - assetBalanceAfter2, DepositAmountWithFee);
 
         _doDeposit();
         _doDeposit();
@@ -110,7 +114,7 @@ contract BaseIntegrationMorpho is Test {
 
         uint256 assetBalanceAfterWithdraw1 = IERC20(USDC).balanceOf(clientAddress);
 
-        assertApproxEqAbs(assetBalanceAfterWithdraw1 - assetBalanceAfterAllDeposits, DepositAmount * 4 / 10, 10000);
+        assertApproxEqAbs(assetBalanceAfterWithdraw1 - assetBalanceAfterAllDeposits, DepositAmountWithFee * 4 / 10, 10000);
 
         _doWithdraw(5);
         _doWithdraw(3);
@@ -123,7 +127,7 @@ contract BaseIntegrationMorpho is Test {
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDC,
-            amount: uint160(DepositAmount),
+            amount: uint160(DepositAmountWithFee),
             expiration: uint48(SigDeadline),
             nonce: nonce
         });
