@@ -17,7 +17,8 @@ contract RunTestDepositOptimism is Script {
 
     address constant USDT = 0x94b008aA00579c1307B0EF2c499aD98a8ce58e58;
     uint256 constant SigDeadline = 1743997707;
-    uint96 constant ClientBasisPoints = 8700; // 13% fee
+    uint48 constant ClientBasisPointsOfProfit = 8700; // 13% fee
+    uint48 constant ClientBasisPointsOfDeposit = 0; // 0% fee
     uint256 constant DepositAmount = 123400;
 
     P2pSuperformProxyFactory factory;
@@ -30,13 +31,18 @@ contract RunTestDepositOptimism is Script {
         Vm.Wallet memory wallet = vm.createWallet(deployerKey);
 
         factory = P2pSuperformProxyFactory(0x99F3cfC4dBd64AB26D8aa6f9148F815CBc81E3Cc);
-        proxyAddress = factory.predictP2pYieldProxyAddress(wallet.addr, ClientBasisPoints);
+        proxyAddress = factory.predictP2pYieldProxyAddress(
+            wallet.addr,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit
+        );
 
         IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = _getPermitSingleForP2pYieldProxy();
         bytes memory permit2SignatureForP2pYieldProxy = _getPermit2SignatureForP2pYieldProxy(permitSingleForP2pYieldProxy);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             wallet.addr,
-            ClientBasisPoints,
+        ClientBasisPointsOfDeposit,
+        ClientBasisPointsOfProfit,
             SigDeadline
         );
 
@@ -52,7 +58,8 @@ contract RunTestDepositOptimism is Script {
 
             superformCalldata,
 
-            ClientBasisPoints,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
             SigDeadline,
             p2pSignerSignature
         );
@@ -90,13 +97,15 @@ contract RunTestDepositOptimism is Script {
 
     function _getP2pSignerSignature(
         address _clientAddress,
-        uint96 _clientBasisPoints,
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit,
         uint256 _sigDeadline
     ) private view returns(bytes memory) {
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
             _clientAddress,
-            _clientBasisPoints,
+            _clientBasisPointsOfDeposit,
+        _clientBasisPointsOfProfit,
             _sigDeadline
         );
         bytes32 ethSignedMessageHashForP2pSigner = ECDSA.toEthSignedMessageHash(hashForP2pSigner);

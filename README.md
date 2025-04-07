@@ -46,7 +46,7 @@ Look at [function _doDeposit()](test/BaseIntegrationMorpho.sol#L1000) for a refe
     /// @return The hash for the P2pSigner
     function getHashForP2pSigner(
         address _client,
-        uint96 _clientBasisPoints,
+        uint48 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline
     ) external view returns (bytes32);
 ```
@@ -64,7 +64,7 @@ Look at [function _doDeposit()](test/BaseIntegrationMorpho.sol#L1000) for a refe
     /// @return address The address of the P2pEthenaProxy instance
     function predictP2pEthenaProxyAddress(
         address _client,
-        uint96 _clientBasisPoints
+        uint48 _clientBasisPoints
     ) external view returns (address);
 ```
 
@@ -86,7 +86,7 @@ Look at [function _doDeposit()](test/BaseIntegrationMorpho.sol#L1000) for a refe
         IAllowanceTransfer.PermitSingle memory _permitSingleForP2pEthenaProxy,
         bytes calldata _permit2SignatureForP2pEthenaProxy,
 
-        uint96 _clientBasisPoints,
+        uint48 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
     )

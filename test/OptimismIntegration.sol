@@ -41,7 +41,8 @@ contract OptimismIntegration is Test {
     address private nobody;
 
     uint256 constant SigDeadline = 1789558996;
-    uint96 constant ClientBasisPoints = 8700; // 13% fee
+    uint48 constant ClientBasisPointsOfProfit = 8700; // 13% fee
+    uint48 constant ClientBasisPointsOfDeposit = 0; // 0% fee
     uint256 constant DepositAmount = 199918306828021388981;
     uint256 constant SharesAmount = 199918306828021388981;
 
@@ -76,7 +77,11 @@ contract OptimismIntegration is Test {
         );
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
+        proxyAddress = factory.predictP2pYieldProxyAddress(
+            clientAddress,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit
+        );
     }
 
     function test_happyPath_Optimism() public {
@@ -118,13 +123,15 @@ contract OptimismIntegration is Test {
 
     function _getP2pSignerSignature(
         address _clientAddress,
-        uint96 _clientBasisPoints,
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit,
         uint256 _sigDeadline
     ) private view returns(bytes memory) {
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
             _clientAddress,
-            _clientBasisPoints,
+            _clientBasisPointsOfDeposit,
+            _clientBasisPointsOfProfit,
             _sigDeadline
         );
         bytes32 ethSignedMessageHashForP2pSigner = ECDSA.toEthSignedMessageHash(hashForP2pSigner);
@@ -138,7 +145,8 @@ contract OptimismIntegration is Test {
         bytes memory permit2SignatureForP2pYieldProxy = _getPermit2SignatureForP2pYieldProxy(permitSingleForP2pYieldProxy);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
-            ClientBasisPoints,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
             SigDeadline
         );
 
@@ -155,7 +163,8 @@ contract OptimismIntegration is Test {
 
         superformCalldata,
 
-            ClientBasisPoints,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
             SigDeadline,
             p2pSignerSignature
         );

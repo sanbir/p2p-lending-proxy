@@ -17,6 +17,7 @@ interface IP2pYieldProxy is IERC165 {
         address indexed _yieldProtocolAddress,
         address indexed _asset,
         uint256 _amount,
+        uint256 _amountAfterFee,
         uint256 _totalDepositedAfter,
         uint256 _vaultId
     );
@@ -40,10 +41,12 @@ interface IP2pYieldProxy is IERC165 {
 
     /// @notice Initializes the P2pYieldProxy
     /// @param _client The client address
-    /// @param _clientBasisPoints The client basis points
+    /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
+    /// @param _clientBasisPointsOfProfit The client basis points (share) of profit
     function initialize(
         address _client,
-        uint96 _clientBasisPoints
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit
     )
     external;
 
@@ -74,9 +77,13 @@ interface IP2pYieldProxy is IERC165 {
     /// @return The client address
     function getClient() external view returns (address);
 
-    /// @notice Gets the client basis points
-    /// @return The client basis points
-    function getClientBasisPoints() external view returns (uint96);
+    /// @notice Gets the client basis points of deposit
+    /// @return The client basis points of deposit
+    function getClientBasisPointsOfDeposit() external view returns (uint48);
+
+    /// @notice Gets the client basis points of profit
+    /// @return The client basis points of profit
+    function getClientBasisPointsOfProfit() external view returns (uint48);
 
     /// @notice Gets the total deposited for an asset
     /// @param _vaultId vault ID

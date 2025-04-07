@@ -18,21 +18,24 @@ interface IP2pYieldProxyFactory is IERC165 {
     /// @dev Emitted when the deposit is made
     event P2pYieldProxyFactory__Deposited(
         address indexed _client,
-        uint96 indexed _clientBasisPoints
+        uint48 indexed _clientBasisPointsOfDeposit,
+        uint48 indexed _clientBasisPointsOfProfit
     );
 
     /// @dev Emitted when the a new proxy is created
     event P2pYieldProxyFactory__ProxyCreated(
         address _proxy,
         address _client,
-        uint96 _clientBasisPoints
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit
     );
 
     /// @dev Deposits the yield protocol
     /// @param _permitSingleForP2pYieldProxy The permit single for P2pYieldProxy
     /// @param _permit2SignatureForP2pYieldProxy The permit2 signature for P2pYieldProxy
     /// @param _yieldProtocolCalldata Yield protocol calldata
-    /// @param _clientBasisPoints The client basis points
+    /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
+    /// @param _clientBasisPointsOfProfit The client basis points (share) of profit
     /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
     /// @param _p2pSignerSignature The P2pSigner signature
     /// @return p2pYieldProxyAddress The client's P2pYieldProxy instance address
@@ -42,7 +45,8 @@ interface IP2pYieldProxyFactory is IERC165 {
 
         bytes calldata _yieldProtocolCalldata,
 
-        uint96 _clientBasisPoints,
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit,
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
     )
@@ -52,10 +56,13 @@ interface IP2pYieldProxyFactory is IERC165 {
     /// @dev Computes the address of a P2pYieldProxy created by `_createP2pYieldProxy` function
     /// @dev P2pYieldProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
     /// @param _client The address of client
+    /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
+    /// @param _clientBasisPointsOfProfit The client basis points (share) of profit
     /// @return address The address of the P2pYieldProxy instance
     function predictP2pYieldProxyAddress(
         address _client,
-        uint96 _clientBasisPoints
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit
     ) external view returns (address);
 
     /// @dev Transfers the P2pSigner
@@ -70,12 +77,14 @@ interface IP2pYieldProxyFactory is IERC165 {
 
     /// @dev Gets the hash for the P2pSigner
     /// @param _client The address of client
-    /// @param _clientBasisPoints The client basis points
+    /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
+    /// @param _clientBasisPointsOfProfit The client basis points (share) of profit
     /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
     /// @return The hash for the P2pSigner
     function getHashForP2pSigner(
         address _client,
-        uint96 _clientBasisPoints,
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit,
         uint256 _p2pSignerSigDeadline
     ) external view returns (bytes32);
 

@@ -56,7 +56,8 @@ abstract contract P2pYieldProxyFactory is
 
     /// @notice Modifier to check if the P2pSigner signature should be valid
     modifier p2pSignerSignatureShouldBeValid(
-        uint96 _clientBasisPoints,
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit,
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
     ) {
@@ -64,7 +65,8 @@ abstract contract P2pYieldProxyFactory is
             s_p2pSigner.isValidSignatureNow(
             getHashForP2pSigner(
             msg.sender,
-            _clientBasisPoints,
+            _clientBasisPointsOfDeposit,
+            _clientBasisPointsOfProfit,
             _p2pSignerSigDeadline
                 ).toEthSignedMessageHash(),
         _p2pSignerSignature
@@ -96,17 +98,21 @@ abstract contract P2pYieldProxyFactory is
 
         bytes calldata _yieldProtocolCalldata,
 
-        uint96 _clientBasisPoints,
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit,
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
     )
     external
     p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
-    p2pSignerSignatureShouldBeValid(_clientBasisPoints, _p2pSignerSigDeadline, _p2pSignerSignature)
+    p2pSignerSignatureShouldBeValid(_clientBasisPointsOfDeposit, _clientBasisPointsOfProfit, _p2pSignerSigDeadline, _p2pSignerSignature)
     returns (address p2pYieldProxyAddress)
     {
         // create proxy if not created yet
-        P2pYieldProxy p2pYieldProxy = _getOrCreateP2pYieldProxy(_clientBasisPoints);
+        P2pYieldProxy p2pYieldProxy = _getOrCreateP2pYieldProxy(
+            _clientBasisPointsOfDeposit,
+            _clientBasisPointsOfProfit
+        );
 
         // deposit via proxy
         p2pYieldProxy.deposit(
@@ -115,7 +121,11 @@ abstract contract P2pYieldProxyFactory is
             _yieldProtocolCalldata
         );
 
-        emit P2pYieldProxyFactory__Deposited(msg.sender, _clientBasisPoints);
+        emit P2pYieldProxyFactory__Deposited(
+            msg.sender,
+            _clientBasisPointsOfDeposit,
+            _clientBasisPointsOfProfit
+        );
 
         p2pYieldProxyAddress = address(p2pYieldProxy);
     }
@@ -129,13 +139,17 @@ abstract contract P2pYieldProxyFactory is
     }
 
     /// @notice Creates a new P2pYieldProxy contract instance if not created yet
-    function _getOrCreateP2pYieldProxy(uint96 _clientBasisPoints)
+    function _getOrCreateP2pYieldProxy(
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit
+    )
     private
     returns (P2pYieldProxy p2pYieldProxy)
     {
         address p2pYieldProxyAddress = predictP2pYieldProxyAddress(
             msg.sender,
-            _clientBasisPoints
+            _clientBasisPointsOfDeposit,
+            _clientBasisPointsOfProfit
         );
         uint256 codeSize = p2pYieldProxyAddress.code.length;
         if (codeSize > 0) {
@@ -147,14 +161,16 @@ abstract contract P2pYieldProxyFactory is
                 address(i_referenceP2pYieldProxy),
                 _getSalt(
                     msg.sender,
-                    _clientBasisPoints
+                    _clientBasisPointsOfDeposit,
+                    _clientBasisPointsOfProfit
                 )
             )
         );
 
         p2pYieldProxy.initialize(
             msg.sender,
-            _clientBasisPoints
+            _clientBasisPointsOfDeposit,
+            _clientBasisPointsOfProfit
         );
 
         s_allProxies.push(address(p2pYieldProxy));
@@ -162,31 +178,43 @@ abstract contract P2pYieldProxyFactory is
         emit P2pYieldProxyFactory__ProxyCreated(
             address(p2pYieldProxy),
             msg.sender,
-            _clientBasisPoints
+            _clientBasisPointsOfDeposit,
+            _clientBasisPointsOfProfit
         );
     }
 
     /// @notice Calculates the salt required for deterministic clone creation
     /// depending on client address and client basis points
     /// @param _clientAddress address
-    /// @param _clientBasisPoints basis points (10000 = 100%)
+    /// @param _clientBasisPointsOfDeposit The client basis points (10000 = 100%) of deposit
+    /// @param _clientBasisPointsOfProfit The client basis points (10000 = 100%) of profit
     /// @return bytes32 salt
     function _getSalt(
         address _clientAddress,
-        uint96 _clientBasisPoints
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit
     ) private pure returns (bytes32)
     {
-        return keccak256(abi.encode(_clientAddress, _clientBasisPoints));
+        return keccak256(abi.encode(
+            _clientAddress,
+            _clientBasisPointsOfDeposit,
+            _clientBasisPointsOfProfit
+        ));
     }
 
     /// @inheritdoc IP2pYieldProxyFactory
     function predictP2pYieldProxyAddress(
         address _client,
-        uint96 _clientBasisPoints
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit
     ) public view returns (address) {
         return Clones.predictDeterministicAddress(
             address(i_referenceP2pYieldProxy),
-            _getSalt(_client, _clientBasisPoints)
+            _getSalt(
+                _client,
+                _clientBasisPointsOfDeposit,
+                _clientBasisPointsOfProfit
+            )
         );
     }
 
@@ -198,12 +226,14 @@ abstract contract P2pYieldProxyFactory is
     /// @inheritdoc IP2pYieldProxyFactory
     function getHashForP2pSigner(
         address _client,
-        uint96 _clientBasisPoints,
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit,
         uint256 _p2pSignerSigDeadline
     ) public view returns (bytes32) {
         return keccak256(abi.encode(
             _client,
-            _clientBasisPoints,
+            _clientBasisPointsOfDeposit,
+            _clientBasisPointsOfProfit,
             _p2pSignerSigDeadline,
             address(this),
             block.chainid

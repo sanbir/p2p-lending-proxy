@@ -41,7 +41,8 @@ contract BaseIntegrationMorpho is Test {
     address private nobody;
 
     uint256 constant SigDeadline = 1742805206;
-    uint96 constant ClientBasisPoints = 8700; // 13% fee
+    uint48 constant ClientBasisPointsOfProfit = 8700; // 13% fee
+    uint48 constant ClientBasisPointsOfDeposit = 0; // 0% fee
     uint256 constant DepositAmount = 1234568;
     uint256 constant SharesAmount = 1222092;
 
@@ -78,7 +79,11 @@ contract BaseIntegrationMorpho is Test {
 
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
+        proxyAddress = factory.predictP2pYieldProxyAddress(
+            clientAddress,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit
+        );
     }
 
     function test_happyPath_Morpho() public {
@@ -143,13 +148,15 @@ contract BaseIntegrationMorpho is Test {
 
     function _getP2pSignerSignature(
         address _clientAddress,
-        uint96 _clientBasisPoints,
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit,
         uint256 _sigDeadline
     ) private view returns(bytes memory) {
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
             _clientAddress,
-            _clientBasisPoints,
+            _clientBasisPointsOfDeposit,
+        _clientBasisPointsOfProfit,
             _sigDeadline
         );
         bytes32 ethSignedMessageHashForP2pSigner = ECDSA.toEthSignedMessageHash(hashForP2pSigner);
@@ -163,7 +170,8 @@ contract BaseIntegrationMorpho is Test {
         bytes memory permit2SignatureForP2pYieldProxy = _getPermit2SignatureForP2pYieldProxy(permitSingleForP2pYieldProxy);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
-            ClientBasisPoints,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
             SigDeadline
         );
 
@@ -205,7 +213,8 @@ contract BaseIntegrationMorpho is Test {
 
         superformCalldata,
 
-            ClientBasisPoints,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
             SigDeadline,
             p2pSignerSignature
         );
