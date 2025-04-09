@@ -131,4 +131,6 @@ interface IRewardsDistributor {
         external
         view
         returns (bool valid);
+
+    function currentPeriodId() external returns(uint256);
 }

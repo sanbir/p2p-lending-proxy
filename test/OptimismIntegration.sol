@@ -10,6 +10,7 @@ import "../src/access/P2pOperator.sol";
 import "../src/adapters/superform/p2pSuperformProxyFactory/P2pSuperformProxyFactory.sol";
 import "../src/common/AllowedCalldataChecker.sol";
 import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
+import "./utils/merkle/helper/MerkleReader.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
@@ -17,13 +18,15 @@ import "forge-std/console2.sol";
 import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
 
-contract OptimismIntegration is Test {
+contract OptimismIntegration is Test, MerkleReader {
     using SafeERC20 for IERC20;
 
     address constant USDT = 0x94b008aA00579c1307B0EF2c499aD98a8ce58e58;
     address constant SuperformRouter = 0xa195608C2306A26f727d5199D5A382a4508308DA;
     address constant SuperPositions = 0x01dF6fb6a28a89d6bFa53b2b3F20644AbF417678;
-    address constant RewardsDistributor = 0xce23bD7205bF2B543F6B4eeC00Add0C111FEFc3B;
+    address constant RewardsDistributorInstance = 0xce23bD7205bF2B543F6B4eeC00Add0C111FEFc3B;
+
+    address constant RewardsDistributorAdmin = 0xf82F3D7Df94FC2994315c32322DA6238cA2A2f7f;
 
     address constant P2pTreasury = 0x641ca805C75cC5D1ffa78C0181Aba1F77BD17904;
 
@@ -50,6 +53,11 @@ contract OptimismIntegration is Test {
 
     uint48 nonce;
 
+    uint64 public constant CHAIN_ID = 10;
+
+    uint256 totalUSDCToDeposit;
+    uint256 totalDAIToDeposit;
+
     function setUp() public {
         vm.createSelectFork("optimism", 133700000);
 
@@ -73,7 +81,7 @@ contract OptimismIntegration is Test {
             SuperformRouter,
             SuperPositions,
             address(tup),
-            RewardsDistributor
+            RewardsDistributorInstance
         );
         vm.stopPrank();
 
@@ -89,6 +97,73 @@ contract OptimismIntegration is Test {
 
         _doDeposit();
         _doWithdraw();
+    }
+
+    function test_batchclaim_randomClaimer_claimAndAlreadyClaimed() public {
+        _addRoot();
+        _addRoot24();
+
+        // common user
+        address user = proxyAddress;
+
+        uint256[] memory periodIds = new uint256[](2);
+        periodIds[0] = 23;
+        periodIds[1] = 24;
+
+        bytes32[][] memory proofs = new bytes32[][](2);
+
+        address[][] memory tokensToClaim = new address[][](2);
+
+        uint256[][] memory amountsToClaim = new uint256[][](2);
+        for (uint256 periodId = 0; periodId < 2; periodId++) {
+            (,,,, bytes32[] memory proof_, address[] memory tokensToClaim_, uint256[] memory amountsToClaim_) =
+                            _generateMerkleTree(MerkleReader.MerkleArgs(periodId + 23, user, CHAIN_ID));
+
+            proofs[periodId] = proof_;
+            tokensToClaim[periodId] = tokensToClaim_;
+            amountsToClaim[periodId] = amountsToClaim_;
+        }
+
+        /// @dev tests a claim initiated by a random user on behalf of user
+        vm.prank(address(0x777));
+        IRewardsDistributor(RewardsDistributorInstance).batchClaim(user, periodIds, tokensToClaim, amountsToClaim, proofs);
+
+        vm.expectRevert(IRewardsDistributor.ALREADY_CLAIMED.selector);
+        vm.prank(user);
+        IRewardsDistributor(RewardsDistributorInstance).batchClaim(user, periodIds, tokensToClaim, amountsToClaim, proofs);
+    }
+
+    function _addRoot() internal {
+        bytes32 root;
+        uint256 usdcToDeposit;
+        uint256 daiToDeposit;
+        uint256 periodId = 23; // IRewardsDistributor(RewardsDistributorInstance).currentPeriodId();
+        (root,, usdcToDeposit, daiToDeposit,,,) = _generateMerkleTree(MerkleReader.MerkleArgs(periodId, proxyAddress, CHAIN_ID));
+
+        vm.startPrank(RewardsDistributorAdmin);
+        IRewardsDistributor(RewardsDistributorInstance).setPeriodicRewards(root);
+        totalUSDCToDeposit += usdcToDeposit;
+        totalDAIToDeposit += daiToDeposit;
+
+        deal(USDC, RewardsDistributorInstance, totalUSDCToDeposit);
+        deal(DAI, RewardsDistributorInstance, totalDAIToDeposit);
+        vm.stopPrank();
+    }
+
+    function _addRoot24() internal {
+        bytes32 root;
+        uint256 usdcToDeposit;
+        uint256 daiToDeposit;
+        (root,, usdcToDeposit, daiToDeposit,,,) = _generateMerkleTree(MerkleReader.MerkleArgs(24, proxyAddress, CHAIN_ID));
+
+        vm.startPrank(RewardsDistributorAdmin);
+        IRewardsDistributor(RewardsDistributorInstance).setPeriodicRewards(root);
+        totalUSDCToDeposit += usdcToDeposit;
+        totalDAIToDeposit += daiToDeposit;
+
+        deal(USDC, RewardsDistributorInstance, totalUSDCToDeposit);
+        deal(DAI, RewardsDistributorInstance, totalDAIToDeposit);
+        vm.stopPrank();
     }
 
     function _getVaultAddress() private pure returns(address) {
