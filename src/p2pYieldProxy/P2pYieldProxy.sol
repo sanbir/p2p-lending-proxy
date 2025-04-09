@@ -24,8 +24,11 @@ error P2pYieldProxy__ZeroAssetAmount();
 /// @dev Error when the shares amount is zero
 error P2pYieldProxy__ZeroSharesAmount();
 
-/// @dev Error when the client basis points are invalid
-error P2pYieldProxy__InvalidClientBasisPoints(uint96 _clientBasisPoints);
+/// @dev Error when the client basis points of deposit are invalid
+error P2pYieldProxy__InvalidClientBasisPointsOfDeposit(uint48 _clientBasisPointsOfDeposit);
+
+/// @dev Error when the client basis points of profit are invalid
+error P2pYieldProxy__InvalidClientBasisPointsOfProfit(uint48 _clientBasisPointsOfProfit);
 
 /// @dev Error when the factory is not the caller
 error P2pYieldProxy__NotFactory(address _factory);
@@ -74,7 +77,7 @@ abstract contract P2pYieldProxy is
     IP2pYieldProxyFactory internal immutable i_factory;
 
     /// @dev P2pTreasury
-    address internal immutable i_p2pTreasury;
+    address payable internal immutable i_p2pTreasury;
 
     /// @dev Yield protocol address
     address internal immutable i_yieldProtocolAddress;
@@ -84,8 +87,11 @@ abstract contract P2pYieldProxy is
     /// @dev Client
     address internal s_client;
 
-    /// @dev Client basis points
-    uint96 internal s_clientBasisPoints;
+    /// @dev Client basis points of deposit
+    uint48 internal s_clientBasisPointsOfDeposit;
+
+    /// @dev Client basis points of profit
+    uint48 internal s_clientBasisPointsOfProfit;
 
     mapping(uint256 vaultId => mapping(address asset => uint256 amount)) internal s_totalDeposited;
 
@@ -139,7 +145,7 @@ abstract contract P2pYieldProxy is
         i_factory = IP2pYieldProxyFactory(_factory);
 
         require (_p2pTreasury != address(0), P2pYieldProxy__ZeroAddressP2pTreasury());
-        i_p2pTreasury = _p2pTreasury;
+        i_p2pTreasury = payable(_p2pTreasury);
 
         require (_yieldProtocolAddress != address(0), P2pYieldProxy__ZeroAddressYieldProtocolAddress());
         i_yieldProtocolAddress = _yieldProtocolAddress;
@@ -151,18 +157,24 @@ abstract contract P2pYieldProxy is
     /// @inheritdoc IP2pYieldProxy
     function initialize(
         address _client,
-        uint96 _clientBasisPoints
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit
     )
     external
     onlyFactory
     {
         require (
-            _clientBasisPoints > 0 && _clientBasisPoints <= 10_000,
-            P2pYieldProxy__InvalidClientBasisPoints(_clientBasisPoints)
+            _clientBasisPointsOfDeposit >= 0 && _clientBasisPointsOfDeposit <= 10_000,
+            P2pYieldProxy__InvalidClientBasisPointsOfDeposit(_clientBasisPointsOfDeposit)
+        );
+        require (
+            _clientBasisPointsOfProfit >= 0 && _clientBasisPointsOfProfit <= 10_000,
+            P2pYieldProxy__InvalidClientBasisPointsOfProfit(_clientBasisPointsOfProfit)
         );
 
         s_client = _client;
-        s_clientBasisPoints = _clientBasisPoints;
+        s_clientBasisPointsOfDeposit = _clientBasisPointsOfDeposit;
+        s_clientBasisPointsOfProfit = _clientBasisPointsOfProfit;
 
         emit P2pYieldProxy__Initialized();
     }
@@ -192,13 +204,23 @@ abstract contract P2pYieldProxy is
     onlyFactory
     {
         if (_isNative) {
-            uint256 totalDepositedAfter = s_totalDeposited[_vaultId][NATIVE] + msg.value;
+            uint256 amountToDepositAfterFee = msg.value * s_clientBasisPointsOfDeposit / 10_000;
+
+            uint256 totalDepositedAfter = s_totalDeposited[_vaultId][NATIVE] + amountToDepositAfterFee;
             s_totalDeposited[_vaultId][NATIVE] = totalDepositedAfter;
             emit P2pYieldProxy__Deposited(
                 i_yieldProtocolAddress,
                 NATIVE,
                 msg.value,
-                totalDepositedAfter
+                amountToDepositAfterFee,
+                totalDepositedAfter,
+                _vaultId
+            );
+
+            Address.sendValue(i_p2pTreasury,msg.value - amountToDepositAfterFee);
+            i_yieldProtocolAddress.functionCallWithValue(
+                _yieldProtocolDepositCalldata,
+                amountToDepositAfterFee
             );
         } else {
             address asset = _permitSingleForP2pYieldProxy.details.token;
@@ -234,12 +256,15 @@ abstract contract P2pYieldProxy is
                 P2pYieldProxy__DifferentActuallyDepositedAmount(amount, actualAmount)
             ); // no support for fee-on-transfer or rebasing tokens
 
-            uint256 totalDepositedAfter = s_totalDeposited[_vaultId][asset] + actualAmount;
+            uint256 amountToDepositAfterFee = actualAmount * s_clientBasisPointsOfDeposit / 10_000;
+
+            uint256 totalDepositedAfter = s_totalDeposited[_vaultId][asset] + amountToDepositAfterFee;
             s_totalDeposited[_vaultId][asset] = totalDepositedAfter;
             emit P2pYieldProxy__Deposited(
                 i_yieldProtocolAddress,
                 asset,
                 actualAmount,
+                amountToDepositAfterFee,
                 totalDepositedAfter,
                 _vaultId
             );
@@ -247,20 +272,20 @@ abstract contract P2pYieldProxy is
             if (_usePermit2) {
                 IERC20(asset).safeIncreaseAllowance(
                     address(Permit2Lib.PERMIT2),
-                    actualAmount
+                    amountToDepositAfterFee
                 );
             } else {
                 IERC20(asset).safeIncreaseAllowance(
                     i_yieldProtocolAddress,
-                    actualAmount
+                    amountToDepositAfterFee
                 );
             }
-        }
 
-        i_yieldProtocolAddress.functionCallWithValue(
-            _yieldProtocolDepositCalldata,
-            msg.value
-        );
+            i_yieldProtocolAddress.functionCallWithValue(
+                _yieldProtocolDepositCalldata,
+                msg.value
+            );
+        }
     }
 
     /// @notice Withdraw assets from yield protocol
@@ -313,7 +338,7 @@ abstract contract P2pYieldProxy is
         uint256 p2pAmount;
         if (newProfit > 0) {
             // That extra 9999 ensures that any nonzero remainder will push the result up by 1 (ceiling division).
-            p2pAmount = (newProfit * (10_000 - s_clientBasisPoints) + 9999) / 10_000;
+            p2pAmount = (newProfit * (10_000 - s_clientBasisPointsOfProfit) + 9999) / 10_000;
         }
         uint256 clientAmount = newAssetAmount - p2pAmount;
 
@@ -375,8 +400,13 @@ abstract contract P2pYieldProxy is
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getClientBasisPoints() external view returns (uint96) {
-        return s_clientBasisPoints;
+    function getClientBasisPointsOfDeposit() external view returns (uint48) {
+        return s_clientBasisPointsOfDeposit;
+    }
+
+    /// @inheritdoc IP2pYieldProxy
+    function getClientBasisPointsOfProfit() external view returns (uint48) {
+        return s_clientBasisPointsOfProfit;
     }
 
     /// @inheritdoc IP2pYieldProxy

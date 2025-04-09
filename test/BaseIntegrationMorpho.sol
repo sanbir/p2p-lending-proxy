@@ -23,6 +23,7 @@ contract BaseIntegrationMorpho is Test {
     address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address constant SuperformRouter = 0xa195608C2306A26f727d5199D5A382a4508308DA;
     address constant SuperPositions = 0x01dF6fb6a28a89d6bFa53b2b3F20644AbF417678;
+    address constant RewardsDistributor = 0xce23bD7205bF2B543F6B4eeC00Add0C111FEFc3B;
 
     address constant P2pTreasury = 0x641ca805C75cC5D1ffa78C0181Aba1F77BD17904;
 
@@ -40,9 +41,12 @@ contract BaseIntegrationMorpho is Test {
     address private nobody;
 
     uint256 constant SigDeadline = 1742805206;
-    uint96 constant ClientBasisPoints = 8700; // 13% fee
+    uint48 constant ClientBasisPointsOfProfit = 8700; // 13% fee
+    uint48 constant ClientBasisPointsOfDeposit = 10_000; // 0% fee
     uint256 constant DepositAmount = 1234568;
     uint256 constant SharesAmount = 1222092;
+
+    uint256 DepositAmountWithFee;
 
     address proxyAddress;
 
@@ -71,12 +75,19 @@ contract BaseIntegrationMorpho is Test {
             P2pTreasury,
             SuperformRouter,
             SuperPositions,
-            address(tup)
+            address(tup),
+            RewardsDistributor
         );
 
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
+        proxyAddress = factory.predictP2pYieldProxyAddress(
+            clientAddress,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit
+        );
+
+        DepositAmountWithFee = DepositAmount + DepositAmount * (10_000 - ClientBasisPointsOfDeposit) / 10_000;
     }
 
     function test_happyPath_Morpho() public {
@@ -87,12 +98,12 @@ contract BaseIntegrationMorpho is Test {
         _doDeposit();
 
         uint256 assetBalanceAfter1 = IERC20(USDC).balanceOf(clientAddress);
-        assertEq(assetBalanceBefore - assetBalanceAfter1, DepositAmount);
+        assertEq(assetBalanceBefore - assetBalanceAfter1, DepositAmountWithFee);
 
         _doDeposit();
 
         uint256 assetBalanceAfter2 = IERC20(USDC).balanceOf(clientAddress);
-        assertEq(assetBalanceAfter1 - assetBalanceAfter2, DepositAmount);
+        assertEq(assetBalanceAfter1 - assetBalanceAfter2, DepositAmountWithFee);
 
         _doDeposit();
         _doDeposit();
@@ -103,7 +114,7 @@ contract BaseIntegrationMorpho is Test {
 
         uint256 assetBalanceAfterWithdraw1 = IERC20(USDC).balanceOf(clientAddress);
 
-        assertApproxEqAbs(assetBalanceAfterWithdraw1 - assetBalanceAfterAllDeposits, DepositAmount * 4 / 10, 10000);
+        assertApproxEqAbs(assetBalanceAfterWithdraw1 - assetBalanceAfterAllDeposits, DepositAmountWithFee * 4 / 10, 10000);
 
         _doWithdraw(5);
         _doWithdraw(3);
@@ -116,7 +127,7 @@ contract BaseIntegrationMorpho is Test {
     function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
         IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
             token: USDC,
-            amount: uint160(DepositAmount),
+            amount: uint160(DepositAmountWithFee),
             expiration: uint48(SigDeadline),
             nonce: nonce
         });
@@ -141,13 +152,15 @@ contract BaseIntegrationMorpho is Test {
 
     function _getP2pSignerSignature(
         address _clientAddress,
-        uint96 _clientBasisPoints,
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit,
         uint256 _sigDeadline
     ) private view returns(bytes memory) {
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
             _clientAddress,
-            _clientBasisPoints,
+            _clientBasisPointsOfDeposit,
+        _clientBasisPointsOfProfit,
             _sigDeadline
         );
         bytes32 ethSignedMessageHashForP2pSigner = ECDSA.toEthSignedMessageHash(hashForP2pSigner);
@@ -161,7 +174,8 @@ contract BaseIntegrationMorpho is Test {
         bytes memory permit2SignatureForP2pYieldProxy = _getPermit2SignatureForP2pYieldProxy(permitSingleForP2pYieldProxy);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
-            ClientBasisPoints,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
             SigDeadline
         );
 
@@ -203,7 +217,8 @@ contract BaseIntegrationMorpho is Test {
 
         superformCalldata,
 
-            ClientBasisPoints,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
             SigDeadline,
             p2pSignerSignature
         );

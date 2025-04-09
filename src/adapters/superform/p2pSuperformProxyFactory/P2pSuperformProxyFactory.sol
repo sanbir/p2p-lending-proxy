@@ -18,19 +18,33 @@ contract P2pSuperformProxyFactory is P2pYieldProxyFactory, IP2pSuperformProxyFac
     /// @param _superformRouter SuperformRouter address
     /// @param _superPositions SuperPositions address
     /// @param _allowedCalldataChecker AllowedCalldataChecker
+    /// @param _rewardsDistributor RewardsDistributor
     constructor(
         address _p2pSigner,
         address _p2pTreasury,
         address _superformRouter,
         address _superPositions,
-        address _allowedCalldataChecker
+        address _allowedCalldataChecker,
+        address _rewardsDistributor
     ) P2pYieldProxyFactory(_p2pSigner) {
         i_referenceP2pYieldProxy = new P2pSuperformProxy(
             address(this),
             _p2pTreasury,
             _superformRouter,
             _superPositions,
-            _allowedCalldataChecker
+            _allowedCalldataChecker,
+            _rewardsDistributor
+        );
+    }
+
+    /// @dev Checks if the claim is valid
+    /// @param _p2pOperatorToCheck The P2pOperator to check
+    function checkClaim(
+        address _p2pOperatorToCheck
+    ) public view {
+        require(
+            getP2pOperator() == _p2pOperatorToCheck,
+            P2pOperator__UnauthorizedAccount(_p2pOperatorToCheck)
         );
     }
 
