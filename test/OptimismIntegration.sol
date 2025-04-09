@@ -99,6 +99,44 @@ contract OptimismIntegration is Test, MerkleReader {
         _doWithdraw();
     }
 
+    function test_batchclaim_proxy() public {
+        deal(USDT, clientAddress, 10000e18);
+
+        _doDeposit();
+
+        _addRoot();
+        _addRoot24();
+
+        // common user
+        address user = proxyAddress;
+
+        uint256[] memory periodIds = new uint256[](2);
+        periodIds[0] = 23;
+        periodIds[1] = 24;
+
+        bytes32[][] memory proofs = new bytes32[][](2);
+
+        address[][] memory tokensToClaim = new address[][](2);
+
+        uint256[][] memory amountsToClaim = new uint256[][](2);
+        for (uint256 periodId = 0; periodId < 2; periodId++) {
+            (,,,, bytes32[] memory proof_, address[] memory tokensToClaim_, uint256[] memory amountsToClaim_) =
+                            _generateMerkleTree(MerkleReader.MerkleArgs(periodId + 23, user, CHAIN_ID));
+
+            proofs[periodId] = proof_;
+            tokensToClaim[periodId] = tokensToClaim_;
+            amountsToClaim[periodId] = amountsToClaim_;
+        }
+
+        vm.prank(clientAddress);
+        IP2pSuperformProxy(proxyAddress).batchClaim(
+            periodIds,
+            tokensToClaim,
+            amountsToClaim,
+            proofs
+        );
+    }
+
     function test_batchclaim_randomClaimer_claimAndAlreadyClaimed() public {
         _addRoot();
         _addRoot24();
