@@ -56,6 +56,12 @@ interface IP2pYieldProxy is IERC165 {
         bytes calldata _superformCalldata
     ) external payable;
 
+    function deposit(
+        IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
+        bytes calldata _permit2SignatureForP2pYieldProxy,
+        bytes calldata _superformCalldata
+    ) external virtual payable;
+
     /// @notice Calls an arbitrary allowed function
     /// @param _yieldProtocolAddress The address of the yield protocol
     /// @param _yieldProtocolCalldata The calldata to call the yield protocol
