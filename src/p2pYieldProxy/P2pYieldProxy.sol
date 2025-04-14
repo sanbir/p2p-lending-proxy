@@ -186,7 +186,7 @@ abstract contract P2pYieldProxy is
         bytes calldata _superformCalldata
     ) external virtual payable;
 
-    function deposit(
+    function depositBatch(
         IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
         bytes calldata _superformCalldata
@@ -199,7 +199,7 @@ abstract contract P2pYieldProxy is
     /// @param _permit2SignatureForP2pYieldProxy signature of PermitSingle for P2pYieldProxy
     /// @param _usePermit2 whether should use Permit2 or native ERC-20 transferFrom
     /// @param _isNative whether ETH (native currency) is being deposited
-    /// @param _nativeAmountToDepositAfterFee
+    /// @param _nativeAmountToDepositAfterFee native amount to deposit after fee
     function _deposit(
         uint256 _vaultId,
         bytes memory _yieldProtocolDepositCalldata,
@@ -300,12 +300,12 @@ abstract contract P2pYieldProxy is
     /// @param _nativeAmounts amount of ETH for each deposit
     /// @param _nativeAmountToDepositAfterFee native amount to deposit after fee
     function _depositBatch(
-        uint256[] _vaultIds,
+        uint256[] memory _vaultIds,
         bytes memory _yieldProtocolDepositCalldata,
         IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
         bool _usePermit2,
-        bool[] _isNatives,
+        bool[] memory _isNatives,
         uint256[] memory _nativeAmounts,
         uint256 _nativeAmountToDepositAfterFee
     )
@@ -318,7 +318,7 @@ abstract contract P2pYieldProxy is
         uint256 erc20Count = _permitBatchForP2pYieldProxy.details.length;
         IAllowanceTransfer.AllowanceTransferDetails[] memory transferDetails =
                     new IAllowanceTransfer.AllowanceTransferDetails[](erc20Count);
-        uint256[] assetAmountsBefore = new uint256[](erc20Count);
+        uint256[] memory assetAmountsBefore = new uint256[](erc20Count);
 
         uint256 nativeCount;
 

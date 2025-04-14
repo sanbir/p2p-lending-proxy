@@ -153,7 +153,7 @@ abstract contract P2pYieldProxyFactory is
         );
 
         // deposit via proxy
-        p2pYieldProxy.deposit(
+        p2pYieldProxy.depositBatch(
             _permitBatchForP2pYieldProxy,
             _permit2SignatureForP2pYieldProxy,
             _yieldProtocolCalldata

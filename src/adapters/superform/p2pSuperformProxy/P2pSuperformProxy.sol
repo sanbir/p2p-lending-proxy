@@ -60,7 +60,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         i_rewardsDistributor = IRewardsDistributor(_rewardsDistributor);
     }
 
-    function deposit(
+    function depositBatch(
         IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
         bytes calldata _superformCalldata
@@ -134,7 +134,8 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             _permit2SignatureForP2pYieldProxy,
             false,
             isNatives,
-            nativeAmounts
+            nativeAmounts,
+            nativeAmountToDepositAfterFee
         );
 
         IERC1155A(i_superPositions).increaseAllowanceForMany(
