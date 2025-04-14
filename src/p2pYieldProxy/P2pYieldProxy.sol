@@ -58,7 +58,7 @@ error P2pYieldProxy__NotClientCalled(
 error P2pYieldProxy__ZeroAddressFactory();
 error P2pYieldProxy__ZeroAddressP2pTreasury();
 error P2pYieldProxy__ZeroAddressYieldProtocolAddress();
-error P2pYieldProxy__ZeroNewAssetAmount();
+error P2pYieldProxy__ZeroNewAssetAmount(address _asset);
 error P2pYieldProxy__ZeroAllowedCalldataChecker();
 error P2pYieldProxy__DataTooShort();
 
@@ -420,6 +420,79 @@ abstract contract P2pYieldProxy is
         );
     }
 
+    /// @notice Batch withdraw assets from yield protocol
+    /// @param _vaultIds vault IDs
+    /// @param _assets ERC-20 asset addresses
+    /// @param _yieldProtocolWithdrawalCalldata calldata for withdraw function of yield protocol
+    function _withdrawBatch(
+        uint256[] memory _vaultIds,
+        address[] memory _assets,
+        bytes memory _yieldProtocolWithdrawalCalldata
+    )
+    internal
+    onlyClient
+    nonReentrant
+    {
+        // Determine the worst-case total number of token addresses.
+        uint256 totalTokens = _vaultIds.length;
+
+        // Allocate a memory array for potential unique tokens.
+        address[] memory uniqueTokens = new address[](totalTokens);
+        uint256 uniqueCount = 0;
+
+        for (uint256 j = 0; j < _assets.length; j++) {
+            address token = _assets[j];
+            bool found = false;
+            for (uint256 k = 0; k < uniqueCount; k++) {
+                if (uniqueTokens[k] == token) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                uniqueTokens[uniqueCount] = token;
+                uniqueCount++;
+            }
+        }
+
+        uint256[] memory assetAmountsBefore = new uint256[](uniqueCount);
+        for (uint256 i = 0; i < uniqueCount; i++) {
+            address token = uniqueTokens[i];
+            assetAmountsBefore[i] = IERC20(token).balanceOf(address(this));
+        }
+
+        // withdraw assets from Protocol
+        i_yieldProtocolAddress.functionCall(_yieldProtocolWithdrawalCalldata);
+
+        for (uint256 i = 0; i < uniqueCount; i++) {
+            address token = uniqueTokens[i];
+            uint256 assetAmountAfter = IERC20(token).balanceOf(address(this));
+
+            uint256 newAssetAmount = assetAmountAfter - assetAmountsBefore[i];
+            require (newAssetAmount > 0, P2pYieldProxy__ZeroNewAssetAmount(token));
+
+            uint256 p2pAmount = (newAssetAmount * (10_000 - s_clientBasisPointsOfProfit)) / 10_000;
+            uint256 clientAmount = newAssetAmount - p2pAmount;
+
+            if (p2pAmount > 0) {
+                IERC20(token).safeTransfer(i_p2pTreasury, p2pAmount);
+            }
+            // clientAmount must be > 0 at this point
+            IERC20(token).safeTransfer(s_client, clientAmount);
+
+            emit P2pYieldProxy__Withdrawn(
+                i_yieldProtocolAddress,
+                _vaultId,
+                _asset,
+                newAssetAmount,
+                totalWithdrawnAfter,
+                newProfit,
+                p2pAmount,
+                clientAmount
+            );
+        }
+    }
+
     /// @notice Withdraw assets from yield protocol
     /// @param _vaultId vault ID
     /// @param _asset ERC-20 asset address
@@ -433,16 +506,22 @@ abstract contract P2pYieldProxy is
     onlyClient
     nonReentrant
     {
-        uint256 assetAmountBefore = IERC20(_asset).balanceOf(address(this));
+        bool isNative = _asset == NATIVE;
+
+        uint256 assetAmountBefore = isNative
+            ? address(this).balance
+            : IERC20(_asset).balanceOf(address(this));
 
         // withdraw assets from Protocol
         i_yieldProtocolAddress.functionCall(_yieldProtocolWithdrawalCalldata);
 
-        uint256 assetAmountAfter = IERC20(_asset).balanceOf(address(this));
+        uint256 assetAmountAfter = isNative
+            ? address(this).balance
+            : IERC20(_asset).balanceOf(address(this));
 
         uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
 
-        require (newAssetAmount != 0, P2pYieldProxy__ZeroNewAssetAmount());
+        require (newAssetAmount != 0, P2pYieldProxy__ZeroNewAssetAmount(_asset));
 
         uint256 totalWithdrawnBefore = s_totalWithdrawn[_vaultId][_asset];
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
@@ -475,10 +554,18 @@ abstract contract P2pYieldProxy is
         uint256 clientAmount = newAssetAmount - p2pAmount;
 
         if (p2pAmount > 0) {
-            IERC20(_asset).safeTransfer(i_p2pTreasury, p2pAmount);
+            if (isNative) {
+                Address.sendValue(i_p2pTreasury, p2pAmount);
+            } else {
+                IERC20(_asset).safeTransfer(i_p2pTreasury, p2pAmount);
+            }
         }
         // clientAmount must be > 0 at this point
-        IERC20(_asset).safeTransfer(s_client, clientAmount);
+        if (isNative) {
+            Address.sendValue(s_client, clientAmount);
+        } else {
+            IERC20(_asset).safeTransfer(s_client, clientAmount);
+        }
 
         emit P2pYieldProxy__Withdrawn(
             i_yieldProtocolAddress,

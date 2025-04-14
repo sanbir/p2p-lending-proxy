@@ -216,44 +216,88 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         );
     }
 
+    function withdrawBatch(
+        bytes calldata _superformCalldata
+    ) external {
+        require (_superformCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
+        bytes4 selector = bytes4(_superformCalldata[:4]);
+
+        require (
+            selector == IBaseRouter.singleDirectMultiVaultWithdraw.selector,
+            P2pSuperformProxy__SelectorNotSupported(selector)
+        );
+
+        SingleDirectMultiVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectMultiVaultStateReq));
+
+        require (
+            req.superformData.receiverAddress == address(this),
+            P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy(req.superformData.receiverAddress)
+        );
+        require (
+            req.superformData.receiverAddressSP == address(this),
+            P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(req.superformData.receiverAddressSP)
+        );
+
+
+        uint256 withdrawCount = req.superformData.superformIds.length;
+        address[] memory assets = new address[](withdrawCount);
+        for (uint256 i = 0; i < withdrawCount; ++i) {
+            address asset;
+            if (req.superformData.liqRequests[i].token == address(0)) {
+                address superform = address(uint160(req.superformData.superformIds[i]));
+                IERC4626 vault = IERC4626(superform);
+                asset = vault.asset();
+            } else {
+                asset = req.superformData.liqRequests[i].token;
+            }
+            require (asset != address(0), P2pSuperformProxy__AssetShouldNotBeZeroAddress());
+            assets[i] = asset;
+        }
+
+        _withdrawBatch(
+            req.superformData.superformIds,
+            assets,
+            _superformCalldata
+        );
+    }
+
     function withdraw(
         bytes calldata _superformCalldata
     ) external {
         require (_superformCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
         bytes4 selector = bytes4(_superformCalldata[:4]);
 
-        if (selector == IBaseRouter.singleDirectMultiVaultWithdraw.selector) {
+        require (
+            selector == IBaseRouter.singleDirectSingleVaultWithdraw.selector,
+            P2pSuperformProxy__SelectorNotSupported(selector)
+        );
 
-        } else if (selector == IBaseRouter.singleDirectSingleVaultWithdraw.selector) {
-            SingleDirectSingleVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectSingleVaultStateReq));
+        SingleDirectSingleVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectSingleVaultStateReq));
 
-            require (
-                req.superformData.receiverAddress == address(this),
-                P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy(req.superformData.receiverAddress)
-            );
-            require (
-                req.superformData.receiverAddressSP == address(this),
-                P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(req.superformData.receiverAddressSP)
-            );
+        require (
+            req.superformData.receiverAddress == address(this),
+            P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy(req.superformData.receiverAddress)
+        );
+        require (
+            req.superformData.receiverAddressSP == address(this),
+            P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(req.superformData.receiverAddressSP)
+        );
 
-            address asset;
-            if (req.superformData.liqRequest.token == address(0)) {
-                address superform = address(uint160(req.superformData.superformId));
-                IERC4626 vault = IERC4626(superform);
-                asset = vault.asset();
-            } else {
-                asset = req.superformData.liqRequest.token;
-            }
-            require (asset != address(0), P2pSuperformProxy__AssetShouldNotBeZeroAddress());
-
-            _withdraw(
-                req.superformData.superformId,
-                asset,
-                _superformCalldata
-            );
+        address asset;
+        if (req.superformData.liqRequest.token == address(0)) {
+            address superform = address(uint160(req.superformData.superformId));
+            IERC4626 vault = IERC4626(superform);
+            asset = vault.asset();
         } else {
-            revert P2pSuperformProxy__SelectorNotSupported(selector);
+            asset = req.superformData.liqRequest.token;
         }
+        require (asset != address(0), P2pSuperformProxy__AssetShouldNotBeZeroAddress());
+
+        _withdraw(
+            req.superformData.superformId,
+            asset,
+            _superformCalldata
+        );
     }
 
     function batchClaim(
