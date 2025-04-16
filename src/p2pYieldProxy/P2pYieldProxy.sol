@@ -66,7 +66,7 @@ abstract contract P2pYieldProxy is
     IAllowedCalldataChecker internal immutable i_allowedCalldataChecker;
 
     /// @dev Client
-    address internal s_client;
+    address payable internal s_client;
 
     /// @dev Client basis points of deposit
     uint48 internal s_clientBasisPointsOfDeposit;
@@ -153,7 +153,7 @@ abstract contract P2pYieldProxy is
             P2pYieldProxy__InvalidClientBasisPointsOfProfit(_clientBasisPointsOfProfit)
         );
 
-        s_client = _client;
+        s_client = payable(_client);
         s_clientBasisPointsOfDeposit = _clientBasisPointsOfDeposit;
         s_clientBasisPointsOfProfit = _clientBasisPointsOfProfit;
 
@@ -382,11 +382,11 @@ abstract contract P2pYieldProxy is
                 P2pYieldProxy__DifferentActuallyDepositedAmount(uniqueToken, totalUniqueTokenAmount, amountToDepositAfterFee)
             ); // no support for fee-on-transfer or rebasing tokens
 
-            uint256 fee = actualAmountBeforeFee - amountToDepositAfterFee;
-            if (fee > 0) {
+            uint256 tokenFee = actualAmountBeforeFee - amountToDepositAfterFee;
+            if (tokenFee > 0) {
                 // transfer uniqueToken to P2P treasury
-                emit P2pYieldProxy__DepositFee(uniqueToken, fee);
-                IERC20(uniqueToken).safeTransfer(i_p2pTreasury, fee);
+                emit P2pYieldProxy__DepositFee(uniqueToken, tokenFee);
+                IERC20(uniqueToken).safeTransfer(i_p2pTreasury, tokenFee);
             }
 
             if (_usePermit2) {
@@ -402,11 +402,11 @@ abstract contract P2pYieldProxy is
             }
         }
 
-        uint256 fee = msg.value - _nativeAmountToDepositAfterFee;
-        if (fee > 0) {
+        uint256 nativeFee = msg.value - _nativeAmountToDepositAfterFee;
+        if (nativeFee > 0) {
             // transfer ETH to P2P treasury
-            emit P2pYieldProxy__DepositFee(NATIVE, fee);
-            Address.sendValue(i_p2pTreasury,fee);
+            emit P2pYieldProxy__DepositFee(NATIVE, nativeFee);
+            Address.sendValue(i_p2pTreasury, nativeFee);
         }
 
         i_yieldProtocolAddress.functionCallWithValue(
@@ -418,7 +418,7 @@ abstract contract P2pYieldProxy is
     function _getUniqueAssets(
         address[] memory _assets,
         bool _withNative
-    ) internal returns(
+    ) internal pure returns(
         address[] memory uniqueAssets,
         uint256 uniqueCount
     ) {
