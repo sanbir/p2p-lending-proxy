@@ -19,7 +19,7 @@ import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 error P2pYieldProxy__ZeroAddressAsset();
 
 /// @dev Error when the asset amount is zero
-error P2pYieldProxy__ZeroAssetAmount();
+error P2pYieldProxy__ZeroAssetAmount(address _asset);
 
 /// @dev Error when the shares amount is zero
 error P2pYieldProxy__ZeroSharesAmount();
@@ -218,7 +218,6 @@ abstract contract P2pYieldProxy is
             emit P2pYieldProxy__Deposited(
                 i_yieldProtocolAddress,
                 NATIVE,
-                msg.value,
                 _nativeAmountToDepositAfterFee,
                 totalDepositedAfter,
                 _vaultId
@@ -228,7 +227,7 @@ abstract contract P2pYieldProxy is
             require (asset != address(0), P2pYieldProxy__ZeroAddressAsset());
 
             uint160 amount = _permitSingleForP2pYieldProxy.details.amount;
-            require (amount > 0, P2pYieldProxy__ZeroAssetAmount());
+            require (amount > 0, P2pYieldProxy__ZeroAssetAmount(asset));
 
             address client = s_client;
 
@@ -264,7 +263,6 @@ abstract contract P2pYieldProxy is
             emit P2pYieldProxy__Deposited(
                 i_yieldProtocolAddress,
                 asset,
-                actualAmount,
                 amountToDepositAfterFee,
                 totalDepositedAfter,
                 _vaultId
@@ -296,7 +294,8 @@ abstract contract P2pYieldProxy is
     /// @param _permitBatchForP2pYieldProxy PermitBatch for P2pYieldProxy to pull assets from client
     /// @param _permit2SignatureForP2pYieldProxy signature of PermitSingle for P2pYieldProxy
     /// @param _usePermit2 whether should use Permit2 or native ERC-20 transferFrom
-    /// @param _isNatives whether ETH (native currency) is being deposited
+    /// @param _assets asset addresses
+    /// @param _amounts amount for each deposit
     /// @param _nativeAmounts amount of ETH for each deposit
     /// @param _nativeAmountToDepositAfterFee native amount to deposit after fee
     function _depositBatch(
@@ -305,7 +304,8 @@ abstract contract P2pYieldProxy is
         IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
         bool _usePermit2,
-        bool[] memory _isNatives,
+        address[] memory _assets,
+        uint256[] memory _amounts,
         uint256[] memory _nativeAmounts,
         uint256 _nativeAmountToDepositAfterFee
     )
@@ -315,109 +315,161 @@ abstract contract P2pYieldProxy is
         address client = s_client;
         uint48 clientBasisPointsOfDeposit = s_clientBasisPointsOfDeposit;
 
-        uint256 erc20Count = _permitBatchForP2pYieldProxy.details.length;
+        (address[] memory uniqueTokens, uint256 uniqueCount) = _getUniqueAssets(_assets, false);
+
         IAllowanceTransfer.AllowanceTransferDetails[] memory transferDetails =
-                    new IAllowanceTransfer.AllowanceTransferDetails[](erc20Count);
-        uint256[] memory assetAmountsBefore = new uint256[](erc20Count);
+                    new IAllowanceTransfer.AllowanceTransferDetails[](uniqueCount);
+        uint256[] memory uniqueTokenAmountsBefore = new uint256[](uniqueCount);
 
-        uint256 nativeCount;
+        for (uint256 unique_i = 0; unique_i < uniqueCount; ++unique_i) {
+            address uniqueToken = uniqueTokens[unique_i];
 
-        for (uint256 i = 0; i < _vaultIds.length; ++i) {
-            uint256 vaultId = _vaultIds[i];
+            uint160 amount;
+            for (uint256 permit_i = 0; permit_i < _permitBatchForP2pYieldProxy.details.length; ++permit_i) {
+                if (_permitBatchForP2pYieldProxy.details[permit_i].token == uniqueToken) {
+                    amount += _permitBatchForP2pYieldProxy.details[permit_i].amount;
+                }
+            }
+            require (amount > 0, P2pYieldProxy__ZeroAssetAmount(uniqueToken));
 
-            if (_isNatives[i]) {
-                nativeCount++;
+            transferDetails[unique_i] = IAllowanceTransfer.AllowanceTransferDetails({
+                from: client,
+                to: address(this),
+                amount: amount,
+                token: uniqueToken
+            });
 
-                uint256 totalDepositedAfter = s_totalDeposited[vaultId][NATIVE] + _nativeAmounts[i];
+            uniqueTokenAmountsBefore[unique_i] = IERC20(uniqueToken).balanceOf(address(this));
+        }
+
+        if (uniqueCount > 0) {
+            // batch transfer tokens into Proxy
+            try Permit2Lib.PERMIT2.permit(
+                client,
+                _permitBatchForP2pYieldProxy,
+                _permit2SignatureForP2pYieldProxy
+            ) {}
+            catch {} // prevent unintended reverts due to invalidated nonce
+            Permit2Lib.PERMIT2.transferFrom(transferDetails);
+        }
+
+        for (uint256 vault_i = 0; vault_i < _vaultIds.length; ++vault_i) {
+            uint256 vaultId = _vaultIds[vault_i];
+            address asset = _assets[vault_i];
+
+            if (asset == NATIVE) {
+                // check for nativeAmountToDepositAfterFee >= sum(_nativeAmounts) has been done in P2pSuperformProxy
+
+                uint256 totalDepositedAfter = s_totalDeposited[vaultId][NATIVE] + _nativeAmounts[vault_i];
                 s_totalDeposited[vaultId][NATIVE] = totalDepositedAfter;
                 emit P2pYieldProxy__Deposited(
                     i_yieldProtocolAddress,
                     NATIVE,
-                    msg.value,
-                    _nativeAmounts[i],
+                    _nativeAmounts[vault_i],
                     totalDepositedAfter,
                     vaultId
                 );
-            } else {
-                uint256 erc20_i = i - nativeCount;
-
-                address asset = _permitBatchForP2pYieldProxy.details[erc20_i].token;
-                require (asset != address(0), P2pYieldProxy__ZeroAddressAsset());
-
-                uint160 amount = _permitBatchForP2pYieldProxy.details[erc20_i].amount;
-                require (amount > 0, P2pYieldProxy__ZeroAssetAmount());
-
-                transferDetails[erc20_i] = IAllowanceTransfer.AllowanceTransferDetails({
-                    from: client,
-                    to: address(this),
-                    amount: amount,
-                    token: asset
-                });
-
-                assetAmountsBefore[erc20_i] = IERC20(asset).balanceOf(address(this));
             }
         }
 
-        // batch transfer tokens into Proxy
-        try Permit2Lib.PERMIT2.permit(
-            client,
-            _permitBatchForP2pYieldProxy,
-            _permit2SignatureForP2pYieldProxy
-        ) {}
-        catch {} // prevent unintended reverts due to invalidated nonce
-        Permit2Lib.PERMIT2.transferFrom(transferDetails);
+        for (uint256 unique_i = 0; unique_i < uniqueCount; ++unique_i) {
+            address uniqueToken = uniqueTokens[unique_i];
+            uint256 assetAmountAfter = IERC20(uniqueToken).balanceOf(address(this));
+            uint256 actualAmountBeforeFee = assetAmountAfter - uniqueTokenAmountsBefore[unique_i];
+            uint256 amountToDepositAfterFee = actualAmountBeforeFee * clientBasisPointsOfDeposit / 10_000;
 
-        for (uint256 i = 0; i < _vaultIds.length; ++i) {
-            uint256 vaultId = _vaultIds[i];
-            if (_isNatives[i]) {
-                nativeCount++;
+            uint256 totalUniqueTokenAmount;
+            for (uint256 i = 0; i < _vaultIds.length; ++i) {
+                uint256 vaultId = _vaultIds[i];
+
+                if (_assets[i] == uniqueToken) {
+                    totalUniqueTokenAmount += _amounts[i];
+
+                    uint256 totalDepositedAfter = s_totalDeposited[vaultId][uniqueToken] + _amounts[i];
+                    s_totalDeposited[vaultId][uniqueToken] = totalDepositedAfter;
+                    emit P2pYieldProxy__Deposited(
+                        i_yieldProtocolAddress,
+                        uniqueToken,
+                        _amounts[i],
+                        totalDepositedAfter,
+                        vaultId
+                    );
+                }
             }
-            uint256 erc20_i = i - nativeCount;
-
-            address asset = _permitBatchForP2pYieldProxy.details[erc20_i].token;
-            uint160 amount = _permitBatchForP2pYieldProxy.details[erc20_i].amount;
-
-            uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
-            uint256 actualAmount = assetAmountAfter - assetAmountsBefore[erc20_i];
 
             require (
-                actualAmount == amount,
-                P2pYieldProxy__DifferentActuallyDepositedAmount(asset, amount, actualAmount)
+                amountToDepositAfterFee >= totalUniqueTokenAmount,
+                P2pYieldProxy__DifferentActuallyDepositedAmount(uniqueToken, totalUniqueTokenAmount, amountToDepositAfterFee)
             ); // no support for fee-on-transfer or rebasing tokens
 
-            uint256 amountToDepositAfterFee = actualAmount * clientBasisPointsOfDeposit / 10_000;
-
-            uint256 totalDepositedAfter = s_totalDeposited[vaultId][asset] + amountToDepositAfterFee;
-            s_totalDeposited[vaultId][asset] = totalDepositedAfter;
-            emit P2pYieldProxy__Deposited(
-                i_yieldProtocolAddress,
-                asset,
-                actualAmount,
-                amountToDepositAfterFee,
-                totalDepositedAfter,
-                vaultId
-            );
+            uint256 fee = actualAmountBeforeFee - amountToDepositAfterFee;
+            if (fee > 0) {
+                // transfer uniqueToken to P2P treasury
+                emit P2pYieldProxy__DepositFee(uniqueToken, fee);
+                IERC20(uniqueToken).safeTransfer(i_p2pTreasury, fee);
+            }
 
             if (_usePermit2) {
-                IERC20(asset).safeIncreaseAllowance(
+                IERC20(uniqueToken).safeIncreaseAllowance(
                     address(Permit2Lib.PERMIT2),
-                    amountToDepositAfterFee
+                    totalUniqueTokenAmount
                 );
             } else {
-                IERC20(asset).safeIncreaseAllowance(
+                IERC20(uniqueToken).safeIncreaseAllowance(
                     i_yieldProtocolAddress,
-                    amountToDepositAfterFee
+                    totalUniqueTokenAmount
                 );
             }
         }
 
-        // transfer ETH to P2P treasury
-        Address.sendValue(i_p2pTreasury,msg.value - _nativeAmountToDepositAfterFee);
+        uint256 fee = msg.value - _nativeAmountToDepositAfterFee;
+        if (fee > 0) {
+            // transfer ETH to P2P treasury
+            emit P2pYieldProxy__DepositFee(NATIVE, fee);
+            Address.sendValue(i_p2pTreasury,fee);
+        }
 
         i_yieldProtocolAddress.functionCallWithValue(
             _yieldProtocolDepositCalldata,
             _nativeAmountToDepositAfterFee
         );
+    }
+
+    function _getUniqueAssets(
+        address[] memory _assets,
+        bool _withNative
+    ) internal returns(
+        address[] memory uniqueAssets,
+        uint256 uniqueCount
+    ) {
+        // Determine the worst-case total number of token addresses.
+        uint256 totalCount = _assets.length;
+
+        // Allocate a memory array for potential unique assets.
+        uniqueAssets = new address[](totalCount);
+        uniqueCount = 0;
+
+        for (uint256 total_i = 0; total_i < totalCount; ++total_i) {
+            address asset = _assets[total_i];
+
+            require (asset != address(0), P2pYieldProxy__ZeroAddressAsset());
+
+            if (asset == NATIVE && !_withNative) {
+                continue;
+            }
+
+            bool found;
+            for (uint256 unique_i = 0; unique_i < uniqueCount; ++unique_i) {
+                if (uniqueAssets[unique_i] == asset) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                uniqueAssets[uniqueCount] = asset;
+                uniqueCount++;
+            }
+        }
     }
 
     /// @notice Batch withdraw assets from yield protocol
@@ -433,57 +485,107 @@ abstract contract P2pYieldProxy is
     onlyClient
     nonReentrant
     {
-        // Determine the worst-case total number of token addresses.
-        uint256 totalTokens = _vaultIds.length;
-
-        // Allocate a memory array for potential unique tokens.
-        address[] memory uniqueTokens = new address[](totalTokens);
-        uint256 uniqueCount = 0;
-
-        for (uint256 j = 0; j < _assets.length; j++) {
-            address token = _assets[j];
-            bool found = false;
-            for (uint256 k = 0; k < uniqueCount; k++) {
-                if (uniqueTokens[k] == token) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                uniqueTokens[uniqueCount] = token;
-                uniqueCount++;
-            }
-        }
+        (address[] memory uniqueAssets, uint256 uniqueCount) = _getUniqueAssets(_assets);
 
         uint256[] memory assetAmountsBefore = new uint256[](uniqueCount);
-        for (uint256 i = 0; i < uniqueCount; i++) {
-            address token = uniqueTokens[i];
-            assetAmountsBefore[i] = IERC20(token).balanceOf(address(this));
+        for (uint256 unique_i = 0; unique_i < uniqueCount; ++unique_i) {
+            address asset = uniqueAssets[unique_i];
+            bool isNative = asset == NATIVE;
+
+            assetAmountsBefore[unique_i] = isNative
+                ? address(this).balance
+                : IERC20(asset).balanceOf(address(this));
         }
 
         // withdraw assets from Protocol
         i_yieldProtocolAddress.functionCall(_yieldProtocolWithdrawalCalldata);
 
-        for (uint256 i = 0; i < uniqueCount; i++) {
-            address token = uniqueTokens[i];
-            uint256 assetAmountAfter = IERC20(token).balanceOf(address(this));
+        for (uint256 unique_i = 0; unique_i < uniqueCount; ++unique_i) {
+//                address token = uniqueTokens[unique_i];
+//                uint256 assetAmountAfter = IERC20(token).balanceOf(address(this));
+//
+//                uint256 newAssetAmount = assetAmountAfter - assetAmountsBefore[unique_i];
+//                require (newAssetAmount > 0, P2pYieldProxy__ZeroNewAssetAmount(token));
+//
+//                uint256 p2pAmount = (newAssetAmount * (10_000 - s_clientBasisPointsOfProfit)) / 10_000;
+//                uint256 clientAmount = newAssetAmount - p2pAmount;
+//
+//                if (p2pAmount > 0) {
+//                    IERC20(token).safeTransfer(i_p2pTreasury, p2pAmount);
+//                }
+//                // clientAmount must be > 0 at this point
+//                IERC20(token).safeTransfer(s_client, clientAmount);
+//
+//                emit P2pYieldProxy__Withdrawn(
+//                    i_yieldProtocolAddress,
+//                    _vaultId,
+//                    _asset,
+//                    newAssetAmount,
+//                    totalWithdrawnAfter,
+//                    newProfit,
+//                    p2pAmount,
+//                    clientAmount
+//                );
 
-            uint256 newAssetAmount = assetAmountAfter - assetAmountsBefore[i];
-            require (newAssetAmount > 0, P2pYieldProxy__ZeroNewAssetAmount(token));
+            address asset = uniqueAssets[unique_i];
+            bool isNative = asset == NATIVE;
 
-            uint256 p2pAmount = (newAssetAmount * (10_000 - s_clientBasisPointsOfProfit)) / 10_000;
+            uint256 assetAmountAfter = isNative
+                ? address(this).balance
+                : IERC20(asset).balanceOf(address(this));
+
+            uint256 newAssetAmount = assetAmountAfter - assetAmountsBefore[unique_i];
+
+            require (newAssetAmount != 0, P2pYieldProxy__ZeroNewAssetAmount(asset));
+
+            uint256 totalWithdrawnBefore = s_totalWithdrawn[_vaultId][asset];
+            uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
+            uint256 totalDeposited = s_totalDeposited[_vaultId][asset];
+
+            // update total withdrawn
+            s_totalWithdrawn[_vaultId][asset] = totalWithdrawnAfter;
+
+            // Calculate profit increment
+            // profit = (total withdrawn after this - total deposited)
+            // If it's negative or zero, no profit yet
+            uint256 profitBefore;
+            if (totalWithdrawnBefore > totalDeposited) {
+                profitBefore = totalWithdrawnBefore - totalDeposited;
+            }
+            uint256 profitAfter;
+            if (totalWithdrawnAfter > totalDeposited) {
+                profitAfter = totalWithdrawnAfter - totalDeposited;
+            }
+            uint256 newProfit;
+            if (profitAfter > profitBefore) {
+                newProfit = profitAfter - profitBefore;
+            }
+
+            uint256 p2pAmount;
+            if (newProfit > 0) {
+                // That extra 9999 ensures that any nonzero remainder will push the result up by 1 (ceiling division).
+                p2pAmount = (newProfit * (10_000 - s_clientBasisPointsOfProfit) + 9999) / 10_000;
+            }
             uint256 clientAmount = newAssetAmount - p2pAmount;
 
             if (p2pAmount > 0) {
-                IERC20(token).safeTransfer(i_p2pTreasury, p2pAmount);
+                if (isNative) {
+                    Address.sendValue(i_p2pTreasury, p2pAmount);
+                } else {
+                    IERC20(asset).safeTransfer(i_p2pTreasury, p2pAmount);
+                }
             }
             // clientAmount must be > 0 at this point
-            IERC20(token).safeTransfer(s_client, clientAmount);
+            if (isNative) {
+                Address.sendValue(s_client, clientAmount);
+            } else {
+                IERC20(asset).safeTransfer(s_client, clientAmount);
+            }
 
             emit P2pYieldProxy__Withdrawn(
                 i_yieldProtocolAddress,
                 _vaultId,
-                _asset,
+                asset,
                 newAssetAmount,
                 totalWithdrawnAfter,
                 newProfit,

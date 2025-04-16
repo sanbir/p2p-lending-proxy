@@ -16,10 +16,14 @@ interface IP2pYieldProxy is IERC165 {
     event P2pYieldProxy__Deposited(
         address indexed _yieldProtocolAddress,
         address indexed _asset,
-        uint256 _amount,
         uint256 _amountAfterFee,
         uint256 _totalDepositedAfter,
         uint256 _vaultId
+    );
+
+    event P2pYieldProxy__DepositFee(
+        address indexed _asset,
+        uint256 _amount
     );
 
     /// @notice Emitted when a withdrawal is made

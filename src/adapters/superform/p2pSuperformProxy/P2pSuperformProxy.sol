@@ -77,20 +77,23 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         SingleDirectMultiVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectMultiVaultStateReq));
 
         uint256 totalNativeAmount;
-        uint256 totalAmount;
+        uint256 totalAmountForNative;
         uint256 nativeCount;
         uint256 depositCount = req.superformData.superformIds.length;
 
-        bool[] memory isNatives = new bool[](depositCount);
+        address[] memory assets = new address[](depositCount);
         uint256[] memory nativeAmounts = new uint256[](depositCount);
+        uint256[] memory amounts = new uint256[](depositCount);
 
         for (uint256 i = 0; i < depositCount; ++i) {
-            isNatives[i] = req.superformData.liqRequests[i].token == NATIVE;
-            if (isNatives[i]) {
+            assets[i] = req.superformData.liqRequests[i].token;
+            amounts[i] = req.superformData.amounts[i];
+
+            if (assets[i] == NATIVE) {
+                nativeCount++;
                 nativeAmounts[i] = req.superformData.liqRequests[i].nativeAmount;
                 totalNativeAmount += req.superformData.liqRequests[i].nativeAmount;
-                totalAmount += req.superformData.amounts[i];
-                nativeCount++;
+                totalAmountForNative += req.superformData.amounts[i];
             } else {
                 require (
                     req.superformData.liqRequests[i].token == _permitBatchForP2pYieldProxy.details[i - nativeCount].token,
@@ -123,8 +126,8 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             )
         );
         require (
-            nativeAmountToDepositAfterFee >= totalAmount,
-            P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanAmount(nativeAmountToDepositAfterFee, totalAmount)
+            nativeAmountToDepositAfterFee >= totalAmountForNative,
+            P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanAmount(nativeAmountToDepositAfterFee, totalAmountForNative)
         );
 
         _depositBatch(
@@ -133,7 +136,8 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             _permitBatchForP2pYieldProxy,
             _permit2SignatureForP2pYieldProxy,
             false,
-            isNatives,
+            assets,
+            amounts,
             nativeAmounts,
             nativeAmountToDepositAfterFee
         );
