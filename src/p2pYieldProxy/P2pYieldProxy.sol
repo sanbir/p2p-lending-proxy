@@ -15,52 +15,32 @@ import "../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "./IP2pYieldProxy.sol";
 import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-/// @dev Error when the asset address is zero   
 error P2pYieldProxy__ZeroAddressAsset();
-
-/// @dev Error when the asset amount is zero
 error P2pYieldProxy__ZeroAssetAmount(address _asset);
-
-/// @dev Error when the shares amount is zero
 error P2pYieldProxy__ZeroSharesAmount();
-
-/// @dev Error when the client basis points of deposit are invalid
 error P2pYieldProxy__InvalidClientBasisPointsOfDeposit(uint48 _clientBasisPointsOfDeposit);
-
-/// @dev Error when the client basis points of profit are invalid
 error P2pYieldProxy__InvalidClientBasisPointsOfProfit(uint48 _clientBasisPointsOfProfit);
-
-/// @dev Error when the factory is not the caller
 error P2pYieldProxy__NotFactory(address _factory);
-
 error P2pYieldProxy__DifferentActuallyDepositedAmount(
     address _asset,
     uint256 _requestedAmount,
     uint256 _actualAmount
 );
-
-/// @dev Error when the factory is not the caller
-/// @param _msgSender sender address.
-/// @param _actualFactory the actual factory address.
 error P2pYieldProxy__NotFactoryCalled(
     address _msgSender,
     IP2pYieldProxyFactory _actualFactory
 );
-
-/// @dev Error when the client is not the caller
-/// @param _msgSender sender address.
-/// @param _actualClient the actual client address.
 error P2pYieldProxy__NotClientCalled(
     address _msgSender,
     address _actualClient
 );
-
 error P2pYieldProxy__ZeroAddressFactory();
 error P2pYieldProxy__ZeroAddressP2pTreasury();
 error P2pYieldProxy__ZeroAddressYieldProtocolAddress();
 error P2pYieldProxy__ZeroNewAssetAmount(address _asset);
 error P2pYieldProxy__ZeroAllowedCalldataChecker();
 error P2pYieldProxy__DataTooShort();
+error P2pYieldProxy__AllAssetsMustBeUnique();
 
 /// @title P2pYieldProxy
 /// @notice P2pYieldProxy is a contract that allows a client to deposit and withdraw assets from a yield protocol.
@@ -485,14 +465,15 @@ abstract contract P2pYieldProxy is
     onlyClient
     nonReentrant
     {
-        (address[] memory uniqueAssets, uint256 uniqueCount) = _getUniqueAssets(_assets);
+        (, uint256 uniqueCount) = _getUniqueAssets(_assets, true);
+        require (uniqueCount == _assets.length, P2pYieldProxy__AllAssetsMustBeUnique());
 
         uint256[] memory assetAmountsBefore = new uint256[](uniqueCount);
-        for (uint256 unique_i = 0; unique_i < uniqueCount; ++unique_i) {
-            address asset = uniqueAssets[unique_i];
+        for (uint256 i = 0; i < uniqueCount; ++i) {
+            address asset = _assets[i];
             bool isNative = asset == NATIVE;
 
-            assetAmountsBefore[unique_i] = isNative
+            assetAmountsBefore[i] = isNative
                 ? address(this).balance
                 : IERC20(asset).balanceOf(address(this));
         }
@@ -500,50 +481,26 @@ abstract contract P2pYieldProxy is
         // withdraw assets from Protocol
         i_yieldProtocolAddress.functionCall(_yieldProtocolWithdrawalCalldata);
 
-        for (uint256 unique_i = 0; unique_i < uniqueCount; ++unique_i) {
-//                address token = uniqueTokens[unique_i];
-//                uint256 assetAmountAfter = IERC20(token).balanceOf(address(this));
-//
-//                uint256 newAssetAmount = assetAmountAfter - assetAmountsBefore[unique_i];
-//                require (newAssetAmount > 0, P2pYieldProxy__ZeroNewAssetAmount(token));
-//
-//                uint256 p2pAmount = (newAssetAmount * (10_000 - s_clientBasisPointsOfProfit)) / 10_000;
-//                uint256 clientAmount = newAssetAmount - p2pAmount;
-//
-//                if (p2pAmount > 0) {
-//                    IERC20(token).safeTransfer(i_p2pTreasury, p2pAmount);
-//                }
-//                // clientAmount must be > 0 at this point
-//                IERC20(token).safeTransfer(s_client, clientAmount);
-//
-//                emit P2pYieldProxy__Withdrawn(
-//                    i_yieldProtocolAddress,
-//                    _vaultId,
-//                    _asset,
-//                    newAssetAmount,
-//                    totalWithdrawnAfter,
-//                    newProfit,
-//                    p2pAmount,
-//                    clientAmount
-//                );
-
-            address asset = uniqueAssets[unique_i];
+        for (uint256 i = 0; i < uniqueCount; ++i) {
+            address asset = _assets[i];
             bool isNative = asset == NATIVE;
 
             uint256 assetAmountAfter = isNative
                 ? address(this).balance
                 : IERC20(asset).balanceOf(address(this));
 
-            uint256 newAssetAmount = assetAmountAfter - assetAmountsBefore[unique_i];
+            uint256 newAssetAmount = assetAmountAfter - assetAmountsBefore[i];
 
             require (newAssetAmount != 0, P2pYieldProxy__ZeroNewAssetAmount(asset));
 
-            uint256 totalWithdrawnBefore = s_totalWithdrawn[_vaultId][asset];
+            uint256 vaultId = _vaultIds[i];
+
+            uint256 totalWithdrawnBefore = s_totalWithdrawn[vaultId][asset];
             uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
-            uint256 totalDeposited = s_totalDeposited[_vaultId][asset];
+            uint256 totalDeposited = s_totalDeposited[vaultId][asset];
 
             // update total withdrawn
-            s_totalWithdrawn[_vaultId][asset] = totalWithdrawnAfter;
+            s_totalWithdrawn[vaultId][asset] = totalWithdrawnAfter;
 
             // Calculate profit increment
             // profit = (total withdrawn after this - total deposited)
@@ -584,7 +541,7 @@ abstract contract P2pYieldProxy is
 
             emit P2pYieldProxy__Withdrawn(
                 i_yieldProtocolAddress,
-                _vaultId,
+                vaultId,
                 asset,
                 newAssetAmount,
                 totalWithdrawnAfter,

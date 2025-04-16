@@ -242,7 +242,6 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(req.superformData.receiverAddressSP)
         );
 
-
         uint256 withdrawCount = req.superformData.superformIds.length;
         address[] memory assets = new address[](withdrawCount);
         for (uint256 i = 0; i < withdrawCount; ++i) {
