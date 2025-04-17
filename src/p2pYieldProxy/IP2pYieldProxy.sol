@@ -14,11 +14,10 @@ interface IP2pYieldProxy is IERC165 {
 
     /// @notice Emitted when a deposit is made
     event P2pYieldProxy__Deposited(
-        address indexed _yieldProtocolAddress,
+        uint256 indexed _vaultId,
         address indexed _asset,
         uint256 _amountAfterFee,
-        uint256 _totalDepositedAfter,
-        uint256 _vaultId
+        uint256 _totalDepositedAfter
     );
 
     event P2pYieldProxy__DepositFee(

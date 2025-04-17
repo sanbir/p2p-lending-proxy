@@ -197,11 +197,10 @@ abstract contract P2pYieldProxy is
             uint256 totalDepositedAfter = s_totalDeposited[_vaultId][NATIVE] + _nativeAmountToDepositAfterFee;
             s_totalDeposited[_vaultId][NATIVE] = totalDepositedAfter;
             emit P2pYieldProxy__Deposited(
-                i_yieldProtocolAddress,
+                _vaultId,
                 NATIVE,
                 _nativeAmountToDepositAfterFee,
-                totalDepositedAfter,
-                _vaultId
+                totalDepositedAfter
             );
         } else {
             address asset = _permitSingleForP2pYieldProxy.details.token;
@@ -242,11 +241,10 @@ abstract contract P2pYieldProxy is
             uint256 totalDepositedAfter = s_totalDeposited[_vaultId][asset] + amountToDepositAfterFee;
             s_totalDeposited[_vaultId][asset] = totalDepositedAfter;
             emit P2pYieldProxy__Deposited(
-                i_yieldProtocolAddress,
+                _vaultId,
                 asset,
                 amountToDepositAfterFee,
-                totalDepositedAfter,
-                _vaultId
+                totalDepositedAfter
             );
 
             if (_usePermit2) {
@@ -344,11 +342,10 @@ abstract contract P2pYieldProxy is
                 uint256 totalDepositedAfter = s_totalDeposited[vaultId][NATIVE] + _nativeAmounts[vault_i];
                 s_totalDeposited[vaultId][NATIVE] = totalDepositedAfter;
                 emit P2pYieldProxy__Deposited(
-                    i_yieldProtocolAddress,
+                    vaultId,
                     NATIVE,
                     _nativeAmounts[vault_i],
-                    totalDepositedAfter,
-                    vaultId
+                    totalDepositedAfter
                 );
             }
         }
@@ -369,11 +366,10 @@ abstract contract P2pYieldProxy is
                     uint256 totalDepositedAfter = s_totalDeposited[vaultId][uniqueToken] + _fundingAssetAmounts[i];
                     s_totalDeposited[vaultId][uniqueToken] = totalDepositedAfter;
                     emit P2pYieldProxy__Deposited(
-                        i_yieldProtocolAddress,
+                        vaultId,
                         uniqueToken,
                         _fundingAssetAmounts[i],
-                        totalDepositedAfter,
-                        vaultId
+                        totalDepositedAfter
                     );
                 }
             }
