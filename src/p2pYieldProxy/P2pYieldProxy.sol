@@ -537,7 +537,6 @@ abstract contract P2pYieldProxy is
             }
 
             emit P2pYieldProxy__Withdrawn(
-                i_yieldProtocolAddress,
                 vaultId,
                 asset,
                 newAssetAmount,
@@ -624,7 +623,6 @@ abstract contract P2pYieldProxy is
         }
 
         emit P2pYieldProxy__Withdrawn(
-            i_yieldProtocolAddress,
             _vaultId,
             _asset,
             newAssetAmount,

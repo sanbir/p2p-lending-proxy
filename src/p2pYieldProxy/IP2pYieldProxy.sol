@@ -27,7 +27,6 @@ interface IP2pYieldProxy is IERC165 {
 
     /// @notice Emitted when a withdrawal is made
     event P2pYieldProxy__Withdrawn(
-        address indexed _yieldProtocolAddress,
         uint256 indexed _vaultId,
         address indexed _asset,
         uint256 _assets,
