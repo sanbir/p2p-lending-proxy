@@ -9,16 +9,13 @@ import "../IERC1155A.sol";
 import "../IRewardsDistributor.sol";
 import "../p2pSuperformProxyFactory/IP2pSuperformProxyFactory.sol";
 import "./IP2pSuperformProxy.sol";
+import {console} from "../../../../lib/forge-std/src/console.sol";
 
 error P2pSuperformProxy__SuperformCalldataTooShort();
 error P2pSuperformProxy__SelectorNotSupported(bytes4 _selector);
 error P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanliqRequestNativeAmount(
     uint256 _nativeAmountToDepositAfterFee,
     uint256 _liqRequestNativeAmount
-);
-error P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanAmount(
-    uint256 _nativeAmountToDepositAfterFee,
-    uint256 _amount
 );
 error P2pSuperformProxy__LiqRequestTokenShouldBeEqualToPermitForP2pYieldProxyToken(
     address _liqRequestToken,
@@ -33,6 +30,7 @@ error P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(
 );
 error P2pSuperformProxy__AssetShouldNotBeZeroAddress();
 error P2pSuperformProxy__NotClaimed(address _token);
+error P2pSuperformProxy__WrongFundingAssetAmountsCount();
 
 
 contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
@@ -63,6 +61,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
     function depositBatch(
         IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
+        uint256[] calldata _fundingAssetAmounts,
         bytes calldata _superformCalldata
     ) external override payable {
         require (_superformCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
@@ -77,36 +76,24 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         SingleDirectMultiVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectMultiVaultStateReq));
 
         uint256 totalNativeAmount;
-        uint256 totalAmountForNative;
-        uint256 nativeCount;
         uint256 depositCount = req.superformData.superformIds.length;
 
         address[] memory assets = new address[](depositCount);
         uint256[] memory nativeAmounts = new uint256[](depositCount);
-        uint256[] memory amounts = new uint256[](depositCount);
 
         for (uint256 i = 0; i < depositCount; ++i) {
             assets[i] = req.superformData.liqRequests[i].token;
-            amounts[i] = req.superformData.amounts[i];
-
             if (assets[i] == NATIVE) {
-                nativeCount++;
                 nativeAmounts[i] = req.superformData.liqRequests[i].nativeAmount;
                 totalNativeAmount += req.superformData.liqRequests[i].nativeAmount;
-                totalAmountForNative += req.superformData.amounts[i];
-            } else {
-                require (
-                    req.superformData.liqRequests[i].token == _permitBatchForP2pYieldProxy.details[i - nativeCount].token,
-                    P2pSuperformProxy__LiqRequestTokenShouldBeEqualToPermitForP2pYieldProxyToken(
-                        req.superformData.liqRequests[i].token,
-                        _permitBatchForP2pYieldProxy.details[i - nativeCount].token
-                    )
-                );
-                // ETH can still be used to pay for bridging, swaps, etc., so msg.value can be > 0
             }
             require (!req.superformData.retain4626s[i], P2pSuperformProxy__ShouldNotRetain4626());
         }
 
+        require (
+            _fundingAssetAmounts.length == depositCount,
+            P2pSuperformProxy__WrongFundingAssetAmountsCount()
+        );
         require (
             req.superformData.receiverAddress == address(this),
             P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy(req.superformData.receiverAddress)
@@ -125,10 +112,6 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
                 totalNativeAmount
             )
         );
-        require (
-            nativeAmountToDepositAfterFee >= totalAmountForNative,
-            P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanAmount(nativeAmountToDepositAfterFee, totalAmountForNative)
-        );
 
         _depositBatch(
             req.superformData.superformIds,
@@ -137,7 +120,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             _permit2SignatureForP2pYieldProxy,
             false,
             assets,
-            amounts,
+            _fundingAssetAmounts,
             nativeAmounts,
             nativeAmountToDepositAfterFee
         );
@@ -174,13 +157,6 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
                 P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanliqRequestNativeAmount(
                     nativeAmountToDepositAfterFee,
                     req.superformData.liqRequest.nativeAmount
-                )
-            );
-            require (
-                nativeAmountToDepositAfterFee >= req.superformData.amount,
-                P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanAmount(
-                    nativeAmountToDepositAfterFee,
-                    req.superformData.amount
                 )
             );
         } else {

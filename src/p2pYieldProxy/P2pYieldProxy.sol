@@ -169,6 +169,7 @@ abstract contract P2pYieldProxy is
     function depositBatch(
         IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
+        uint256[] calldata _fundingAssetAmounts,
         bytes calldata _superformCalldata
     ) external virtual payable;
 
@@ -275,7 +276,7 @@ abstract contract P2pYieldProxy is
     /// @param _permit2SignatureForP2pYieldProxy signature of PermitSingle for P2pYieldProxy
     /// @param _usePermit2 whether should use Permit2 or native ERC-20 transferFrom
     /// @param _assets asset addresses
-    /// @param _amounts amount for each deposit
+    /// @param _fundingAssetAmounts amount for each deposit
     /// @param _nativeAmounts amount of ETH for each deposit
     /// @param _nativeAmountToDepositAfterFee native amount to deposit after fee
     function _depositBatch(
@@ -285,7 +286,7 @@ abstract contract P2pYieldProxy is
         bytes calldata _permit2SignatureForP2pYieldProxy,
         bool _usePermit2,
         address[] memory _assets,
-        uint256[] memory _amounts,
+        uint256[] calldata _fundingAssetAmounts,
         uint256[] memory _nativeAmounts,
         uint256 _nativeAmountToDepositAfterFee
     )
@@ -363,14 +364,14 @@ abstract contract P2pYieldProxy is
                 uint256 vaultId = _vaultIds[i];
 
                 if (_assets[i] == uniqueToken) {
-                    totalUniqueTokenAmount += _amounts[i];
+                    totalUniqueTokenAmount += _fundingAssetAmounts[i];
 
-                    uint256 totalDepositedAfter = s_totalDeposited[vaultId][uniqueToken] + _amounts[i];
+                    uint256 totalDepositedAfter = s_totalDeposited[vaultId][uniqueToken] + _fundingAssetAmounts[i];
                     s_totalDeposited[vaultId][uniqueToken] = totalDepositedAfter;
                     emit P2pYieldProxy__Deposited(
                         i_yieldProtocolAddress,
                         uniqueToken,
-                        _amounts[i],
+                        _fundingAssetAmounts[i],
                         totalDepositedAfter,
                         vaultId
                     );

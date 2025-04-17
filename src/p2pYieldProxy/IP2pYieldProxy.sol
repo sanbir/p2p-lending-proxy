@@ -63,6 +63,7 @@ interface IP2pYieldProxy is IERC165 {
     function depositBatch(
         IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
+        uint256[] calldata _fundingAssetAmounts,
         bytes calldata _superformCalldata
     ) external payable;
 

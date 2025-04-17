@@ -131,9 +131,10 @@ abstract contract P2pYieldProxyFactory is
     }
 
     function depositBatch(
-        IAllowanceTransfer.PermitBatch memory _permitBatchForP2pYieldProxy,
+        IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
 
+        uint256[] calldata _fundingAssetAmounts,
         bytes calldata _yieldProtocolCalldata,
 
         uint48 _clientBasisPointsOfDeposit,
@@ -156,6 +157,7 @@ abstract contract P2pYieldProxyFactory is
         p2pYieldProxy.depositBatch(
             _permitBatchForP2pYieldProxy,
             _permit2SignatureForP2pYieldProxy,
+            _fundingAssetAmounts,
             _yieldProtocolCalldata
         );
 
