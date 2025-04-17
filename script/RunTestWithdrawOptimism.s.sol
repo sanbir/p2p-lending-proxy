@@ -12,7 +12,7 @@ contract RunTestWithdrawOptimism is Script {
     using SafeERC20 for IERC20;
 
     uint48 constant ClientBasisPointsOfProfit = 8700; // 13% fee
-    uint48 constant ClientBasisPointsOfDeposit = 0; // 0% fee
+    uint48 constant ClientBasisPointsOfDeposit = 10000; // 0% fee
 
     P2pSuperformProxyFactory factory;
     address proxyAddress;

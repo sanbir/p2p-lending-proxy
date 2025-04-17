@@ -18,7 +18,7 @@ contract RunTestDepositBase is Script {
     address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     uint256 constant SigDeadline = 1743997707;
     uint48 constant ClientBasisPointsOfProfit = 8700; // 13% fee
-    uint48 constant ClientBasisPointsOfDeposit = 0; // 0% fee
+    uint48 constant ClientBasisPointsOfDeposit = 10000; // 0% fee
     uint256 constant DepositAmount = 123400;
     uint256 constant SharesAmount = 1222092;
     uint256 constant SuperformId = 53060340969225753329461353767745054384708953976330005872281754;
