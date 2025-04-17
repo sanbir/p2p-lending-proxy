@@ -17,7 +17,7 @@ import "forge-std/console.sol";
 import "forge-std/console2.sol";
 import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
-contract OptimismDepositBatch is Test {
+contract OptimismBatch is Test {
     using SafeERC20 for IERC20;
 
     address constant USDT = 0x94b008aA00579c1307B0EF2c499aD98a8ce58e58;
