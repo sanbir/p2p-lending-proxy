@@ -51,6 +51,7 @@ interface IP2pYieldProxyFactory is IERC165 {
         bytes calldata _p2pSignerSignature
     )
     external
+    payable
     returns (address p2pYieldProxyAddress);
 
     /// @dev Deposits the yield protocol
@@ -76,6 +77,7 @@ interface IP2pYieldProxyFactory is IERC165 {
         bytes calldata _p2pSignerSignature
     )
     external
+    payable
     returns (address p2pYieldProxyAddress);
 
     /// @dev Computes the address of a P2pYieldProxy created by `_createP2pYieldProxy` function

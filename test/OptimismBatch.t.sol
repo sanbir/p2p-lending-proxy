@@ -47,6 +47,7 @@ contract OptimismBatch is Test {
     uint48 constant ClientBasisPointsOfDeposit = 10_000; // 0% fee
     uint256 constant DepositAmount1 = 12340;
     uint256 constant DepositAmount2 = 1580;
+    uint256 constant NativeDepositAmount = 12340000000000000;
 
     address proxyAddress;
 
@@ -89,6 +90,7 @@ contract OptimismBatch is Test {
         );
 
         deal(USDT, clientAddress, 10000e18);
+        deal(clientAddress, 10000e18);
     }
 
     function testBatchOptimism()

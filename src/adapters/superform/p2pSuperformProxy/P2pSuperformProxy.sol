@@ -31,6 +31,7 @@ error P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(
 error P2pSuperformProxy__AssetShouldNotBeZeroAddress();
 error P2pSuperformProxy__NotClaimed(address _token);
 error P2pSuperformProxy__WrongFundingAssetAmountsCount();
+error P2pSuperformProxy__IncorrectNativeFundingAssetAmount();
 
 
 contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
@@ -79,13 +80,16 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         uint256 depositCount = req.superformData.superformIds.length;
 
         address[] memory assets = new address[](depositCount);
-        uint256[] memory nativeAmounts = new uint256[](depositCount);
 
         for (uint256 i = 0; i < depositCount; ++i) {
             assets[i] = req.superformData.liqRequests[i].token;
             if (assets[i] == NATIVE) {
-                nativeAmounts[i] = req.superformData.liqRequests[i].nativeAmount;
                 totalNativeAmount += req.superformData.liqRequests[i].nativeAmount;
+
+                require (
+                    _fundingAssetAmounts[i] == req.superformData.liqRequests[i].nativeAmount,
+                    P2pSuperformProxy__IncorrectNativeFundingAssetAmount()
+                );
             }
             require (!req.superformData.retain4626s[i], P2pSuperformProxy__ShouldNotRetain4626());
         }
@@ -121,7 +125,6 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             false,
             assets,
             _fundingAssetAmounts,
-            nativeAmounts,
             nativeAmountToDepositAfterFee
         );
 

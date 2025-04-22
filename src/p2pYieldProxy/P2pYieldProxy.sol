@@ -275,7 +275,6 @@ abstract contract P2pYieldProxy is
     /// @param _usePermit2 whether should use Permit2 or native ERC-20 transferFrom
     /// @param _assets asset addresses
     /// @param _fundingAssetAmounts amount for each deposit
-    /// @param _nativeAmounts amount of ETH for each deposit
     /// @param _nativeAmountToDepositAfterFee native amount to deposit after fee
     function _depositBatch(
         uint256[] memory _vaultIds,
@@ -285,7 +284,6 @@ abstract contract P2pYieldProxy is
         bool _usePermit2,
         address[] memory _assets,
         uint256[] calldata _fundingAssetAmounts,
-        uint256[] memory _nativeAmounts,
         uint256 _nativeAmountToDepositAfterFee
     )
     internal
@@ -339,12 +337,12 @@ abstract contract P2pYieldProxy is
             if (asset == NATIVE) {
                 // check for nativeAmountToDepositAfterFee >= sum(_nativeAmounts) has been done in P2pSuperformProxy
 
-                uint256 totalDepositedAfter = s_totalDeposited[vaultId][NATIVE] + _nativeAmounts[vault_i];
+                uint256 totalDepositedAfter = s_totalDeposited[vaultId][NATIVE] + _fundingAssetAmounts[vault_i];
                 s_totalDeposited[vaultId][NATIVE] = totalDepositedAfter;
                 emit P2pYieldProxy__Deposited(
                     vaultId,
                     NATIVE,
-                    _nativeAmounts[vault_i],
+                    _fundingAssetAmounts[vault_i],
                     totalDepositedAfter
                 );
             }
