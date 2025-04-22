@@ -59,6 +59,10 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         i_rewardsDistributor = IRewardsDistributor(_rewardsDistributor);
     }
 
+    /// @notice Accept ether from transactions
+    receive() external payable {
+    }
+
     function depositBatch(
         IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
