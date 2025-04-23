@@ -259,7 +259,7 @@ contract BaseIntegrationMorpho is Test {
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultWithdraw, (req));
 
         vm.startPrank(clientAddress);
-        P2pSuperformProxy(proxyAddress).withdraw(superformCalldata);
+        P2pSuperformProxy(payable(proxyAddress)).withdraw(superformCalldata);
         vm.stopPrank();
     }
 

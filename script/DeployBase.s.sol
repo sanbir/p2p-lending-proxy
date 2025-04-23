@@ -43,7 +43,7 @@ contract DeployBase is Script {
 
         vm.stopBroadcast();
 
-        proxy = P2pSuperformProxy(factory.getReferenceP2pYieldProxy());
+        proxy = P2pSuperformProxy(payable(factory.getReferenceP2pYieldProxy()));
 
         return (factory, proxy);
     }

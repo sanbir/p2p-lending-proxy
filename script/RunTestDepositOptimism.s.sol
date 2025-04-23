@@ -18,7 +18,7 @@ contract RunTestDepositOptimism is Script {
     address constant USDT = 0x94b008aA00579c1307B0EF2c499aD98a8ce58e58;
     uint256 constant SigDeadline = 1743997707;
     uint48 constant ClientBasisPointsOfProfit = 8700; // 13% fee
-    uint48 constant ClientBasisPointsOfDeposit = 0; // 0% fee
+    uint48 constant ClientBasisPointsOfDeposit = 10000; // 0% fee
     uint256 constant DepositAmount = 123400;
 
     P2pSuperformProxyFactory factory;

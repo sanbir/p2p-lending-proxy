@@ -14,17 +14,19 @@ interface IP2pYieldProxy is IERC165 {
 
     /// @notice Emitted when a deposit is made
     event P2pYieldProxy__Deposited(
-        address indexed _yieldProtocolAddress,
+        uint256 indexed _vaultId,
         address indexed _asset,
-        uint256 _amount,
         uint256 _amountAfterFee,
-        uint256 _totalDepositedAfter,
-        uint256 _vaultId
+        uint256 _totalDepositedAfter
+    );
+
+    event P2pYieldProxy__DepositFee(
+        address indexed _asset,
+        uint256 _amount
     );
 
     /// @notice Emitted when a withdrawal is made
     event P2pYieldProxy__Withdrawn(
-        address indexed _yieldProtocolAddress,
         uint256 indexed _vaultId,
         address indexed _asset,
         uint256 _assets,
@@ -53,6 +55,13 @@ interface IP2pYieldProxy is IERC165 {
     function deposit(
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
+        bytes calldata _superformCalldata
+    ) external payable;
+
+    function depositBatch(
+        IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
+        bytes calldata _permit2SignatureForP2pYieldProxy,
+        uint256[] calldata _fundingAssetAmounts,
         bytes calldata _superformCalldata
     ) external payable;
 

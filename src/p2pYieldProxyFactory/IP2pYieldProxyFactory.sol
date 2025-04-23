@@ -51,6 +51,33 @@ interface IP2pYieldProxyFactory is IERC165 {
         bytes calldata _p2pSignerSignature
     )
     external
+    payable
+    returns (address p2pYieldProxyAddress);
+
+    /// @dev Deposits the yield protocol
+    /// @param _permitBatchForP2pYieldProxy The permit batch for P2pYieldProxy
+    /// @param _permit2SignatureForP2pYieldProxy The permit2 signature for P2pYieldProxy
+    /// @param _fundingAssetAmounts amount of funding asset for each vault (LiqRequest doesn't have unencoded)
+    /// @param _yieldProtocolCalldata Yield protocol calldata
+    /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
+    /// @param _clientBasisPointsOfProfit The client basis points (share) of profit
+    /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
+    /// @param _p2pSignerSignature The P2pSigner signature
+    /// @return p2pYieldProxyAddress The client's P2pYieldProxy instance address
+    function depositBatch(
+        IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
+        bytes calldata _permit2SignatureForP2pYieldProxy,
+
+        uint256[] calldata _fundingAssetAmounts,
+        bytes calldata _yieldProtocolCalldata,
+
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit,
+        uint256 _p2pSignerSigDeadline,
+        bytes calldata _p2pSignerSignature
+    )
+    external
+    payable
     returns (address p2pYieldProxyAddress);
 
     /// @dev Computes the address of a P2pYieldProxy created by `_createP2pYieldProxy` function

@@ -104,6 +104,7 @@ abstract contract P2pYieldProxyFactory is
         bytes calldata _p2pSignerSignature
     )
     external
+    payable
     p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
     p2pSignerSignatureShouldBeValid(_clientBasisPointsOfDeposit, _clientBasisPointsOfProfit, _p2pSignerSigDeadline, _p2pSignerSignature)
     returns (address p2pYieldProxyAddress)
@@ -115,9 +116,50 @@ abstract contract P2pYieldProxyFactory is
         );
 
         // deposit via proxy
-        p2pYieldProxy.deposit(
+        p2pYieldProxy.deposit{value: msg.value}(
             _permitSingleForP2pYieldProxy,
             _permit2SignatureForP2pYieldProxy,
+            _yieldProtocolCalldata
+        );
+
+        emit P2pYieldProxyFactory__Deposited(
+            msg.sender,
+            _clientBasisPointsOfDeposit,
+            _clientBasisPointsOfProfit
+        );
+
+        p2pYieldProxyAddress = address(p2pYieldProxy);
+    }
+
+    function depositBatch(
+        IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
+        bytes calldata _permit2SignatureForP2pYieldProxy,
+
+        uint256[] calldata _fundingAssetAmounts,
+        bytes calldata _yieldProtocolCalldata,
+
+        uint48 _clientBasisPointsOfDeposit,
+        uint48 _clientBasisPointsOfProfit,
+        uint256 _p2pSignerSigDeadline,
+        bytes calldata _p2pSignerSignature
+    )
+    external
+    payable
+    p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
+    p2pSignerSignatureShouldBeValid(_clientBasisPointsOfDeposit, _clientBasisPointsOfProfit, _p2pSignerSigDeadline, _p2pSignerSignature)
+    returns (address p2pYieldProxyAddress)
+    {
+        // create proxy if not created yet
+        P2pYieldProxy p2pYieldProxy = _getOrCreateP2pYieldProxy(
+            _clientBasisPointsOfDeposit,
+            _clientBasisPointsOfProfit
+        );
+
+        // deposit via proxy
+        p2pYieldProxy.depositBatch{value: msg.value}(
+            _permitBatchForP2pYieldProxy,
+            _permit2SignatureForP2pYieldProxy,
+            _fundingAssetAmounts,
             _yieldProtocolCalldata
         );
 

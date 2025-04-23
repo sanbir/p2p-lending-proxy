@@ -9,18 +9,15 @@ import "../IERC1155A.sol";
 import "../IRewardsDistributor.sol";
 import "../p2pSuperformProxyFactory/IP2pSuperformProxyFactory.sol";
 import "./IP2pSuperformProxy.sol";
+import {console} from "../../../../lib/forge-std/src/console.sol";
 
 error P2pSuperformProxy__SuperformCalldataTooShort();
 error P2pSuperformProxy__SelectorNotSupported(bytes4 _selector);
-error P2pSuperformProxy__MsgValueLessThanliqRequestNativeAmount(
-    uint256 _msgValue,
+error P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanliqRequestNativeAmount(
+    uint256 _nativeAmountToDepositAfterFee,
     uint256 _liqRequestNativeAmount
 );
-error P2pSuperformProxy__MsgValueLessThanAmount(
-    uint256 _msgValue,
-    uint256 _amount
-);
-error P2pSuperformProxy__LiqRequestTokenShouldBeEqualToPermitSingleForP2pYieldProxyToken(
+error P2pSuperformProxy__LiqRequestTokenShouldBeEqualToPermitForP2pYieldProxyToken(
     address _liqRequestToken,
     address _permitSingleForP2pYieldProxyToken
 );
@@ -33,6 +30,8 @@ error P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(
 );
 error P2pSuperformProxy__AssetShouldNotBeZeroAddress();
 error P2pSuperformProxy__NotClaimed(address _token);
+error P2pSuperformProxy__WrongFundingAssetAmountsCount();
+error P2pSuperformProxy__IncorrectNativeFundingAssetAmount();
 
 
 contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
@@ -60,6 +59,86 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         i_rewardsDistributor = IRewardsDistributor(_rewardsDistributor);
     }
 
+    /// @notice Accept ether from transactions
+    receive() external payable {
+    }
+
+    function depositBatch(
+        IAllowanceTransfer.PermitBatch calldata _permitBatchForP2pYieldProxy,
+        bytes calldata _permit2SignatureForP2pYieldProxy,
+        uint256[] calldata _fundingAssetAmounts,
+        bytes calldata _superformCalldata
+    ) external override payable {
+        require (_superformCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
+
+        bytes4 selector = bytes4(_superformCalldata[:4]);
+
+        require (
+            selector == IBaseRouter.singleDirectMultiVaultDeposit.selector,
+            P2pSuperformProxy__SelectorNotSupported(selector)
+        );
+
+        SingleDirectMultiVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectMultiVaultStateReq));
+
+        uint256 totalNativeAmount;
+        uint256 depositCount = req.superformData.superformIds.length;
+
+        address[] memory assets = new address[](depositCount);
+
+        for (uint256 i = 0; i < depositCount; ++i) {
+            assets[i] = req.superformData.liqRequests[i].token;
+            if (assets[i] == NATIVE) {
+                totalNativeAmount += req.superformData.liqRequests[i].nativeAmount;
+
+                require (
+                    _fundingAssetAmounts[i] == req.superformData.liqRequests[i].nativeAmount,
+                    P2pSuperformProxy__IncorrectNativeFundingAssetAmount()
+                );
+            }
+            require (!req.superformData.retain4626s[i], P2pSuperformProxy__ShouldNotRetain4626());
+        }
+
+        require (
+            _fundingAssetAmounts.length == depositCount,
+            P2pSuperformProxy__WrongFundingAssetAmountsCount()
+        );
+        require (
+            req.superformData.receiverAddress == address(this),
+            P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy(req.superformData.receiverAddress)
+        );
+        require (
+            req.superformData.receiverAddressSP == address(this),
+            P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(req.superformData.receiverAddressSP)
+        );
+
+        uint256 nativeAmountToDepositAfterFee = msg.value * s_clientBasisPointsOfDeposit / 10_000;
+
+        require (
+            nativeAmountToDepositAfterFee >= totalNativeAmount,
+            P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanliqRequestNativeAmount(
+                nativeAmountToDepositAfterFee,
+                totalNativeAmount
+            )
+        );
+
+        _depositBatch(
+            req.superformData.superformIds,
+            _superformCalldata,
+            _permitBatchForP2pYieldProxy,
+            _permit2SignatureForP2pYieldProxy,
+            false,
+            assets,
+            _fundingAssetAmounts,
+            nativeAmountToDepositAfterFee
+        );
+
+        IERC1155A(i_superPositions).increaseAllowanceForMany(
+            i_yieldProtocolAddress,
+            req.superformData.superformIds,
+            req.superformData.outputAmounts
+        );
+    }
+
     /// @inheritdoc IP2pYieldProxy
     function deposit(
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
@@ -76,20 +155,21 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
 
         SingleDirectSingleVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectSingleVaultStateReq));
 
+        uint256 nativeAmountToDepositAfterFee = msg.value * s_clientBasisPointsOfDeposit / 10_000;
+
         bool isNative = req.superformData.liqRequest.token == NATIVE;
         if (isNative) {
             require (
-                msg.value >= req.superformData.liqRequest.nativeAmount,
-                P2pSuperformProxy__MsgValueLessThanliqRequestNativeAmount(msg.value, req.superformData.liqRequest.nativeAmount)
-            );
-            require (
-                msg.value >= req.superformData.amount,
-                P2pSuperformProxy__MsgValueLessThanAmount(msg.value, req.superformData.amount)
+                nativeAmountToDepositAfterFee >= req.superformData.liqRequest.nativeAmount,
+                P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanliqRequestNativeAmount(
+                    nativeAmountToDepositAfterFee,
+                    req.superformData.liqRequest.nativeAmount
+                )
             );
         } else {
             require (
                 req.superformData.liqRequest.token == _permitSingleForP2pYieldProxy.details.token,
-                P2pSuperformProxy__LiqRequestTokenShouldBeEqualToPermitSingleForP2pYieldProxyToken(
+                P2pSuperformProxy__LiqRequestTokenShouldBeEqualToPermitForP2pYieldProxyToken(
                     req.superformData.liqRequest.token,
                     _permitSingleForP2pYieldProxy.details.token
                 )
@@ -109,16 +189,61 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         _deposit(
             req.superformData.superformId,
             _superformCalldata,
-        _permitSingleForP2pYieldProxy,
-        _permit2SignatureForP2pYieldProxy,
+            _permitSingleForP2pYieldProxy,
+            _permit2SignatureForP2pYieldProxy,
             false,
-            isNative
+            isNative,
+            nativeAmountToDepositAfterFee
         );
 
         IERC1155A(i_superPositions).increaseAllowance(
             i_yieldProtocolAddress,
             req.superformData.superformId,
             req.superformData.outputAmount
+        );
+    }
+
+    function withdrawBatch(
+        bytes calldata _superformCalldata
+    ) external {
+        require (_superformCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
+        bytes4 selector = bytes4(_superformCalldata[:4]);
+
+        require (
+            selector == IBaseRouter.singleDirectMultiVaultWithdraw.selector,
+            P2pSuperformProxy__SelectorNotSupported(selector)
+        );
+
+        SingleDirectMultiVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectMultiVaultStateReq));
+
+        require (
+            req.superformData.receiverAddress == address(this),
+            P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy(req.superformData.receiverAddress)
+        );
+        require (
+            req.superformData.receiverAddressSP == address(this),
+            P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(req.superformData.receiverAddressSP)
+        );
+
+        uint256 withdrawCount = req.superformData.superformIds.length;
+        address[] memory assets = new address[](withdrawCount);
+        for (uint256 i = 0; i < withdrawCount; ++i) {
+            address asset;
+            if (req.superformData.liqRequests[i].token == address(0)) {
+                address superform = address(uint160(req.superformData.superformIds[i]));
+                IERC4626 vault = IERC4626(superform);
+                asset = vault.asset();
+            } else {
+                asset = req.superformData.liqRequests[i].token;
+            }
+            require (asset != address(0), P2pSuperformProxy__AssetShouldNotBeZeroAddress());
+            assets[i] = asset;
+        }
+
+        _withdrawBatch(
+            req.superformData.superformIds,
+            assets,
+            _superformCalldata
         );
     }
 
