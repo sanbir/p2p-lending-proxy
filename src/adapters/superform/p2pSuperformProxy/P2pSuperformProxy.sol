@@ -119,12 +119,6 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             isNative,
             nativeAmountToDepositAfterFee
         );
-
-        IERC1155A(i_superPositions).increaseAllowance(
-            i_yieldProtocolAddress,
-            req.superformData.superformId,
-            req.superformData.outputAmount
-        );
     }
 
     function withdraw(
@@ -158,6 +152,12 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             asset = req.superformData.liqRequest.token;
         }
         require (asset != address(0), P2pSuperformProxy__AssetShouldNotBeZeroAddress());
+
+        IERC1155A(i_superPositions).increaseAllowance(
+            i_yieldProtocolAddress,
+            req.superformData.superformId,
+            req.superformData.amount
+        );
 
         _withdraw(
             req.superformData.superformId,
