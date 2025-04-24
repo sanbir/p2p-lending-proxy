@@ -17,7 +17,7 @@ import "forge-std/console2.sol";
 import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
 
-contract BaseIntegrationMorpho is Test {
+contract BaseMorphoUSDC is Test {
     using SafeERC20 for IERC20;
 
     address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
