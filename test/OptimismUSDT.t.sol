@@ -175,6 +175,36 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.stopPrank();
     }
 
+    function test_P2pSuperformProxy__SelectorNotSupported() public {
+        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
+        bytes memory permit2SignatureForP2pYieldProxy;
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
+            SigDeadline
+        );
+        
+        // Create calldata with an unsupported selector
+        bytes4 unsupportedSelector = bytes4(keccak256("unsupportedFunction()"));
+        bytes memory superformCalldata = abi.encodePacked(unsupportedSelector, "42");
+
+        vm.startPrank(clientAddress);
+        vm.expectRevert(abi.encodeWithSelector(P2pSuperformProxy__SelectorNotSupported.selector, unsupportedSelector));
+        factory.deposit(
+            permitSingleForP2pYieldProxy,
+            permit2SignatureForP2pYieldProxy,
+
+            superformCalldata,
+
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
+            SigDeadline,
+            p2pSignerSignature
+        );
+        vm.stopPrank();
+    }
+
     function test_batchclaim_proxy() public {
         _doDeposit();
 
