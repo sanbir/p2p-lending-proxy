@@ -3,8 +3,9 @@
 
 pragma solidity 0.8.27;
 import "../../../@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import "../../../p2pYieldProxy/IP2pYieldProxy.sol";
 
-interface IP2pSuperformProxy is IERC1155Receiver {
+interface IP2pSuperformProxy is IP2pYieldProxy, IERC1155Receiver {
     event P2pSuperformProxy__Claimed(
         address indexed _token,
         uint256 _totalAmount,

@@ -162,6 +162,21 @@ contract OptimismNative is Test, MerkleReader {
         vm.stopPrank();
     }
 
+    function testAllowedCalldataChecker__NoAllowedCalldata() public {
+        _doDeposit();
+
+        address yieldProtocolAddress = makeAddr("yieldProtocolAddress");
+        bytes memory yieldProtocolCalldata = new bytes(42);
+
+        vm.startPrank(clientAddress);
+        vm.expectRevert(AllowedCalldataChecker__NoAllowedCalldata.selector);
+        IP2pSuperformProxy(proxyAddress).callAnyFunction(
+            yieldProtocolAddress,
+            yieldProtocolCalldata
+        );
+        vm.stopPrank();
+    }
+
     function testP2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy() public {
         IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
         bytes memory permit2SignatureForP2pYieldProxy;

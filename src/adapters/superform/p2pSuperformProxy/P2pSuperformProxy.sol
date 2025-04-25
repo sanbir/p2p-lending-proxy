@@ -66,7 +66,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
         bytes calldata _superformCalldata
-    ) external override payable {
+    ) external override(P2pYieldProxy, IP2pYieldProxy) payable {
         require (_superformCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
 
         bytes4 selector = bytes4(_superformCalldata[:4]);
