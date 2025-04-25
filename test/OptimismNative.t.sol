@@ -10,13 +10,14 @@ import "../src/access/P2pOperator.sol";
 import "../src/adapters/superform/p2pSuperformProxyFactory/P2pSuperformProxyFactory.sol";
 import "../src/common/AllowedCalldataChecker.sol";
 import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
+import "./mocks/MockAllowedCalldataChecker.sol";
+import "./utils/Error.sol";
 import "./utils/merkle/helper/MerkleReader.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
 import "forge-std/console2.sol";
 import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
-import "./utils/Error.sol";
 
 
 contract OptimismNative is Test, MerkleReader {
@@ -62,6 +63,9 @@ contract OptimismNative is Test, MerkleReader {
     uint256 totalUSDCToDeposit;
     uint256 totalDAIToDeposit;
 
+    ProxyAdmin private admin;
+    TransparentUpgradeableProxy private tup;
+
     function setUp() public {
         vm.createSelectFork("optimism", 134943023);
 
@@ -72,9 +76,9 @@ contract OptimismNative is Test, MerkleReader {
 
         vm.startPrank(p2pOperatorAddress);
         AllowedCalldataChecker implementation = new AllowedCalldataChecker();
-        ProxyAdmin admin = new ProxyAdmin();
+        admin = new ProxyAdmin();
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
-        TransparentUpgradeableProxy tup = new TransparentUpgradeableProxy(
+        tup = new TransparentUpgradeableProxy(
             address(implementation),
             address(admin),
             initData
@@ -170,6 +174,34 @@ contract OptimismNative is Test, MerkleReader {
 
         vm.startPrank(clientAddress);
         vm.expectRevert(AllowedCalldataChecker__NoAllowedCalldata.selector);
+        IP2pSuperformProxy(proxyAddress).callAnyFunction(
+            yieldProtocolAddress,
+            yieldProtocolCalldata
+        );
+        vm.stopPrank();
+    }
+
+    function testAllowedCalldataCheckerUpgrade() public {
+        _doDeposit();
+
+        address yieldProtocolAddress = makeAddr("yieldProtocolAddress");
+        bytes memory yieldProtocolCalldata = new bytes(42);
+
+        vm.startPrank(clientAddress);
+        vm.expectRevert(AllowedCalldataChecker__NoAllowedCalldata.selector);
+        IP2pSuperformProxy(proxyAddress).callAnyFunction(
+            yieldProtocolAddress,
+            yieldProtocolCalldata
+        );
+        vm.stopPrank();
+
+        vm.startPrank(p2pOperatorAddress);
+        MockAllowedCalldataChecker newImplementation = new MockAllowedCalldataChecker();
+        admin.upgrade(ITransparentUpgradeableProxy(address(tup)), address(newImplementation));
+        vm.stopPrank();
+
+        vm.startPrank(clientAddress);
+        vm.expectRevert("Address: call to non-contract");
         IP2pSuperformProxy(proxyAddress).callAnyFunction(
             yieldProtocolAddress,
             yieldProtocolCalldata
