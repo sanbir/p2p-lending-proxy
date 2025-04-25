@@ -30,8 +30,6 @@ error P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(
 );
 error P2pSuperformProxy__AssetShouldNotBeZeroAddress();
 error P2pSuperformProxy__NotClaimed(address _token);
-error P2pSuperformProxy__WrongFundingAssetAmountsCount();
-error P2pSuperformProxy__IncorrectNativeFundingAssetAmount();
 
 
 contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
