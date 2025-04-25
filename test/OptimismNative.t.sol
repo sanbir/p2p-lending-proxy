@@ -7,6 +7,7 @@ import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../src/access/P2pOperator.sol";
+import "../src/access/P2pOperator.sol";
 import "../src/adapters/superform/p2pSuperformProxyFactory/P2pSuperformProxyFactory.sol";
 import "../src/common/AllowedCalldataChecker.sol";
 import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
@@ -248,6 +249,36 @@ contract OptimismNative is Test, MerkleReader {
         IP2pSuperformProxy(proxyAddress).callAnyFunction(
             yieldProtocolAddress,
             yieldProtocolCalldata
+        );
+        vm.stopPrank();
+    }
+
+    function testP2pSuperformProxy_CheckClaim_UnauthorizedAccount() public {
+        _doDeposit();
+        
+        address unauthorizedClaimer = makeAddr("unauthorizedClaimer");
+        uint256[] memory periodIds = new uint256[](1);
+        periodIds[0] = 1;
+        
+        address[][] memory rewardTokens = new address[][](1);
+        rewardTokens[0] = new address[](1);
+        rewardTokens[0][0] = makeAddr("rewardToken");
+        
+        uint256[][] memory amountsClaimed = new uint256[][](1);
+        amountsClaimed[0] = new uint256[](1);
+        amountsClaimed[0][0] = 100;
+        
+        bytes32[][] memory proofs = new bytes32[][](1);
+        proofs[0] = new bytes32[](1);
+        proofs[0][0] = bytes32(0);
+        
+        vm.startPrank(unauthorizedClaimer);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, unauthorizedClaimer));
+        IP2pSuperformProxy(proxyAddress).batchClaim(
+            periodIds,
+            rewardTokens,
+            amountsClaimed,
+            proofs
         );
         vm.stopPrank();
     }
