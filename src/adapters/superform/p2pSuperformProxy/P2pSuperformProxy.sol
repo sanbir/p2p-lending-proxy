@@ -30,8 +30,6 @@ error P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(
 );
 error P2pSuperformProxy__AssetShouldNotBeZeroAddress();
 error P2pSuperformProxy__NotClaimed(address _token);
-error P2pSuperformProxy__WrongFundingAssetAmountsCount();
-error P2pSuperformProxy__IncorrectNativeFundingAssetAmount();
 
 
 contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
@@ -68,7 +66,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
         bytes calldata _superformCalldata
-    ) external override payable {
+    ) external override(P2pYieldProxy, IP2pYieldProxy) payable {
         require (_superformCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
 
         bytes4 selector = bytes4(_superformCalldata[:4]);
@@ -119,12 +117,6 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             isNative,
             nativeAmountToDepositAfterFee
         );
-
-        IERC1155A(i_superPositions).increaseAllowance(
-            i_yieldProtocolAddress,
-            req.superformData.superformId,
-            req.superformData.outputAmount
-        );
     }
 
     function withdraw(
@@ -158,6 +150,12 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             asset = req.superformData.liqRequest.token;
         }
         require (asset != address(0), P2pSuperformProxy__AssetShouldNotBeZeroAddress());
+
+        IERC1155A(i_superPositions).increaseAllowance(
+            i_yieldProtocolAddress,
+            req.superformData.superformId,
+            req.superformData.amount
+        );
 
         _withdraw(
             req.superformData.superformId,

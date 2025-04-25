@@ -40,7 +40,6 @@ error P2pYieldProxy__ZeroAddressYieldProtocolAddress();
 error P2pYieldProxy__ZeroNewAssetAmount(address _asset);
 error P2pYieldProxy__ZeroAllowedCalldataChecker();
 error P2pYieldProxy__DataTooShort();
-error P2pYieldProxy__AllAssetsMustBeUnique();
 
 /// @title P2pYieldProxy
 /// @notice P2pYieldProxy is a contract that allows a client to deposit and withdraw assets from a yield protocol.
@@ -377,6 +376,16 @@ abstract contract P2pYieldProxy is
     /// @inheritdoc IP2pYieldProxy
     function getP2pTreasury() external view returns (address) {
         return i_p2pTreasury;
+    }
+
+    /// @inheritdoc IP2pYieldProxy
+    function getYieldProtocolAddress() external view returns (address) {
+        return i_yieldProtocolAddress;
+    }
+
+    /// @inheritdoc IP2pYieldProxy
+    function getAllowedCalldataChecker() external view returns (address) {
+        return address(i_allowedCalldataChecker);
     }
 
     /// @inheritdoc IP2pYieldProxy

@@ -49,7 +49,7 @@ contract P2pSuperformProxyFactory is P2pYieldProxyFactory, IP2pSuperformProxyFac
     }
 
     /// @inheritdoc ERC165
-    function supportsInterface(bytes4 interfaceId) public view virtual override(P2pYieldProxyFactory) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(P2pYieldProxyFactory, IERC165) returns (bool) {
         return interfaceId == type(IP2pSuperformProxyFactory).interfaceId ||
             super.supportsInterface(interfaceId);
     }
