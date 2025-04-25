@@ -90,11 +90,11 @@ contract OptimismUSDT is Test, MerkleReader {
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit
         );
+
+        deal(USDT, clientAddress, 10000e18);
     }
 
     function test_happyPath_Optimism() public {
-        deal(USDT, clientAddress, 10000e18);
-
         _doDeposit();
         _doWithdraw();
     }
@@ -126,10 +126,56 @@ contract OptimismUSDT is Test, MerkleReader {
         assertEq(factory.getPendingP2pOperator(), address(0));
     }
 
+    function test_P2pYieldProxyFactory__InvalidP2pSignerSignature() public {
+        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
+        bytes memory permit2SignatureForP2pYieldProxy;
+        bytes memory p2pSignerSignature;
+        bytes memory superformCalldata = new bytes(3); // Less than 4 bytes for function selector
+
+        vm.startPrank(clientAddress);
+        vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
+        factory.deposit(
+            permitSingleForP2pYieldProxy,
+            permit2SignatureForP2pYieldProxy,
+
+            superformCalldata,
+
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
+            SigDeadline,
+            p2pSignerSignature
+        );
+        vm.stopPrank();
+    }
+
+    function test_P2pSuperformProxy__SuperformCalldataTooShort() public {
+        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
+        bytes memory permit2SignatureForP2pYieldProxy;
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
+            SigDeadline
+        );
+        bytes memory superformCalldata = new bytes(3); // Less than 4 bytes for function selector
+
+        vm.startPrank(clientAddress);
+        vm.expectRevert(P2pSuperformProxy__SuperformCalldataTooShort.selector);
+        factory.deposit(
+            permitSingleForP2pYieldProxy,
+            permit2SignatureForP2pYieldProxy,
+
+            superformCalldata,
+
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
+            SigDeadline,
+            p2pSignerSignature
+        );
+        vm.stopPrank();
+    }
 
     function test_batchclaim_proxy() public {
-        deal(USDT, clientAddress, 10000e18);
-
         _doDeposit();
 
         _addRoot();
@@ -338,8 +384,6 @@ contract OptimismUSDT is Test, MerkleReader {
     }
 
     function _doWithdraw() private {
-        bytes memory PLACEHOLDER = abi.encodePacked(proxyAddress);
-
         LiqRequest memory liqRequest = LiqRequest({
             txData: hex'4630a0d8db58392a5ec14b23ef56401c814f1ce0bff3fd4f7f74c06e092670b4c587c7a600000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000fd35454f266dc9f672985260029f1686c6b6036c000000000000000000000000000000000000000000000000000000000000181a0000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000000d7375706572666f726d2e78797a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a30783030303030303030303030303030303030303030303030303030303030303030303030303030303000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000006140b987d6b51fd75b66c3b07733beb5167c42fc0000000000000000000000006140b987d6b51fd75b66c3b07733beb5167c42fc000000000000000000000000c40f949f8a4e094d1b49a23ea9241d289b7b281900000000000000000000000094b008aa00579c1307b0ef2c499ad98a8ce58e58000000000000000000000000000000000000000000000000002c14939f0666fb00000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001442646478b000000000000000000000000c40f949f8a4e094d1b49a23ea9241d289b7b2819000000000000000000000000000000000000000000000000002c14939f0666fb00000000000000000000000094b008aa00579c1307b0ef2c499ad98a8ce58e58000000000000000000000000000000000000000000000000000000000000181a0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae00000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000004202c40f949f8a4e094d1b49a23ea9241d289b7b281901ffff01e8a05463f7a2796e1bf11a25d317f17ed7fce5e7001231deb6f5749ef6ce6943a275a1d3e7486f4eae00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
             token: USDT,
