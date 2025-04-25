@@ -181,6 +181,49 @@ contract OptimismNative is Test, MerkleReader {
         vm.stopPrank();
     }
 
+    function testP2pSuperformProxy_GetClientAddress() public {
+        _doDeposit();
+        
+        assertEq(IP2pSuperformProxy(proxyAddress).getClient(), clientAddress);
+    }
+
+    function testP2pSuperformProxy_GetP2pTreasuryAddress() public {
+        _doDeposit();
+        
+        assertEq(IP2pSuperformProxy(proxyAddress).getP2pTreasury(), P2pTreasury);
+    }
+
+    function testP2pSuperformProxy_GetClientBasisPointsOfDeposit() public {
+        _doDeposit();
+        
+        assertEq(IP2pSuperformProxy(proxyAddress).getClientBasisPointsOfDeposit(), ClientBasisPointsOfDeposit);
+    }
+
+    function testP2pSuperformProxy_GetClientBasisPointsOfProfit() public {
+        _doDeposit();
+        
+        assertEq(IP2pSuperformProxy(proxyAddress).getClientBasisPointsOfProfit(), ClientBasisPointsOfProfit);
+    }
+
+    function testP2pSuperformProxyFactory_GetP2pOperatorAddress() public {
+        assertEq(factory.getP2pOperator(), p2pOperatorAddress);
+    }
+
+    function testP2pSuperformProxyFactory_GetP2pSignerAddress() public {
+        assertEq(factory.getP2pSigner(), p2pSignerAddress);
+    }
+
+    function testP2pSuperformProxyFactory_GetClientToProxy() public {
+        _doDeposit();
+        
+        address proxy = factory.predictP2pYieldProxyAddress(
+            clientAddress,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit
+        );
+        assertEq(proxy, proxyAddress);
+    }
+
     function testAllowedCalldataCheckerUpgrade() public {
         _doDeposit();
 

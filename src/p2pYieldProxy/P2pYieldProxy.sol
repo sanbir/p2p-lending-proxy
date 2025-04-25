@@ -379,6 +379,16 @@ abstract contract P2pYieldProxy is
     }
 
     /// @inheritdoc IP2pYieldProxy
+    function getYieldProtocolAddress() external view returns (address) {
+        return i_yieldProtocolAddress;
+    }
+
+    /// @inheritdoc IP2pYieldProxy
+    function getAllowedCalldataChecker() external view returns (address) {
+        return address(i_allowedCalldataChecker);
+    }
+
+    /// @inheritdoc IP2pYieldProxy
     function getClient() external view returns (address) {
         return s_client;
     }

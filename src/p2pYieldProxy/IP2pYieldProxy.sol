@@ -75,6 +75,14 @@ interface IP2pYieldProxy is IERC165 {
     /// @return The P2pTreasury address
     function getP2pTreasury() external view returns (address);
 
+    /// @notice Gets the Yield Protocol address
+    /// @return The Yield Protocol address
+    function getYieldProtocolAddress() external view returns (address);
+
+    /// @notice Gets the AllowedCalldataChecker address
+    /// @return The AllowedCalldataChecker address
+    function getAllowedCalldataChecker() external view returns (address);
+
     /// @notice Gets the client address
     /// @return The client address
     function getClient() external view returns (address);
