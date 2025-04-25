@@ -99,6 +99,34 @@ contract OptimismUSDT is Test, MerkleReader {
         _doWithdraw();
     }
 
+    function test_P2pOperator2Step() public {
+        // Get initial P2pOperator
+        address initialP2pOperator = factory.getP2pOperator();
+        assertEq(initialP2pOperator, p2pOperatorAddress);
+
+        // Create new P2pOperator address
+        address newP2pOperator = makeAddr("newP2pOperator");
+
+        // Step 1: Current P2pOperator initiates transfer
+        vm.prank(p2pOperatorAddress);
+        factory.transferP2pOperator(newP2pOperator);
+
+        // Verify pending P2pOperator is set
+        assertEq(factory.getPendingP2pOperator(), newP2pOperator);
+        // Verify current P2pOperator hasn't changed yet
+        assertEq(factory.getP2pOperator(), p2pOperatorAddress);
+
+        // Step 2: New P2pOperator accepts transfer
+        vm.prank(newP2pOperator);
+        factory.acceptP2pOperator();
+
+        // Verify P2pOperator was updated
+        assertEq(factory.getP2pOperator(), newP2pOperator);
+        // Verify pending P2pOperator was cleared
+        assertEq(factory.getPendingP2pOperator(), address(0));
+    }
+
+
     function test_batchclaim_proxy() public {
         deal(USDT, clientAddress, 10000e18);
 
