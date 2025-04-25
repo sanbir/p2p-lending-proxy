@@ -162,6 +162,58 @@ contract OptimismNative is Test, MerkleReader {
         vm.stopPrank();
     }
 
+    function testP2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy() public {
+        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
+        bytes memory permit2SignatureForP2pYieldProxy;
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
+            SigDeadline
+        );
+
+        vm.startPrank(clientAddress);
+
+        LiqRequest memory liqRequest = LiqRequest({
+            txData: LiqRequestTxSata,
+            token: NATIVE,
+            interimToken: address(0),
+            bridgeId: 101,
+            liqDstChainId: 10,
+            nativeAmount: DepositAmount
+        });
+        SingleVaultSFData memory superformData = SingleVaultSFData({
+            superformId: SuperformId,
+            amount: VaultAmount,
+            outputAmount: VaultOutputAmount,
+            maxSlippage: 500,
+            liqRequest: liqRequest,
+            permit2data: "",
+            hasDstSwap: false,
+            retain4626: false,
+            receiverAddress: address(0x123), // Setting to a different address than proxyAddress
+            receiverAddressSP: proxyAddress,
+            extraFormData: ""
+        });
+        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({
+            superformData: superformData
+        });
+
+        bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
+
+        vm.expectRevert(abi.encodeWithSelector(P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy.selector, address(0x123)));
+        factory.deposit{value: DepositAmount}(
+            permitSingleForP2pYieldProxy,
+            permit2SignatureForP2pYieldProxy,
+            superformCalldata,
+            ClientBasisPointsOfDeposit,
+            ClientBasisPointsOfProfit,
+            SigDeadline,
+            p2pSignerSignature
+        );
+        vm.stopPrank();
+    }
+
     function testP2pSuperformProxy__ShouldNotRetain4626() public {
         IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
         bytes memory permit2SignatureForP2pYieldProxy;
