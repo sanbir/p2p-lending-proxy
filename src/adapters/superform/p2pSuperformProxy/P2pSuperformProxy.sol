@@ -119,6 +119,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         );
     }
 
+    /// @inheritdoc IP2pSuperformProxy
     function withdraw(
         bytes calldata _superformCalldata
     ) external {

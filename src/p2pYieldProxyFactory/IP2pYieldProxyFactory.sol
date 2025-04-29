@@ -54,7 +54,7 @@ interface IP2pYieldProxyFactory is IERC165 {
     payable
     returns (address p2pYieldProxyAddress);
 
-    /// @dev Computes the address of a P2pYieldProxy created by `_createP2pYieldProxy` function
+    /// @dev Computes the address of a P2pYieldProxy created by `_getOrCreateP2pYieldProxy` function
     /// @dev P2pYieldProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
     /// @param _client The address of client
     /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
