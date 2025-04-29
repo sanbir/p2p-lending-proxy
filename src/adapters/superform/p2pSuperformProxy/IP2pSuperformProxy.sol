@@ -13,6 +13,12 @@ interface IP2pSuperformProxy is IP2pYieldProxy, IERC1155Receiver {
         uint256 _clientAmount
     );
 
+    /// @notice Withdraw assets from Superform protocol
+    /// @param _superformCalldata calldata for withdraw function of Superform protocol
+    function withdraw(
+        bytes calldata _superformCalldata
+    ) external;
+
     function batchClaim(
         uint256[] calldata _periodIds,
         address[][] calldata _rewardTokens,
