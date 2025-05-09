@@ -239,6 +239,12 @@ abstract contract P2pYieldProxy is
                 totalDepositedAfter
             );
 
+            uint256 erc20FeeAmount = actualAmount - amountToDepositAfterFee;
+            if (erc20FeeAmount > 0) {
+                emit P2pYieldProxy__DepositFee(asset, erc20FeeAmount);
+                IERC20(asset).safeTransfer(i_p2pTreasury, erc20FeeAmount);
+            }
+
             if (_usePermit2) {
                 IERC20(asset).safeIncreaseAllowance(
                     address(Permit2Lib.PERMIT2),
@@ -252,7 +258,12 @@ abstract contract P2pYieldProxy is
             }
         }
 
-        Address.sendValue(i_p2pTreasury,msg.value - _nativeAmountToDepositAfterFee);
+        uint256 nativeFeeAmount = msg.value - _nativeAmountToDepositAfterFee;
+        if (nativeFeeAmount > 0) {
+            emit P2pYieldProxy__DepositFee(NATIVE, nativeFeeAmount);
+            Address.sendValue(i_p2pTreasury, nativeFeeAmount);
+        }
+
         i_yieldProtocolAddress.functionCallWithValue(
             _yieldProtocolDepositCalldata,
             _nativeAmountToDepositAfterFee
