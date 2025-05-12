@@ -108,6 +108,30 @@ contract OptimismNative is Test, MerkleReader {
         _doWithdraw();
     }
 
+    function test_P2pYieldProxy__EmergencyTokenWithdraw() public {
+        _doDeposit();
+
+        // Deal USDT to the proxy
+        uint256 ethAmount = 1000 ether; // 1000 ETH
+        deal(proxyAddress, ethAmount);
+
+        // Verify initial balances
+        assertEq(proxyAddress.balance, ethAmount);
+        uint256 clientInitialBalance = clientAddress.balance;
+
+        vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__NotClientCalled.selector, address(this), clientAddress));
+        P2pYieldProxy(payable(proxyAddress)).emergencyNativeWithdraw();
+
+        // Call emergencyTokenWithdraw as client
+        vm.startPrank(clientAddress);
+        P2pYieldProxy(payable(proxyAddress)).emergencyNativeWithdraw();
+        vm.stopPrank();
+
+        // Verify final balances
+        assertEq(proxyAddress.balance, 0);
+        assertEq(clientAddress.balance - clientInitialBalance, ethAmount);
+    }
+
     function test_P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanliqRequestNativeAmount() public {
         IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
         bytes memory permit2SignatureForP2pYieldProxy;
@@ -206,11 +230,11 @@ contract OptimismNative is Test, MerkleReader {
         assertEq(IP2pSuperformProxy(proxyAddress).getClientBasisPointsOfProfit(), ClientBasisPointsOfProfit);
     }
 
-    function testP2pSuperformProxyFactory_GetP2pOperatorAddress() public {
+    function testP2pSuperformProxyFactory_GetP2pOperatorAddress() public view {
         assertEq(factory.getP2pOperator(), p2pOperatorAddress);
     }
 
-    function testP2pSuperformProxyFactory_GetP2pSignerAddress() public {
+    function testP2pSuperformProxyFactory_GetP2pSignerAddress() public view {
         assertEq(factory.getP2pSigner(), p2pSignerAddress);
     }
 

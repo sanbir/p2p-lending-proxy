@@ -218,6 +218,30 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.stopPrank();
     }
 
+    function test_P2pYieldProxy__EmergencyTokenWithdraw() public {
+        _doDeposit();
+        
+        // Deal USDT to the proxy
+        uint256 usdtAmount = 1000 * 10**6; // 1000 USDT with 6 decimals
+        deal(USDT, proxyAddress, usdtAmount);
+        
+        // Verify initial balances
+        assertEq(IERC20(USDT).balanceOf(proxyAddress), usdtAmount);
+        uint256 clientInitialBalance = IERC20(USDT).balanceOf(clientAddress);
+
+        vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__NotClientCalled.selector, address(this), clientAddress));
+        P2pYieldProxy(payable(proxyAddress)).emergencyTokenWithdraw(USDT);
+        
+        // Call emergencyTokenWithdraw as client
+        vm.startPrank(clientAddress);
+        P2pYieldProxy(payable(proxyAddress)).emergencyTokenWithdraw(USDT);
+        vm.stopPrank();
+        
+        // Verify final balances
+        assertEq(IERC20(USDT).balanceOf(proxyAddress), 0);
+        assertEq(IERC20(USDT).balanceOf(clientAddress) - clientInitialBalance, usdtAmount);
+    }
+
     function test_P2pSuperformProxy__SuperformCalldataTooShort() public {
         IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
         bytes memory permit2SignatureForP2pYieldProxy;

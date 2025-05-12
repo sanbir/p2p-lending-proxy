@@ -36,6 +36,18 @@ interface IP2pYieldProxy is IERC165 {
         uint256 _clientAmount
     );
 
+    /// @notice Emergency withdrawal queue flow
+    event P2pYieldProxy__EmergencyWithdrawalQueueFlow(
+        uint256 indexed _vaultId,
+        address indexed _asset
+    );
+
+    /// @notice Direct asset recovery from P2pYieldProxy
+    event P2pYieldProxy__EmergencyWithdrawn(
+        address indexed _asset,
+        uint256 _amount
+    );
+
     /// @notice Emitted when an arbitrary allowed function is called
     event P2pYieldProxy__CalledAsAnyFunction(
         address indexed _yieldProtocolAddress
@@ -55,7 +67,7 @@ interface IP2pYieldProxy is IERC165 {
     function deposit(
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
-        bytes calldata _superformCalldata
+        bytes calldata _yieldProtocolDepositCalldata
     ) external payable;
 
     /// @notice Calls an arbitrary allowed function
@@ -66,6 +78,15 @@ interface IP2pYieldProxy is IERC165 {
         bytes calldata _yieldProtocolCalldata
     )
     external;
+
+    /// @notice Withdraw all ERC20 from P2pYieldProxy balance
+    /// @dev Only callable by client in case of emergency
+    /// @param _token ERC20 token
+    function emergencyTokenWithdraw(address _token) external;
+
+    /// @notice Withdraw all ETH from P2pYieldProxy balance
+    /// @dev Only callable by client in case of emergency
+    function emergencyNativeWithdraw() external;
 
     /// @notice Gets the factory address
     /// @return The factory address
