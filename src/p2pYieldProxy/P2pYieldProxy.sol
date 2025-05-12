@@ -37,7 +37,6 @@ error P2pYieldProxy__NotClientCalled(
 error P2pYieldProxy__ZeroAddressFactory();
 error P2pYieldProxy__ZeroAddressP2pTreasury();
 error P2pYieldProxy__ZeroAddressYieldProtocolAddress();
-error P2pYieldProxy__ZeroNewAssetAmount(address _asset);
 error P2pYieldProxy__ZeroAllowedCalldataChecker();
 error P2pYieldProxy__DataTooShort();
 
@@ -298,7 +297,10 @@ abstract contract P2pYieldProxy is
 
         uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
 
-        require (newAssetAmount != 0, P2pYieldProxy__ZeroNewAssetAmount(_asset));
+        if (newAssetAmount == 0) {
+            emit P2pYieldProxy__EmergencyWithdrawalQueueFlow(_vaultId, _asset);
+            return;
+        }
 
         uint256 totalWithdrawnBefore = s_totalWithdrawn[_vaultId][_asset];
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
@@ -367,6 +369,28 @@ abstract contract P2pYieldProxy is
     {
         emit P2pYieldProxy__CalledAsAnyFunction(_yieldProtocolAddress);
         _yieldProtocolAddress.functionCall(_yieldProtocolCalldata);
+    }
+
+    /// @inheritdoc IP2pYieldProxy
+    function emergencyTokenWithdraw(address _token)
+    external
+    onlyClient
+    nonReentrant
+    {
+        uint256 amount = IERC20(_token).balanceOf(address(this));
+        emit P2pYieldProxy__EmergencyWithdrawn(_token, amount);
+        IERC20(_token).safeTransfer(s_client, amount);
+    }
+
+    /// @inheritdoc IP2pYieldProxy
+    function emergencyNativeWithdraw()
+    external
+    onlyClient
+    nonReentrant
+    {
+        uint256 amount = address(this).balance;
+        emit P2pYieldProxy__EmergencyWithdrawn(NATIVE, amount);
+        Address.sendValue(s_client, amount);
     }
 
     /// @notice Returns function selector (first 4 bytes of data)
