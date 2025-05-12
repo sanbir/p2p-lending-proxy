@@ -48,7 +48,7 @@ abstract contract P2pYieldProxyFactory is
     /// @notice Modifier to check if the P2pSigner signature should not expire
     modifier p2pSignerSignatureShouldNotExpire(uint256 _p2pSignerSigDeadline) {
         require (
-            block.timestamp < _p2pSignerSigDeadline,
+            block.timestamp <= _p2pSignerSigDeadline,
             P2pYieldProxyFactory__P2pSignerSignatureExpired(_p2pSignerSigDeadline)
         );
         _;
