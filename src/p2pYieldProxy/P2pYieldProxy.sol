@@ -17,10 +17,8 @@ import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 error P2pYieldProxy__ZeroAddressAsset();
 error P2pYieldProxy__ZeroAssetAmount(address _asset);
-error P2pYieldProxy__ZeroSharesAmount();
 error P2pYieldProxy__InvalidClientBasisPointsOfDeposit(uint48 _clientBasisPointsOfDeposit);
 error P2pYieldProxy__InvalidClientBasisPointsOfProfit(uint48 _clientBasisPointsOfProfit);
-error P2pYieldProxy__NotFactory(address _factory);
 error P2pYieldProxy__DifferentActuallyDepositedAmount(
     address _asset,
     uint256 _requestedAmount,
