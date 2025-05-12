@@ -3,7 +3,7 @@
 
 pragma solidity 0.8.27;
 
-import "../@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import "../@openzeppelin/contracts-upgradable/proxy/utils/Initializable.sol";
 import "./IAllowedCalldataChecker.sol";
 
 /// @dev No extra calls are allowed for now. AllowedCalldataChecker can be upgraded in the future.

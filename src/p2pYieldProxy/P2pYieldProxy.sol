@@ -3,7 +3,7 @@
 
 pragma solidity 0.8.27;
 
-import "../@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "../@openzeppelin/contracts-upgradable/security/ReentrancyGuardUpgradeable.sol";
 import "../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
@@ -41,7 +41,8 @@ error P2pYieldProxy__DataTooShort();
 /// @title P2pYieldProxy
 /// @notice P2pYieldProxy is a contract that allows a client to deposit and withdraw assets from a yield protocol.
 abstract contract P2pYieldProxy is
-    ReentrancyGuard,
+    Initializable,
+    ReentrancyGuardUpgradeable,
     ERC165,
     IP2pYieldProxy {
 
@@ -138,8 +139,11 @@ abstract contract P2pYieldProxy is
         uint48 _clientBasisPointsOfProfit
     )
     external
+    initializer
     onlyFactory
     {
+        __ReentrancyGuard_init();
+
         require (
             _clientBasisPointsOfDeposit >= 0 && _clientBasisPointsOfDeposit <= 10_000,
             P2pYieldProxy__InvalidClientBasisPointsOfDeposit(_clientBasisPointsOfDeposit)
