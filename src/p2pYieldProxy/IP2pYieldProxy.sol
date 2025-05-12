@@ -36,7 +36,7 @@ interface IP2pYieldProxy is IERC165 {
         uint256 _clientAmount
     );
 
-    /// @notice Superform emergency withdrawal queue flow
+    /// @notice Emergency withdrawal queue flow
     event P2pYieldProxy__EmergencyWithdrawalQueueFlow(
         uint256 indexed _vaultId,
         address indexed _asset
@@ -67,7 +67,7 @@ interface IP2pYieldProxy is IERC165 {
     function deposit(
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
-        bytes calldata _superformCalldata
+        bytes calldata _yieldProtocolDepositCalldata
     ) external payable;
 
     /// @notice Calls an arbitrary allowed function

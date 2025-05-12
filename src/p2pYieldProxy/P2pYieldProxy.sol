@@ -163,7 +163,7 @@ abstract contract P2pYieldProxy is
     function deposit(
         IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
         bytes calldata _permit2SignatureForP2pYieldProxy,
-        bytes calldata _superformCalldata
+        bytes calldata _yieldProtocolDepositCalldata
     ) external virtual payable;
 
     /// @notice Deposit assets into yield protocol
