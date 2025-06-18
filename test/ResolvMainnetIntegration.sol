@@ -5,7 +5,7 @@ pragma solidity 0.8.27;
 
 import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../src/access/P2pOperator.sol";
-import "../src/adapters/resolv/p2pResolvProxyFactory/P2pEthenaProxyFactory.sol";
+import "../src/adapters/resolv/p2pResolvProxyFactory/P2pResolvProxyFactory.sol";
 import "../src/common/P2pStructs.sol";
 import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "./mock/IERC20Rebasing.sol";

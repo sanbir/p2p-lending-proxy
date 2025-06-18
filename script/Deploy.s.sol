@@ -4,7 +4,7 @@
 pragma solidity 0.8.27;
 
 import "../lib/forge-std/src/Vm.sol";
-import "../src/adapters/resolv/p2pResolvProxyFactory/P2pEthenaProxyFactory.sol";
+import "../src/adapters/resolv/p2pResolvProxyFactory/P2pResolvProxyFactory.sol";
 import {Script} from "forge-std/Script.sol";
 
 contract Deploy is Script {
