@@ -52,14 +52,25 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     function withdraw(uint256 _assets)
     external
     onlyClient {
-        IStUSR(i_yieldProtocolAddress).withdraw(_assets);
+        _withdraw(
+            i_USR,
+            abi.encodeWithSelector(
+                bytes4(keccak256("withdraw(uint256)")),
+                _assets
+            )
+        );
     }
 
     /// @inheritdoc IP2pResolvProxy
     function withdrawAll()
     external
     onlyClient {
-        IStUSR(i_yieldProtocolAddress).withdrawAll();
+        _withdraw(
+            i_USR,
+            abi.encodeCall(
+                IStUSR.withdrawAll, ()
+            )
+        );
     }
 
     /// @inheritdoc ERC165
