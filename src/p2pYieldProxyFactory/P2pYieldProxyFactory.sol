@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.27;
+pragma solidity 0.8.30;
 
 import "../@openzeppelin/contracts/proxy/Clones.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
@@ -162,8 +162,8 @@ abstract contract P2pYieldProxyFactory is
 
     /// @inheritdoc IP2pYieldProxyFactory
     function deposit(
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pYieldProxy,
-        bytes calldata _permit2SignatureForP2pYieldProxy,
+        address _asset,
+        uint256 _amount,
 
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
@@ -178,10 +178,7 @@ abstract contract P2pYieldProxyFactory is
         P2pYieldProxy p2pYieldProxy = _getOrCreateP2pYieldProxy(_clientBasisPoints);
 
         // deposit via proxy
-        p2pYieldProxy.deposit(
-            _permitSingleForP2pYieldProxy,
-            _permit2SignatureForP2pYieldProxy
-        );
+        p2pYieldProxy.deposit(_asset, _amount);
 
         emit P2pYieldProxyFactory__Deposited(msg.sender, _clientBasisPoints);
 

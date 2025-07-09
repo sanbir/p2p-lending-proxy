@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.27;
+pragma solidity 0.8.30;
 
 import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../src/access/P2pOperator.sol";
@@ -21,6 +21,8 @@ contract ResolvMainnetIntegration is Test {
 
     address constant USR = 0x66a1E37c9b0eAddca17d3662D6c05F4DECf3e110;
     address constant stUSR = 0x6c8984bc7DBBeDAf4F6b2FD766f16eBB7d10AAb4;
+    address constant RESOLV = 0x259338656198eC7A76c729514D3CB45Dfbf768A1;
+    address constant stRESOLV = 0xFE4BCE4b3949c35fB17691D8b03c3caDBE2E5E23;
     address constant P2pTreasury = 0xfeef177E6168F9b7fd59e6C5b6c2d87FF398c6FD;
 
     P2pResolvProxyFactory private factory;
@@ -55,7 +57,9 @@ contract ResolvMainnetIntegration is Test {
             p2pSignerAddress,
             P2pTreasury,
             stUSR,
-            USR
+            USR,
+            stRESOLV,
+            RESOLV
         );
         vm.stopPrank();
 
@@ -180,8 +184,6 @@ contract ResolvMainnetIntegration is Test {
         uint96 invalidBasisPoints = 10001;
 
         vm.startPrank(clientAddress);
-        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
-        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             invalidBasisPoints,
@@ -190,8 +192,8 @@ contract ResolvMainnetIntegration is Test {
 
         vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__InvalidClientBasisPoints.selector, invalidBasisPoints));
         factory.deposit(
-            permitSingle,
-            permit2Signature,
+            USR,
+            DepositAmount,
             invalidBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -201,23 +203,16 @@ contract ResolvMainnetIntegration is Test {
     function test_zeroAddressAsset_Mainnet() public {
         vm.startPrank(clientAddress);
 
-        // Get the permit details
-        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
-
-        // Set token to zero address
-        permitSingle.details.token = address(0);
-
-        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
             SigDeadline
         );
 
-        vm.expectRevert(P2pYieldProxy__ZeroAddressAsset.selector);
+        vm.expectRevert(abi.encodeWithSelector(P2pResolvProxy__AssetNotSupported.selector, address(0)));
         factory.deposit(
-            permitSingle,
-            permit2Signature,
+            address(0),
+            0,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -227,13 +222,6 @@ contract ResolvMainnetIntegration is Test {
     function test_zeroAssetAmount_Mainnet() public {
         vm.startPrank(clientAddress);
 
-        // Get the permit details
-        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
-
-        // Set amount to zero
-        permitSingle.details.amount = 0;
-
-        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
@@ -242,8 +230,8 @@ contract ResolvMainnetIntegration is Test {
 
         vm.expectRevert(P2pYieldProxy__ZeroAssetAmount.selector);
         factory.deposit(
-            permitSingle,
-            permit2Signature,
+            USR,
+            0,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -256,13 +244,8 @@ contract ResolvMainnetIntegration is Test {
         // Add this line to give initial tokens to the client
         deal(USR, clientAddress, DepositAmount);
 
-        // Add this line to approve tokens for Permit2
-        IERC20(USR).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
-
-        // Get the permit details
-        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
-
-        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
+        // Add this line to approve tokens for proxyAddress
+        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
 
         // Create proxy first via factory
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -272,8 +255,8 @@ contract ResolvMainnetIntegration is Test {
         );
 
         factory.deposit(
-            permitSingle,
-            permit2Signature,
+            USR,
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -288,8 +271,8 @@ contract ResolvMainnetIntegration is Test {
             )
         );
         P2pResolvProxy(proxyAddress).deposit(
-            permitSingle,
-            permit2Signature
+            USR,
+            DepositAmount
         );
     }
 
@@ -304,11 +287,8 @@ contract ResolvMainnetIntegration is Test {
         deal(USR, clientAddress, DepositAmount);
 
         // Add this line to approve tokens for Permit2
-        IERC20(USR).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
 
-        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
-
-        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
@@ -317,8 +297,8 @@ contract ResolvMainnetIntegration is Test {
 
         // This will create the proxy
         factory.deposit(
-            permitSingle,
-            permit2Signature,
+            USR,
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -343,11 +323,7 @@ contract ResolvMainnetIntegration is Test {
         // Create proxy and do initial deposit
         deal(USR, clientAddress, DepositAmount);
         vm.startPrank(clientAddress);
-        IERC20(USR).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
-
-        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
-
-        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
+        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
@@ -355,8 +331,8 @@ contract ResolvMainnetIntegration is Test {
         );
 
         factory.deposit(
-            permitSingle,
-            permit2Signature,
+            USR,
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -374,7 +350,7 @@ contract ResolvMainnetIntegration is Test {
                 clientAddress  // _actualClient (the actual client address)
             )
         );
-        proxy.withdrawAll();
+        proxy.withdrawAllUSR();
         vm.stopPrank();
     }
 
@@ -639,20 +615,17 @@ contract ResolvMainnetIntegration is Test {
             SigDeadline
         );
 
-        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
-        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
-
         // Add this line to give tokens to the client before attempting deposit
         deal(USR, clientAddress, DepositAmount);
 
         vm.startPrank(clientAddress);
 
         // Add this line to approve tokens for Permit2
-        IERC20(USR).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
 
         factory.deposit(
-            permitSingle,
-            permit2Signature,
+            USR,
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -761,10 +734,7 @@ contract ResolvMainnetIntegration is Test {
         deal(USR, clientAddress, DepositAmount);
 
         vm.startPrank(clientAddress);
-        IERC20(USR).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
-
-        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
-        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
+        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
 
         // Get p2p signer signature with expired deadline
         uint256 expiredDeadline = block.timestamp - 1;
@@ -782,8 +752,8 @@ contract ResolvMainnetIntegration is Test {
         );
 
         factory.deposit(
-            permitSingle,
-            permit2Signature,
+            USR,
+            DepositAmount,
             ClientBasisPoints,
             expiredDeadline,
             p2pSignerSignature
@@ -796,10 +766,7 @@ contract ResolvMainnetIntegration is Test {
         deal(USR, clientAddress, DepositAmount);
 
         vm.startPrank(clientAddress);
-        IERC20(USR).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
-
-        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
-        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
+        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
 
         // Create an invalid signature by using a different private key
         uint256 wrongPrivateKey = 0x12345; // Some random private key
@@ -816,8 +783,8 @@ contract ResolvMainnetIntegration is Test {
         vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
 
         factory.deposit(
-            permitSingle,
-            permit2Signature,
+            USR,
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             invalidSignature
@@ -832,7 +799,7 @@ contract ResolvMainnetIntegration is Test {
         vm.startPrank(clientAddress);
 
         // Add this line to approve tokens for Permit2
-        IERC20(USR).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
 
         // Create proxy first via factory
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -841,12 +808,9 @@ contract ResolvMainnetIntegration is Test {
             SigDeadline
         );
 
-        IAllowanceTransfer.PermitSingle memory permitSingle = _getPermitSingleForP2pYieldProxy();
-        bytes memory permit2Signature = _getPermit2SignatureForP2pYieldProxy(permitSingle);
-
         factory.deposit(
-            permitSingle,
-            permit2Signature,
+            USR,
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -921,32 +885,6 @@ contract ResolvMainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
-        IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
-            token: USR,
-            amount: uint160(DepositAmount),
-            expiration: uint48(SigDeadline),
-            nonce: nonce
-        });
-        nonce++;
-
-        // data for factory
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = IAllowanceTransfer.PermitSingle({
-            details: permitDetails,
-            spender: proxyAddress,
-            sigDeadline: SigDeadline
-        });
-
-        return permitSingleForP2pYieldProxy;
-    }
-
-    function _getPermit2SignatureForP2pYieldProxy(IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy) private view returns(bytes memory) {
-        bytes32 permitSingleForP2pYieldProxyHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingleForP2pYieldProxy));
-        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(clientPrivateKey, permitSingleForP2pYieldProxyHash);
-        bytes memory permit2SignatureForP2pYieldProxy = abi.encodePacked(r1, s1, v1);
-        return permit2SignatureForP2pYieldProxy;
-    }
-
     function _getP2pSignerSignature(
         address _clientAddress,
         uint96 _clientBasisPoints,
@@ -965,8 +903,6 @@ contract ResolvMainnetIntegration is Test {
     }
 
     function _doDeposit() private {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = _getPermitSingleForP2pYieldProxy();
-        bytes memory permit2SignatureForP2pYieldProxy = _getPermit2SignatureForP2pYieldProxy(permitSingleForP2pYieldProxy);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
@@ -974,12 +910,12 @@ contract ResolvMainnetIntegration is Test {
         );
 
         vm.startPrank(clientAddress);
-        if (IERC20(USR).allowance(clientAddress, address(Permit2Lib.PERMIT2)) == 0) {
-            IERC20(USR).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        if (IERC20(USR).allowance(clientAddress, proxyAddress) == 0) {
+            IERC20(USR).safeApprove(proxyAddress, type(uint256).max);
         }
         factory.deposit(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
+            USR,
+            DepositAmount,
 
             ClientBasisPoints,
             SigDeadline,
@@ -996,7 +932,7 @@ contract ResolvMainnetIntegration is Test {
         uint256 sharesToWithdraw = sharesBalance / denominator;
 
         vm.startPrank(clientAddress);
-        P2pResolvProxy(proxyAddress).withdraw(sharesToWithdraw);
+        P2pResolvProxy(proxyAddress).withdrawUSR(sharesToWithdraw);
         vm.stopPrank();
     }
 

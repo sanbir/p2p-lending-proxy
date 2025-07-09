@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.27;
+pragma solidity 0.8.30;
 
 abstract contract P2pStructs {
     /// @title Enum representing the type of rule for allowed calldata

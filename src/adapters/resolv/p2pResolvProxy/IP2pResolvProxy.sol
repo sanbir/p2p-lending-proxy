@@ -1,10 +1,14 @@
 // SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.27;
+pragma solidity 0.8.30;
 
 interface IP2pResolvProxy {
-    function withdraw(uint256 _usrAmount) external;
+    function withdrawUSR(uint256 _amount) external;
 
-    function withdrawAll() external;
+    function withdrawAllUSR() external;
+
+    function initiateWithdrawalRESOLV(uint256 _amount) external;
+
+    function withdrawRESOLV(uint256 _amount) external;
 }

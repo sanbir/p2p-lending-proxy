@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.27;
+pragma solidity 0.8.30;
 
 import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "../@permit2/interfaces/IAllowanceTransfer.sol";
@@ -47,14 +47,7 @@ interface IP2pYieldProxy is IAllowedCalldataChecker, IERC165 {
     )
     external;
 
-    /// @notice Deposits assets into the yield protocol
-    /// @param _permitSingleForP2pYieldProxy The permit single for the P2pYieldProxy
-    /// @param _permit2SignatureForP2pYieldProxy The permit2 signature for the P2pYieldProxy
-    function deposit(
-        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
-        bytes calldata _permit2SignatureForP2pYieldProxy
-    )
-    external;
+    function deposit(address _asset, uint256 _amount) external;
 
     /// @notice Calls an arbitrary allowed function
     /// @param _yieldProtocolAddress The address of the yield protocol
