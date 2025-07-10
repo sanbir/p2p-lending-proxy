@@ -29,6 +29,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     /// @notice Constructor for P2pResolvProxy
     /// @param _factory Factory address
     /// @param _p2pTreasury P2pTreasury address
+    /// @param _allowedCalldataChecker AllowedCalldataChecker
     /// @param _stUSR stUSR address
     /// @param _USR USR address
     /// @param _stRESOLV stRESOLV address
@@ -36,11 +37,12 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     constructor(
         address _factory,
         address _p2pTreasury,
+        address _allowedCalldataChecker,
         address _stUSR,
         address _USR,
         address _stRESOLV,
         address _RESOLV
-    ) P2pYieldProxy(_factory, _p2pTreasury) {
+    ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker) {
         require(_USR != address(0), P2pResolvProxy__ZeroAddress_USR());
 
         i_USR = _USR;

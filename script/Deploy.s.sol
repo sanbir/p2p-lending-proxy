@@ -4,6 +4,7 @@
 pragma solidity 0.8.30;
 
 import "../lib/forge-std/src/Vm.sol";
+import "../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../src/adapters/resolv/p2pResolvProxyFactory/P2pResolvProxyFactory.sol";
 import {Script} from "forge-std/Script.sol";
 
@@ -22,14 +23,23 @@ contract Deploy is Script {
         Vm.Wallet memory wallet = vm.createWallet(deployerKey);
 
         vm.startBroadcast(deployerKey);
-            factory = new P2pResolvProxyFactory(
-                wallet.addr,
-                P2pTreasury,
-                stUSR,
-                USR,
-                stRESOLV,
-                RESOLV
-            );
+        AllowedCalldataChecker implementation = new AllowedCalldataChecker();
+        ProxyAdmin admin = new ProxyAdmin();
+        bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
+        TransparentUpgradeableProxy tup = new TransparentUpgradeableProxy(
+            address(implementation),
+            address(admin),
+            initData
+        );
+        factory = new P2pResolvProxyFactory(
+            wallet.addr,
+            P2pTreasury,
+            stUSR,
+            USR,
+            stRESOLV,
+            RESOLV,
+            address(tup)
+        );
         vm.stopBroadcast();
 
         proxy = P2pResolvProxy(factory.getReferenceP2pYieldProxy());
