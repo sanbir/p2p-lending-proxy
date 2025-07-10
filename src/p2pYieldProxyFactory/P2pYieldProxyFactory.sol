@@ -245,6 +245,10 @@ abstract contract P2pYieldProxyFactory is
         return s_p2pSigner;
     }
 
+    function getP2pOperator() public override(IP2pYieldProxyFactory, P2pOperator) view returns (address) {
+        return super.getP2pOperator();
+    }
+
     /// @inheritdoc IP2pYieldProxyFactory
     function getAllProxies() external view returns (address[] memory) {
         return s_allProxies;

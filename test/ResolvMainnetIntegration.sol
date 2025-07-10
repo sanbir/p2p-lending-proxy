@@ -23,6 +23,7 @@ contract ResolvMainnetIntegration is Test {
     address constant RESOLV = 0x259338656198eC7A76c729514D3CB45Dfbf768A1;
     address constant stRESOLV = 0xFE4BCE4b3949c35fB17691D8b03c3caDBE2E5E23;
     address constant P2pTreasury = 0xfeef177E6168F9b7fd59e6C5b6c2d87FF398c6FD;
+    address constant StakedTokenDistributor = 0xCE9d50db432e0702BcAd5a4A9122F1F8a77aD8f9;
 
     P2pResolvProxyFactory private factory;
 
@@ -67,7 +68,8 @@ contract ResolvMainnetIntegration is Test {
             USR,
             stRESOLV,
             RESOLV,
-            address(tup)
+            address(tup),
+            StakedTokenDistributor
         );
         vm.stopPrank();
 

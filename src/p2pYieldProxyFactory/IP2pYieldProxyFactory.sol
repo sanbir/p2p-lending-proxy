@@ -80,6 +80,8 @@ interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @return The P2pSigner address
     function getP2pSigner() external view returns (address);
 
+    function getP2pOperator() external view returns (address);
+
     /// @dev Gets all proxies
     /// @return The proxy addresses
     function getAllProxies() external view returns (address[] memory);

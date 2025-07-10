@@ -5,11 +5,13 @@ pragma solidity 0.8.30;
 
 import "../../../@resolv/IResolvStaking.sol";
 import "../../../@resolv/IStUSR.sol";
+import "../../../@resolv/IStakedTokenDistributor.sol";
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "./IP2pResolvProxy.sol";
 
 error P2pResolvProxy__ZeroAddress_USR();
 error P2pResolvProxy__AssetNotSupported(address _asset);
+error P2pResolvProxy__UnauthorizedAccount(address _account);
 
 contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     using SafeERC20 for IERC20;
@@ -26,6 +28,8 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     /// @dev stRESOLV address
     address internal immutable i_stRESOLV;
 
+    IStakedTokenDistributor private immutable i_stakedTokenDistributor;
+
     /// @notice Constructor for P2pResolvProxy
     /// @param _factory Factory address
     /// @param _p2pTreasury P2pTreasury address
@@ -34,6 +38,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     /// @param _USR USR address
     /// @param _stRESOLV stRESOLV address
     /// @param _RESOLV RESOLV address
+    /// @param _stakedTokenDistributor StakedTokenDistributor
     constructor(
         address _factory,
         address _p2pTreasury,
@@ -41,15 +46,20 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         address _stUSR,
         address _USR,
         address _stRESOLV,
-        address _RESOLV
+        address _RESOLV,
+        address _stakedTokenDistributor
     ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker) {
         require(_USR != address(0), P2pResolvProxy__ZeroAddress_USR());
-
         i_USR = _USR;
+
+
         i_stUSR = _stUSR;
 
         i_RESOLV = _RESOLV;
+
         i_stRESOLV = _stRESOLV;
+
+        i_stakedTokenDistributor = IStakedTokenDistributor(_stakedTokenDistributor);
     }
 
     /// @inheritdoc IP2pYieldProxy
@@ -113,6 +123,29 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
             i_RESOLV,
             abi.encodeWithSelector(IResolvStaking.withdraw.selector, isEnabled, address(this))
         );
+    }
+
+    /// @inheritdoc IP2pResolvProxy
+    function claimStakedTokenDistributor(
+        uint256 _index,
+        uint256 _amount,
+        bytes32[] calldata _merkleProof
+    )
+    external
+    nonReentrant
+    {
+        if (msg.sender != s_client) {
+            address p2pOperator = i_factory.getP2pOperator();
+            require(
+                msg.sender == p2pOperator,
+                P2pResolvProxy__UnauthorizedAccount(msg.sender)
+            );
+        }
+
+        // claim _reward token from StakedTokenDistributor
+        i_stakedTokenDistributor.claim(_index, _amount, _merkleProof);
+
+        emit P2pResolvProxy__Claimed(_amount);
     }
 
     /// @inheritdoc ERC165
