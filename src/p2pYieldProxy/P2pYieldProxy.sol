@@ -1,67 +1,46 @@
 // SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.27;
+pragma solidity 0.8.30;
 
-import "../@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "../@openzeppelin/contracts-upgradable/security/ReentrancyGuardUpgradeable.sol";
 import "../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
-import "../@permit2/libraries/Permit2Lib.sol";
 import "../common/AllowedCalldataChecker.sol";
-import "../common/P2pStructs.sol";
 import "../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "./IP2pYieldProxy.sol";
 import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-/// @dev Error when the asset address is zero   
 error P2pYieldProxy__ZeroAddressAsset();
-
-/// @dev Error when the asset amount is zero
 error P2pYieldProxy__ZeroAssetAmount();
-
-/// @dev Error when the shares amount is zero
 error P2pYieldProxy__ZeroSharesAmount();
-
-/// @dev Error when the client basis points are invalid
 error P2pYieldProxy__InvalidClientBasisPoints(uint96 _clientBasisPoints);
-
-/// @dev Error when the factory is not the caller
 error P2pYieldProxy__NotFactory(address _factory);
-
 error P2pYieldProxy__DifferentActuallyDepositedAmount(
     uint256 _requestedAmount,
     uint256 _actualAmount
 );
-
-/// @dev Error when the factory is not the caller
-/// @param _msgSender sender address.
-/// @param _actualFactory the actual factory address.
 error P2pYieldProxy__NotFactoryCalled(
     address _msgSender,
     IP2pYieldProxyFactory _actualFactory
 );
-
-/// @dev Error when the client is not the caller
-/// @param _msgSender sender address.
-/// @param _actualClient the actual client address.
 error P2pYieldProxy__NotClientCalled(
     address _msgSender,
     address _actualClient
 );
-
 error P2pYieldProxy__ZeroAddressFactory();
 error P2pYieldProxy__ZeroAddressP2pTreasury();
 error P2pYieldProxy__ZeroAddressYieldProtocolAddress();
+error P2pYieldProxy__ZeroAllowedCalldataChecker();
+error P2pYieldProxy__DataTooShort();
 
 /// @title P2pYieldProxy
 /// @notice P2pYieldProxy is a contract that allows a client to deposit and withdraw assets from a yield protocol.
 abstract contract P2pYieldProxy is
-    AllowedCalldataChecker,
-    P2pStructs,
-    ReentrancyGuard,
+    Initializable,
+    ReentrancyGuardUpgradeable,
     ERC165,
     IP2pYieldProxy {
 
@@ -74,8 +53,7 @@ abstract contract P2pYieldProxy is
     /// @dev P2pTreasury
     address internal immutable i_p2pTreasury;
 
-    /// @dev Yield protocol address
-    address internal immutable i_yieldProtocolAddress;
+    IAllowedCalldataChecker internal immutable i_allowedCalldataChecker;
 
     /// @dev Client
     address internal s_client;
@@ -105,14 +83,31 @@ abstract contract P2pYieldProxy is
         _;
     }
 
+    /// @dev Modifier for checking if a calldata is allowed
+    /// @param _yieldProtocolAddress The address of the yield protocol
+    /// @param _yieldProtocolCalldata The calldata (encoded signature + arguments) to be passed to the yield protocol
+    modifier calldataShouldBeAllowed(
+        address _yieldProtocolAddress,
+        bytes calldata _yieldProtocolCalldata
+    ) {
+        // validate yieldProtocolCalldata for yieldProtocolAddress
+        bytes4 selector = _getFunctionSelector(_yieldProtocolCalldata);
+        i_allowedCalldataChecker.checkCalldata(
+            _yieldProtocolAddress,
+            selector,
+            _yieldProtocolCalldata[4:]
+        );
+        _;
+    }
+
     /// @notice Constructor for P2pYieldProxy
     /// @param _factory The factory address
     /// @param _p2pTreasury The P2pTreasury address
-    /// @param _yieldProtocolAddress Yield protocol address
+    /// @param _allowedCalldataChecker AllowedCalldataChecker
     constructor(
         address _factory,
         address _p2pTreasury,
-        address _yieldProtocolAddress
+        address _allowedCalldataChecker
     ) {
         require(_factory != address(0), P2pYieldProxy__ZeroAddressFactory());
         i_factory = IP2pYieldProxyFactory(_factory);
@@ -120,8 +115,8 @@ abstract contract P2pYieldProxy is
         require(_p2pTreasury != address(0), P2pYieldProxy__ZeroAddressP2pTreasury());
         i_p2pTreasury = _p2pTreasury;
 
-        require(_yieldProtocolAddress != address(0), P2pYieldProxy__ZeroAddressYieldProtocolAddress());
-        i_yieldProtocolAddress = _yieldProtocolAddress;
+        require (_allowedCalldataChecker != address(0), P2pYieldProxy__ZeroAllowedCalldataChecker());
+        i_allowedCalldataChecker = IAllowedCalldataChecker(_allowedCalldataChecker);
     }
 
     /// @inheritdoc IP2pYieldProxy
@@ -130,8 +125,11 @@ abstract contract P2pYieldProxy is
         uint96 _clientBasisPoints
     )
     external
+    initializer
     onlyFactory
     {
+        __ReentrancyGuard_init();
+
         require(
             _clientBasisPoints > 0 && _clientBasisPoints <= 10_000,
             P2pYieldProxy__InvalidClientBasisPoints(_clientBasisPoints)
@@ -143,81 +141,67 @@ abstract contract P2pYieldProxy is
         emit P2pYieldProxy__Initialized();
     }
 
+    function deposit(address _asset, uint256 _amount) external virtual;
+
     /// @notice Deposit assets into yield protocol
+    /// @param _yieldProtocolAddress yield protocol address
     /// @param _yieldProtocolDepositCalldata calldata for deposit function of yield protocol
-    /// @param _permitSingleForP2pYieldProxy PermitSingle for P2pYieldProxy to pull assets from client
-    /// @param _permit2SignatureForP2pYieldProxy signature of PermitSingle for P2pYieldProxy
-    /// @param _usePermit2 whether should use Permit2 or native ERC-20 transferFrom
+    /// @param _asset asset to deposit
+    /// @param _amount amount to deposit
     function _deposit(
+        address _yieldProtocolAddress,
         bytes memory _yieldProtocolDepositCalldata,
-        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
-        bytes calldata _permit2SignatureForP2pYieldProxy,
-        bool _usePermit2
+        address _asset,
+        uint256 _amount
     )
     internal
     onlyFactory
     {
-        address asset = _permitSingleForP2pYieldProxy.details.token;
-        require (asset != address(0), P2pYieldProxy__ZeroAddressAsset());
-
-        uint160 amount = _permitSingleForP2pYieldProxy.details.amount;
-        require (amount > 0, P2pYieldProxy__ZeroAssetAmount());
+        require (_asset != address(0), P2pYieldProxy__ZeroAddressAsset());
+        require (_amount > 0, P2pYieldProxy__ZeroAssetAmount());
 
         address client = s_client;
 
+        uint256 assetAmountBefore = IERC20(_asset).balanceOf(address(this));
+
         // transfer tokens into Proxy
-        try Permit2Lib.PERMIT2.permit(
-            client,
-            _permitSingleForP2pYieldProxy,
-            _permit2SignatureForP2pYieldProxy
-        ) {}
-        catch {} // prevent unintended reverts due to invalidated nonce
-
-        uint256 assetAmountBefore = IERC20(asset).balanceOf(address(this));
-
-        Permit2Lib.PERMIT2.transferFrom(
+        IERC20(_asset).safeTransferFrom(
             client,
             address(this),
-            amount,
-            asset
+            _amount
         );
 
-        uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
+        uint256 assetAmountAfter = IERC20(_asset).balanceOf(address(this));
         uint256 actualAmount = assetAmountAfter - assetAmountBefore;
 
         require (
-            actualAmount == amount,
-            P2pYieldProxy__DifferentActuallyDepositedAmount(amount, actualAmount)
+            actualAmount == _amount,
+            P2pYieldProxy__DifferentActuallyDepositedAmount(_amount, actualAmount)
         ); // no support for fee-on-transfer or rebasing tokens
 
-        uint256 totalDepositedAfter = s_totalDeposited[asset] + actualAmount;
-        s_totalDeposited[asset] = totalDepositedAfter;
+        uint256 totalDepositedAfter = s_totalDeposited[_asset] + actualAmount;
+        s_totalDeposited[_asset] = totalDepositedAfter;
         emit P2pYieldProxy__Deposited(
-            i_yieldProtocolAddress,
-            asset,
+            _yieldProtocolAddress,
+            _asset,
             actualAmount,
             totalDepositedAfter
         );
 
-        if (_usePermit2) {
-            IERC20(asset).safeIncreaseAllowance(
-                address(Permit2Lib.PERMIT2),
-                actualAmount
-            );
-        } else {
-            IERC20(asset).safeIncreaseAllowance(
-                i_yieldProtocolAddress,
-                actualAmount
-            );
-        }
+        IERC20(_asset).safeIncreaseAllowance(
+            _yieldProtocolAddress,
+            actualAmount
+        );
 
-        i_yieldProtocolAddress.functionCall(_yieldProtocolDepositCalldata);
+        _yieldProtocolAddress.functionCall(_yieldProtocolDepositCalldata);
     }
 
     /// @notice Withdraw assets from yield protocol
+    /// @param _yieldProtocolAddress yield protocol address
     /// @param _asset ERC-20 asset address
     /// @param _yieldProtocolWithdrawalCalldata calldata for withdraw function of yield protocol
     function _withdraw(
+        address _yieldProtocolAddress,
         address _asset,
         bytes memory _yieldProtocolWithdrawalCalldata
     )
@@ -228,7 +212,7 @@ abstract contract P2pYieldProxy is
         uint256 assetAmountBefore = IERC20(_asset).balanceOf(address(this));
 
         // withdraw assets from Protocol
-        i_yieldProtocolAddress.functionCall(_yieldProtocolWithdrawalCalldata);
+        _yieldProtocolAddress.functionCall(_yieldProtocolWithdrawalCalldata);
 
         uint256 assetAmountAfter = IERC20(_asset).balanceOf(address(this));
 
@@ -271,8 +255,8 @@ abstract contract P2pYieldProxy is
         IERC20(_asset).safeTransfer(s_client, clientAmount);
 
         emit P2pYieldProxy__Withdrawn(
-            i_yieldProtocolAddress,
-            i_yieldProtocolAddress,
+            _yieldProtocolAddress,
+            _yieldProtocolAddress,
             _asset,
             newAssetAmount,
             totalWithdrawnAfter,
@@ -296,17 +280,14 @@ abstract contract P2pYieldProxy is
         _yieldProtocolAddress.functionCall(_yieldProtocolCalldata);
     }
 
-    /// @inheritdoc IAllowedCalldataChecker
-    function checkCalldata(
-        address _target,
-        bytes4 _selector,
-        bytes calldata _calldataAfterSelector
-    ) public view override(AllowedCalldataChecker, IAllowedCalldataChecker) {
-        i_factory.checkCalldata(
-            _target,
-            _selector,
-            _calldataAfterSelector
-        );
+    /// @notice Returns function selector (first 4 bytes of data)
+    /// @param _data calldata (encoded signature + arguments)
+    /// @return functionSelector function selector
+    function _getFunctionSelector(
+        bytes calldata _data
+    ) private pure returns (bytes4 functionSelector) {
+        require (_data.length >= 4, P2pYieldProxy__DataTooShort());
+        return bytes4(_data[:4]);
     }
 
     /// @inheritdoc IP2pYieldProxy

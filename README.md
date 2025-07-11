@@ -124,20 +124,6 @@ The P2pEthenaProxy contract will redeem the tokens from Ethena and send them to 
 
 It's possible for the User to call any function on any contracts via P2pEthenaProxy. This can be useful if it appears that functions of yield protocols beyond simple deposit and withdrawal are needed. Also, it can be useful for claiming any airdrops unknown in advance.
 
-Before the User can use this feature, the P2P operator needs to set the rules for the function call via the `setCalldataRules` function of the P2pEthenaProxyFactory contract:
-
-```solidity
-    /// @dev Sets the calldata rules
-    /// @param _contract The contract address
-    /// @param _selector The selector
-    /// @param _rules The rules
-    function setCalldataRules(
-        address _contract,
-        bytes4 _selector,
-        P2pStructs.Rule[] calldata _rules
-    ) external;
-```
-
 The rules should be as strict as possible to prevent any undesired function calls.
 
 Once the rules are set, the User can call the permitted function on the permitted contract with the permitted calldata via P2pEthenaProxy's `callAnyFunction` function:

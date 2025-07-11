@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.27;
+pragma solidity 0.8.30;
 
 interface IStUSR {
 
@@ -8,28 +8,7 @@ interface IStUSR {
 
     error InvalidDepositAmount(uint256 _usrAmount);
 
-    function deposit(uint256 _usrAmount, address _receiver) external;
-
     function deposit(uint256 _usrAmount) external;
-
-    function depositWithPermit(
-        uint256 _usrAmount,
-        address _receiver,
-        uint256 _deadline,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
-    ) external;
-
-    function depositWithPermit(
-        uint256 _usrAmount,
-        uint256 _deadline,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
-    ) external;
-
-    function withdraw(uint256 _usrAmount, address _receiver) external;
 
     function withdraw(uint256 _usrAmount) external;
 
