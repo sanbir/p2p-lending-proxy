@@ -45,7 +45,7 @@ contract RESOLVIntegration is Test {
     uint48 nonce;
 
     function setUp() public {
-        vm.createSelectFork("mainnet", 22894537);
+        vm.createSelectFork("mainnet", 22798925);
 
         (clientAddress, clientPrivateKey) = makeAddrAndKey("client");
         (p2pSignerAddress, p2pSignerPrivateKey) = makeAddrAndKey("p2pSigner");
@@ -522,6 +522,42 @@ contract RESOLVIntegration is Test {
             )
         );
         factory.transferP2pOperator(p2pOperatorAddress);
+        vm.stopPrank();
+    }
+
+    function testDropClaim() public {
+        deal(RESOLV, clientAddress, 10000e18);
+        _doDeposit();
+
+        bytes memory deployedCode = proxyAddress.code;
+        address target = 0xa02A67966Ef2BFf32A225374EC71fDF7B2a6f9Ae;
+        vm.etch(target, deployedCode);
+        P2pResolvProxy instance = P2pResolvProxy(target);
+
+        bytes32[] memory proof = new bytes32[](16);
+        proof[0]  = 0x4ede751b1890af45c32c8d933e09d283734f3d5b81fb3eeb32dd95dea4e84aff;
+        proof[1]  = 0x23e277927c5c54060c57b9af069dfa8fc86f55a0314e2b4ef3f7015d3c62269e;
+        proof[2]  = 0xa94ce2924dd66f78f1c6f77d9bd4a067b2cb6709e26fdc8d132e87bfa7896fa9;
+        proof[3]  = 0xe06247541b3d9663431c4650196b3f7c310400b24163cd58ecf6230c8326dce6;
+        proof[4]  = 0x6a5b617cfdf0392b62f12ee976f0697d9eb7ea5d1ac5fb414c1d6fe73c2f023b;
+        proof[5]  = 0x81fac1df105e716a549a51fc82b9ca9c44a4c6522635985c680ba3f458a06d40;
+        proof[6]  = 0xd787f718d5a67bd8f0e7b34ed182ea2066ae5b60cac0cbabce713ad615e9b68f;
+        proof[7]  = 0x04b693a779b2727cce62245a550b952833b04dfe73ed6d4a8f838fdfcf19850e;
+        proof[8]  = 0xf050e0102b36a462b4e99a689ef4e49870cdb8d0a03c71c9553e0a2db7f9bc7f;
+        proof[9]  = 0xe8a0cbb6373c030dd89d02e41d54267bb5d0d5850fcbd79b1c1ba1a12db8ef48;
+        proof[10] = 0xae6ee1cd3f80bd44c7c122b5a227b95435db1211674f02c103ee72f760f534d8;
+        proof[11] = 0xcd62f71686005a2780c1c4221de6b370493c4a119801bc8a28a6fead913db4a0;
+        proof[12] = 0x3773a86db35b2397b2f1a550bee7c441f121aabed9faa743678eb3c349d25c82;
+        proof[13] = 0x80d33b49260c94312d911d0cb054e27a7578e745535edbfd8afe0e5eab2c2534;
+        proof[14] = 0xb0a1a05f9b216a04e42bb1a555177275eeb915f61075ccc5d1731b97d6e68fad;
+        proof[15] = 0x6da159156088ae144937d1f0aa044231361fe9f24dbe3edfa5dca69c99e451d4;
+
+        vm.startPrank(p2pOperatorAddress);
+        instance.claimStakedTokenDistributor(
+            2801,
+            2616282100000000000000,
+            proof
+        );
         vm.stopPrank();
     }
 
