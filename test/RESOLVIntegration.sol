@@ -576,7 +576,7 @@ contract RESOLVIntegration is Test {
 
         _forward(10_000 * 14);
 
-        P2pResolvProxy(proxyAddress).withdrawRESOLV(sharesToWithdraw);
+        P2pResolvProxy(proxyAddress).withdrawRESOLV();
         vm.stopPrank();
     }
 

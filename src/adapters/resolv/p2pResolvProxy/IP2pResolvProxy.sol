@@ -10,7 +10,7 @@ interface IP2pResolvProxy {
 
     function initiateWithdrawalRESOLV(uint256 _amount) external;
 
-    function withdrawRESOLV(uint256 _amount) external;
+    function withdrawRESOLV() external;
 
     function claimStakedTokenDistributor(
         uint256 _index,

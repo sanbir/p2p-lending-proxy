@@ -113,7 +113,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     }
 
     /// @inheritdoc IP2pResolvProxy
-    function withdrawRESOLV(uint256 _amount)
+    function withdrawRESOLV()
     external
     onlyClient {
         bool isEnabled = IResolvStaking(i_stRESOLV).claimEnabled();
