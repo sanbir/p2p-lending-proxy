@@ -15,7 +15,7 @@ import "forge-std/console.sol";
 import "forge-std/console2.sol";
 
 
-contract ResolvMainnetIntegration is Test {
+contract RESOLVIntegration is Test {
     using SafeERC20 for IERC20;
 
     address constant USR = 0x66a1E37c9b0eAddca17d3662D6c05F4DECf3e110;
@@ -36,7 +36,7 @@ contract ResolvMainnetIntegration is Test {
     address private p2pOperatorAddress;
     address private nobody;
 
-    uint256 constant SigDeadline = 1750723200;
+    uint256 constant SigDeadline = 1752690907;
     uint96 constant ClientBasisPoints = 8700; // 13% fee
     uint256 constant DepositAmount = 10 ether;
 
@@ -45,7 +45,7 @@ contract ResolvMainnetIntegration is Test {
     uint48 nonce;
 
     function setUp() public {
-        vm.createSelectFork("mainnet", 22730789);
+        vm.createSelectFork("mainnet", 22894537);
 
         (clientAddress, clientPrivateKey) = makeAddrAndKey("client");
         (p2pSignerAddress, p2pSignerPrivateKey) = makeAddrAndKey("p2pSigner");
@@ -76,29 +76,29 @@ contract ResolvMainnetIntegration is Test {
         proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
     }
 
-    function test_Resolv_happyPath_Mainnet() public {
-        deal(USR, clientAddress, 10000e18);
+    function test_Resolv_happyPath_Mainnet_RESOLV() public {
+        deal(RESOLV, clientAddress, 10000e18);
 
-        uint256 assetBalanceBefore = IERC20(USR).balanceOf(clientAddress);
+        uint256 assetBalanceBefore = IERC20(RESOLV).balanceOf(clientAddress);
 
         _doDeposit();
 
-        uint256 assetBalanceAfter1 = IERC20(USR).balanceOf(clientAddress);
+        uint256 assetBalanceAfter1 = IERC20(RESOLV).balanceOf(clientAddress);
         assertEq(assetBalanceBefore - assetBalanceAfter1, DepositAmount);
 
         _doDeposit();
 
-        uint256 assetBalanceAfter2 = IERC20(USR).balanceOf(clientAddress);
+        uint256 assetBalanceAfter2 = IERC20(RESOLV).balanceOf(clientAddress);
         assertEq(assetBalanceAfter1 - assetBalanceAfter2, DepositAmount);
 
         _doDeposit();
         _doDeposit();
 
-        uint256 assetBalanceAfterAllDeposits = IERC20(USR).balanceOf(clientAddress);
+        uint256 assetBalanceAfterAllDeposits = IERC20(RESOLV).balanceOf(clientAddress);
 
         _doWithdraw(10);
 
-//        uint256 assetBalanceAfterWithdraw1 = IERC20(USR).balanceOf(clientAddress);
+//        uint256 assetBalanceAfterWithdraw1 = IERC20(RESOLV).balanceOf(clientAddress);
 //
 //        assertApproxEqAbs(assetBalanceAfterWithdraw1 - assetBalanceAfterAllDeposits, DepositAmount * 4 / 10, 1);
 
@@ -107,32 +107,32 @@ contract ResolvMainnetIntegration is Test {
         _doWithdraw(2);
         _doWithdraw(1);
 
-//        uint256 assetBalanceAfterAllWithdrawals = IERC20(USR).balanceOf(clientAddress);
+//        uint256 assetBalanceAfterAllWithdrawals = IERC20(RESOLV).balanceOf(clientAddress);
 //
 //        uint256 profit = 1414853635425232;
 //        assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore + profit, 1);
     }
 
-    function test_Resolv_profitSplit_Mainnet() public {
-        deal(USR, clientAddress, 100e18);
+    function test_Resolv_profitSplit_Mainnet_RESOLV() public {
+        deal(RESOLV, clientAddress, 100e18);
 
-        uint256 clientAssetBalanceBefore = IERC20(USR).balanceOf(clientAddress);
-        uint256 p2pAssetBalanceBefore = IERC20(USR).balanceOf(P2pTreasury);
+        uint256 clientAssetBalanceBefore = IERC20(RESOLV).balanceOf(clientAddress);
+        uint256 p2pAssetBalanceBefore = IERC20(RESOLV).balanceOf(P2pTreasury);
 
         _doDeposit();
 
-        uint256 shares = IERC20(stUSR).balanceOf(proxyAddress);
-        uint256 assetsInResolvBefore = IERC20Rebasing(stUSR).convertToUnderlyingToken(shares);
+        uint256 shares = IERC20(stRESOLV).balanceOf(proxyAddress);
+        uint256 assetsInResolvBefore = IResolvStaking(stRESOLV).getUserEffectiveBalance(proxyAddress);
 
         _forward(10000000);
 
-        uint256 assetsInResolvAfter = IERC20Rebasing(stUSR).convertToUnderlyingToken(shares);
+        uint256 assetsInResolvAfter = IResolvStaking(stRESOLV).getUserEffectiveBalance(proxyAddress);
         uint256 profit = assetsInResolvAfter - assetsInResolvBefore;
 
         _doWithdraw(1);
 
-//        uint256 clientAssetBalanceAfter = IERC20(USR).balanceOf(clientAddress);
-//        uint256 p2pAssetBalanceAfter = IERC20(USR).balanceOf(P2pTreasury);
+//        uint256 clientAssetBalanceAfter = IERC20(RESOLV).balanceOf(clientAddress);
+//        uint256 p2pAssetBalanceAfter = IERC20(RESOLV).balanceOf(P2pTreasury);
 //        uint256 clientBalanceChange = clientAssetBalanceAfter - clientAssetBalanceBefore;
 //        uint256 p2pBalanceChange = p2pAssetBalanceAfter - p2pAssetBalanceBefore;
 //        uint256 sumOfBalanceChanges = clientBalanceChange + p2pBalanceChange;
@@ -146,7 +146,7 @@ contract ResolvMainnetIntegration is Test {
 //        assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
     }
 
-    function test_transferP2pSigner_Mainnet() public {
+    function test_transferP2pSigner_Mainnet_RESOLV() public {
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
         factory.transferP2pSigner(nobody);
@@ -161,7 +161,7 @@ contract ResolvMainnetIntegration is Test {
         assertEq(newSigner, nobody);
     }
 
-    function test_clientBasisPointsGreaterThan10000_Mainnet() public {
+    function test_clientBasisPointsGreaterThan10000_Mainnet_RESOLV() public {
         uint96 invalidBasisPoints = 10001;
 
         vm.startPrank(clientAddress);
@@ -173,7 +173,7 @@ contract ResolvMainnetIntegration is Test {
 
         vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__InvalidClientBasisPoints.selector, invalidBasisPoints));
         factory.deposit(
-            USR,
+            RESOLV,
             DepositAmount,
             invalidBasisPoints,
             SigDeadline,
@@ -181,7 +181,7 @@ contract ResolvMainnetIntegration is Test {
         );
     }
 
-    function test_zeroAddressAsset_Mainnet() public {
+    function test_zeroAddressAsset_Mainnet_RESOLV() public {
         vm.startPrank(clientAddress);
 
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -200,7 +200,7 @@ contract ResolvMainnetIntegration is Test {
         );
     }
 
-    function test_zeroAssetAmount_Mainnet() public {
+    function test_zeroAssetAmount_Mainnet_RESOLV() public {
         vm.startPrank(clientAddress);
 
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -211,7 +211,7 @@ contract ResolvMainnetIntegration is Test {
 
         vm.expectRevert(P2pYieldProxy__ZeroAssetAmount.selector);
         factory.deposit(
-            USR,
+            RESOLV,
             0,
             ClientBasisPoints,
             SigDeadline,
@@ -219,14 +219,14 @@ contract ResolvMainnetIntegration is Test {
         );
     }
 
-    function test_depositDirectlyOnProxy_Mainnet() public {
+    function test_depositDirectlyOnProxy_Mainnet_RESOLV() public {
         vm.startPrank(clientAddress);
 
         // Add this line to give initial tokens to the client
-        deal(USR, clientAddress, DepositAmount);
+        deal(RESOLV, clientAddress, DepositAmount);
 
         // Add this line to approve tokens for proxyAddress
-        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
+        IERC20(RESOLV).safeApprove(proxyAddress, DepositAmount);
 
         // Create proxy first via factory
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -236,7 +236,7 @@ contract ResolvMainnetIntegration is Test {
         );
 
         factory.deposit(
-            USR,
+            RESOLV,
             DepositAmount,
             ClientBasisPoints,
             SigDeadline,
@@ -252,12 +252,12 @@ contract ResolvMainnetIntegration is Test {
             )
         );
         P2pResolvProxy(proxyAddress).deposit(
-            USR,
+            RESOLV,
             DepositAmount
         );
     }
 
-    function test_initializeDirectlyOnProxy_Mainnet() public {
+    function test_initializeDirectlyOnProxy_Mainnet_RESOLV() public {
         // Create the proxy first since we need a valid proxy address to test with
         proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
         P2pResolvProxy proxy = P2pResolvProxy(proxyAddress);
@@ -265,10 +265,10 @@ contract ResolvMainnetIntegration is Test {
         vm.startPrank(clientAddress);
 
         // Add this line to give initial tokens to the client
-        deal(USR, clientAddress, DepositAmount);
+        deal(RESOLV, clientAddress, DepositAmount);
 
         // Add this line to approve tokens for Permit2
-        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
+        IERC20(RESOLV).safeApprove(proxyAddress, DepositAmount);
 
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
@@ -278,7 +278,7 @@ contract ResolvMainnetIntegration is Test {
 
         // This will create the proxy
         factory.deposit(
-            USR,
+            RESOLV,
             DepositAmount,
             ClientBasisPoints,
             SigDeadline,
@@ -294,11 +294,11 @@ contract ResolvMainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_withdrawOnProxyOnlyCallableByClient_Mainnet() public {
+    function test_withdrawOnProxyOnlyCallableByClient_Mainnet_RESOLV() public {
         // Create proxy and do initial deposit
-        deal(USR, clientAddress, DepositAmount);
+        deal(RESOLV, clientAddress, DepositAmount);
         vm.startPrank(clientAddress);
-        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
+        IERC20(RESOLV).safeApprove(proxyAddress, DepositAmount);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
@@ -306,7 +306,7 @@ contract ResolvMainnetIntegration is Test {
         );
 
         factory.deposit(
-            USR,
+            RESOLV,
             DepositAmount,
             ClientBasisPoints,
             SigDeadline,
@@ -329,14 +329,14 @@ contract ResolvMainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_getP2pLendingProxyFactory__ZeroP2pSignerAddress_Mainnet() public {
+    function test_getP2pLendingProxyFactory__ZeroP2pSignerAddress_Mainnet_RESOLV() public {
         vm.startPrank(p2pOperatorAddress);
         vm.expectRevert(P2pYieldProxyFactory__ZeroP2pSignerAddress.selector);
         factory.transferP2pSigner(address(0));
         vm.stopPrank();
     }
 
-    function test_getHashForP2pSigner_Mainnet() public view {
+    function test_getHashForP2pSigner_Mainnet_RESOLV() public view {
         bytes32 expectedHash = keccak256(abi.encode(
             clientAddress,
             ClientBasisPoints,
@@ -354,7 +354,7 @@ contract ResolvMainnetIntegration is Test {
         assertEq(actualHash, expectedHash);
     }
 
-    function test_supportsInterface_Mainnet() public view {
+    function test_supportsInterface_Mainnet_RESOLV() public view {
         // Test IP2pLendingProxyFactory interface support
         bool supportsP2pLendingProxyFactory = factory.supportsInterface(type(IP2pYieldProxyFactory).interfaceId);
         assertTrue(supportsP2pLendingProxyFactory);
@@ -369,12 +369,12 @@ contract ResolvMainnetIntegration is Test {
         assertFalse(supportsNonSupported);
     }
 
-    function test_p2pSignerSignatureExpired_Mainnet() public {
+    function test_p2pSignerSignatureExpired_Mainnet_RESOLV() public {
         // Add this line to give tokens to the client before attempting deposit
-        deal(USR, clientAddress, DepositAmount);
+        deal(RESOLV, clientAddress, DepositAmount);
 
         vm.startPrank(clientAddress);
-        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
+        IERC20(RESOLV).safeApprove(proxyAddress, DepositAmount);
 
         // Get p2p signer signature with expired deadline
         uint256 expiredDeadline = block.timestamp - 1;
@@ -392,7 +392,7 @@ contract ResolvMainnetIntegration is Test {
         );
 
         factory.deposit(
-            USR,
+            RESOLV,
             DepositAmount,
             ClientBasisPoints,
             expiredDeadline,
@@ -401,12 +401,12 @@ contract ResolvMainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_invalidP2pSignerSignature_Mainnet() public {
+    function test_invalidP2pSignerSignature_Mainnet_RESOLV() public {
         // Add this line to give tokens to the client before attempting deposit
-        deal(USR, clientAddress, DepositAmount);
+        deal(RESOLV, clientAddress, DepositAmount);
 
         vm.startPrank(clientAddress);
-        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
+        IERC20(RESOLV).safeApprove(proxyAddress, DepositAmount);
 
         // Create an invalid signature by using a different private key
         uint256 wrongPrivateKey = 0x12345; // Some random private key
@@ -423,7 +423,7 @@ contract ResolvMainnetIntegration is Test {
         vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
 
         factory.deposit(
-            USR,
+            RESOLV,
             DepositAmount,
             ClientBasisPoints,
             SigDeadline,
@@ -432,14 +432,14 @@ contract ResolvMainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_viewFunctions_Mainnet() public {
+    function test_viewFunctions_Mainnet_RESOLV() public {
         // Add this line to give tokens to the client before attempting deposit
-        deal(USR, clientAddress, DepositAmount);
+        deal(RESOLV, clientAddress, DepositAmount);
 
         vm.startPrank(clientAddress);
 
         // Add this line to approve tokens for Permit2
-        IERC20(USR).safeApprove(proxyAddress, DepositAmount);
+        IERC20(RESOLV).safeApprove(proxyAddress, DepositAmount);
 
         // Create proxy first via factory
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -449,7 +449,7 @@ contract ResolvMainnetIntegration is Test {
         );
 
         factory.deposit(
-            USR,
+            RESOLV,
             DepositAmount,
             ClientBasisPoints,
             SigDeadline,
@@ -461,12 +461,12 @@ contract ResolvMainnetIntegration is Test {
         assertEq(proxy.getP2pTreasury(), P2pTreasury);
         assertEq(proxy.getClient(), clientAddress);
         assertEq(proxy.getClientBasisPoints(), ClientBasisPoints);
-        assertEq(proxy.getTotalDeposited(USR), DepositAmount);
+        assertEq(proxy.getTotalDeposited(RESOLV), DepositAmount);
         assertEq(factory.getP2pSigner(), p2pSignerAddress);
         assertEq(factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints), proxyAddress);
     }
 
-    function test_acceptP2pOperator_Mainnet() public {
+    function test_acceptP2pOperator_Mainnet_RESOLV() public {
         // Initial state check
         assertEq(factory.getP2pOperator(), p2pOperatorAddress);
 
@@ -550,11 +550,11 @@ contract ResolvMainnetIntegration is Test {
         );
 
         vm.startPrank(clientAddress);
-        if (IERC20(USR).allowance(clientAddress, proxyAddress) == 0) {
-            IERC20(USR).safeApprove(proxyAddress, type(uint256).max);
+        if (IERC20(RESOLV).allowance(clientAddress, proxyAddress) == 0) {
+            IERC20(RESOLV).safeApprove(proxyAddress, type(uint256).max);
         }
         factory.deposit(
-            USR,
+            RESOLV,
             DepositAmount,
 
             ClientBasisPoints,
@@ -565,14 +565,18 @@ contract ResolvMainnetIntegration is Test {
     }
 
     function _doWithdraw(uint256 denominator) private {
-        uint256 sharesBalance = IERC20(stUSR).balanceOf(proxyAddress);
+        uint256 sharesBalance = IERC20(stRESOLV).balanceOf(proxyAddress);
         console.log("sharesBalance");
         console.log(sharesBalance);
 
         uint256 sharesToWithdraw = sharesBalance / denominator;
 
         vm.startPrank(clientAddress);
-        P2pResolvProxy(proxyAddress).withdrawUSR(sharesToWithdraw);
+        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(sharesToWithdraw);
+
+        _forward(10_000 * 14);
+
+        P2pResolvProxy(proxyAddress).withdrawRESOLV(sharesToWithdraw);
         vm.stopPrank();
     }
 
