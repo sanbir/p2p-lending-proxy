@@ -33,9 +33,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
 
     IStakedTokenDistributor private immutable i_stakedTokenDistributor;
 
-    uint48 s_lastFeeCollectionUSR;
-    uint48 s_lastFeeCollectionRESOLV;
-
     /// @dev Throws if called by any account other than the P2pOperator.
     modifier onlyP2pOperator() {
         address p2pOperator = i_factory.getP2pOperator();
@@ -109,8 +106,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     function withdrawUSR(uint256 _amount)
     external
     onlyClient {
-        s_lastFeeCollectionUSR = uint48(block.timestamp);
-
         _withdraw(
             i_stUSR,
             i_USR,
@@ -123,9 +118,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     onlyP2pOperator {
         int256 amount = calculateAccruedRewardsUSR();
         require (amount > 0, P2pResolvProxy__ZeroAccruedRewards());
-
-        s_lastFeeCollectionUSR = uint48(block.timestamp);
-
         _withdraw(
             i_stUSR,
             i_USR,
@@ -137,8 +129,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     function withdrawAllUSR()
     external
     onlyClient {
-        s_lastFeeCollectionUSR = uint48(block.timestamp);
-
         _withdraw(
             i_stUSR,
             i_USR,
@@ -150,8 +140,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     function initiateWithdrawalRESOLV(uint256 _amount)
     external
     onlyClient {
-        s_lastFeeCollectionRESOLV = uint48(block.timestamp);
-
         return IResolvStaking(i_stRESOLV).initiateWithdrawal(_amount);
     }
 
@@ -160,9 +148,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     onlyP2pOperator {
         int256 amount = calculateAccruedRewardsRESOLV();
         require (amount > 0, P2pResolvProxy__ZeroAccruedRewards());
-
-        s_lastFeeCollectionRESOLV = uint48(block.timestamp);
-
         return IResolvStaking(i_stRESOLV).initiateWithdrawal(uint256(amount));
     }
 
@@ -203,41 +188,27 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     }
 
     function getUserPrincipalUSR() public view returns(uint256) {
-        uint256 totalDeposited = s_totalDeposited[i_USR];
-        uint256 totalWithdrawn = s_totalWithdrawn[i_USR];
-        if (totalDeposited > totalWithdrawn) {
-            return totalDeposited - totalWithdrawn;
-        }
-        return 0;
+        return getUserPrincipal(i_USR);
     }
 
     function getUserPrincipalRESOLV() public view returns(uint256) {
-        uint256 totalDeposited = s_totalDeposited[i_RESOLV];
-        uint256 totalWithdrawn = s_totalWithdrawn[i_RESOLV];
-        if (totalDeposited > totalWithdrawn) {
-            return totalDeposited - totalWithdrawn;
-        }
-        return 0;
+        return getUserPrincipal(i_RESOLV);
     }
 
     function calculateAccruedRewardsUSR() public view returns(int256) {
-        uint256 currentAmount = IERC20(i_stUSR).balanceOf(address(this));
-        uint256 userPrincipal = getUserPrincipalUSR();
-        return int256(currentAmount) - int256(userPrincipal);
+        return calculateAccruedRewards(i_stUSR,i_USR);
     }
 
     function calculateAccruedRewardsRESOLV() public view returns(int256) {
-        uint256 currentAmount = IERC20(i_stRESOLV).balanceOf(address(this));
-        uint256 userPrincipal = getUserPrincipalRESOLV();
-        return int256(currentAmount) - int256(userPrincipal);
+        return calculateAccruedRewards(i_stRESOLV,i_RESOLV);
     }
 
-    function getLastFeeCollectionsUSR() public view returns(uint48) {
-        return s_lastFeeCollectionUSR;
+    function getLastFeeCollectionTimeUSR() public view returns(uint48) {
+        return getLastFeeCollectionTime(i_USR);
     }
 
-    function getLastFeeCollectionsRESOLV() public view returns(uint48) {
-        return s_lastFeeCollectionRESOLV;
+    function getLastFeeCollectionTimeRESOLV() public view returns(uint48) {
+        return getLastFeeCollectionTime(i_RESOLV);
     }
 
     /// @inheritdoc ERC165

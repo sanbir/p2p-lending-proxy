@@ -146,6 +146,58 @@ contract USRIntegration is Test {
 //        assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
     }
 
+    function test_withdrawUSRAccruedRewards_byP2pOperator_Mainnet() public {
+        // Simulate initial deposit to create some rewards later
+        deal(USR, clientAddress, 100e18);
+        _doDeposit();
+
+        // Simulate time passing to accrue rewards
+        _forward(10000000);
+
+        // Simulate yield by dealing USR directly to the stUSR contract
+        // This increases the USR backing of stUSR, making the proxy's stUSR worth more
+        uint256 yieldAmount = 5e18;
+        deal(USR, stUSR, IERC20(USR).balanceOf(stUSR) + yieldAmount);
+
+        // Verify that accrued rewards are now positive
+        int256 accruedRewards = P2pResolvProxy(proxyAddress).calculateAccruedRewardsUSR();
+        assertGt(accruedRewards, 0, "No accrued rewards to withdraw");
+
+        // Withdraw accrued rewards as P2pOperator
+        vm.startPrank(p2pOperatorAddress);
+        uint256 treasuryBalanceBefore = IERC20(USR).balanceOf(P2pTreasury);
+
+        // Expect P2pOperator can call this function, no revert
+        P2pResolvProxy(proxyAddress).withdrawUSRAccruedRewards();
+
+        uint256 treasuryBalanceAfter = IERC20(USR).balanceOf(P2pTreasury);
+        assertGt(treasuryBalanceAfter, treasuryBalanceBefore, "Treasury did not receive accrued rewards");
+
+        vm.stopPrank();
+    }
+
+    function test_withdrawUSRAccruedRewards_revertsForNonOperator_Mainnet() public {
+        // First deploy and initialize the proxy by doing a deposit
+        deal(USR, clientAddress, 100e18);
+        _doDeposit();
+
+        // Add some simulated yield by dealing USR to stUSR contract
+        uint256 yieldAmount = 5e18;
+        deal(USR, stUSR, IERC20(USR).balanceOf(stUSR) + yieldAmount);
+
+        // Attempt calling as client - should revert
+        vm.startPrank(clientAddress);
+        vm.expectRevert(abi.encodeWithSelector(P2pResolvProxy__NotP2pOperator.selector, clientAddress));
+        P2pResolvProxy(proxyAddress).withdrawUSRAccruedRewards();
+        vm.stopPrank();
+
+        // Attempt calling as a random address - should revert
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pResolvProxy__NotP2pOperator.selector, nobody));
+        P2pResolvProxy(proxyAddress).withdrawUSRAccruedRewards();
+        vm.stopPrank();
+    }
+
     function test_transferP2pSigner_Mainnet() public {
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
