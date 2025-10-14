@@ -71,7 +71,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         require(_USR != address(0), P2pResolvProxy__ZeroAddress_USR());
         i_USR = _USR;
 
-
         i_stUSR = _stUSR;
 
         i_RESOLV = _RESOLV;

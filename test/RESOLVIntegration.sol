@@ -113,6 +113,50 @@ contract RESOLVIntegration is Test {
 //        assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore + profit, 1);
     }
 
+    function test_withdrawRESOLVAccruedRewards_byP2pOperator_Mainnet() public {
+        // Simulate initial deposit to create some rewards later
+        deal(RESOLV, clientAddress, 100e18);
+        _doDeposit();
+
+        // Simulate time passing to accrue rewards
+        _forward(10000000);
+
+        // Simulate yield by increasing the proxy's stRESOLV balance
+        // This simulates earning rewards in the form of additional stRESOLV shares
+        uint256 currentStResolv = IERC20(stRESOLV).balanceOf(proxyAddress);
+        uint256 yieldAmount = 5e18; // 5 stRESOLV as yield
+        deal(stRESOLV, proxyAddress, currentStResolv + yieldAmount);
+
+        // Verify that accrued rewards are now positive
+        int256 accruedRewards = P2pResolvProxy(proxyAddress).calculateAccruedRewardsRESOLV();
+        assertGt(accruedRewards, 0, "No accrued rewards to withdraw");
+
+        // Withdraw accrued rewards as P2pOperator (two-step process)
+        vm.startPrank(p2pOperatorAddress);
+        uint256 treasuryBalanceBefore = IERC20(RESOLV).balanceOf(P2pTreasury);
+
+        // Step 1: Initiate withdrawal of accrued rewards
+        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLVAccruedRewards();
+
+        // Step 2: Wait for the withdrawal delay period
+        _forward(7 days);
+
+        // Step 3: Simulate yield by increasing the proxy's stRESOLV balance
+        // This makes the remaining stRESOLV shares worth more RESOLV
+        // Since shares were burned during initiation, we need to simulate yield differently
+        // The key is to increase the proxy's stRESOLV balance directly
+        uint256 currentStResolvBalance = IERC20(stRESOLV).balanceOf(proxyAddress);
+        deal(stRESOLV, proxyAddress, currentStResolvBalance + 2e18);
+
+        // Step 4: Complete the withdrawal
+        P2pResolvProxy(proxyAddress).withdrawRESOLV();
+
+        uint256 treasuryBalanceAfter = IERC20(RESOLV).balanceOf(P2pTreasury);
+        assertGt(treasuryBalanceAfter, treasuryBalanceBefore, "Treasury did not receive accrued rewards");
+
+        vm.stopPrank();
+    }
+
     function test_Resolv_profitSplit_Mainnet_RESOLV() public {
         deal(RESOLV, clientAddress, 100e18);
 
