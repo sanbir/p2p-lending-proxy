@@ -12,6 +12,9 @@ import "./IP2pResolvProxy.sol";
 error P2pResolvProxy__ZeroAddress_USR();
 error P2pResolvProxy__AssetNotSupported(address _asset);
 error P2pResolvProxy__UnauthorizedAccount(address _account);
+error P2pResolvProxy__NotP2pOperator(address _caller);
+error P2pResolvProxy__CallerNeitherClientNorP2pOperator(address _caller);
+error P2pResolvProxy__ZeroAccruedRewards();
 
 contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     using SafeERC20 for IERC20;
@@ -29,6 +32,22 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     address internal immutable i_stRESOLV;
 
     IStakedTokenDistributor private immutable i_stakedTokenDistributor;
+
+    /// @dev Throws if called by any account other than the P2pOperator.
+    modifier onlyP2pOperator() {
+        address p2pOperator = i_factory.getP2pOperator();
+        require (msg.sender == p2pOperator, P2pResolvProxy__NotP2pOperator(msg.sender));
+        _;
+    }
+
+    /// @dev Throws if called by any account other than client or P2pOperator.
+    modifier onlyClientOrP2pOperator() {
+        if (msg.sender != s_client) {
+            address p2pOperator = i_factory.getP2pOperator();
+            require (msg.sender == p2pOperator, P2pResolvProxy__CallerNeitherClientNorP2pOperator(msg.sender));
+        }
+        _;
+    }
 
     /// @notice Constructor for P2pResolvProxy
     /// @param _factory Factory address
@@ -51,7 +70,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker) {
         require(_USR != address(0), P2pResolvProxy__ZeroAddress_USR());
         i_USR = _USR;
-
 
         i_stUSR = _stUSR;
 
@@ -94,6 +112,18 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         );
     }
 
+    function withdrawUSRAccruedRewards()
+    external
+    onlyP2pOperator {
+        int256 amount = calculateAccruedRewardsUSR();
+        require (amount > 0, P2pResolvProxy__ZeroAccruedRewards());
+        _withdraw(
+            i_stUSR,
+            i_USR,
+            abi.encodeWithSelector(IStUSR.withdraw.selector, amount)
+        );
+    }
+
     /// @inheritdoc IP2pResolvProxy
     function withdrawAllUSR()
     external
@@ -112,10 +142,18 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         return IResolvStaking(i_stRESOLV).initiateWithdrawal(_amount);
     }
 
+    function initiateWithdrawalRESOLVAccruedRewards()
+    external
+    onlyP2pOperator {
+        int256 amount = calculateAccruedRewardsRESOLV();
+        require (amount > 0, P2pResolvProxy__ZeroAccruedRewards());
+        return IResolvStaking(i_stRESOLV).initiateWithdrawal(uint256(amount));
+    }
+
     /// @inheritdoc IP2pResolvProxy
     function withdrawRESOLV()
     external
-    onlyClient {
+    onlyClientOrP2pOperator {
         bool isEnabled = IResolvStaking(i_stRESOLV).claimEnabled();
 
         _withdraw(
@@ -146,6 +184,30 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         i_stakedTokenDistributor.claim(_index, _amount, _merkleProof);
 
         emit P2pResolvProxy__Claimed(_amount);
+    }
+
+    function getUserPrincipalUSR() public view returns(uint256) {
+        return getUserPrincipal(i_USR);
+    }
+
+    function getUserPrincipalRESOLV() public view returns(uint256) {
+        return getUserPrincipal(i_RESOLV);
+    }
+
+    function calculateAccruedRewardsUSR() public view returns(int256) {
+        return calculateAccruedRewards(i_stUSR,i_USR);
+    }
+
+    function calculateAccruedRewardsRESOLV() public view returns(int256) {
+        return calculateAccruedRewards(i_stRESOLV,i_RESOLV);
+    }
+
+    function getLastFeeCollectionTimeUSR() public view returns(uint48) {
+        return getLastFeeCollectionTime(i_USR);
+    }
+
+    function getLastFeeCollectionTimeRESOLV() public view returns(uint48) {
+        return getLastFeeCollectionTime(i_RESOLV);
     }
 
     /// @inheritdoc ERC165
