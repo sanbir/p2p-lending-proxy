@@ -3,7 +3,7 @@
 
 pragma solidity 0.8.27;
 
-import "../../src/@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import "../../src/@openzeppelin/contracts-upgradable/proxy/utils/Initializable.sol";
 import "../../src/common/IAllowedCalldataChecker.sol";
 
 /// @title MockAllowedCalldataChecker
