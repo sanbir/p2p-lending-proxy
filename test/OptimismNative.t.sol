@@ -206,11 +206,11 @@ contract OptimismNative is Test, MerkleReader {
         assertEq(IP2pSuperformProxy(proxyAddress).getClientBasisPointsOfProfit(), ClientBasisPointsOfProfit);
     }
 
-    function testP2pSuperformProxyFactory_GetP2pOperatorAddress() public {
+    function testP2pSuperformProxyFactory_GetP2pOperatorAddress() public view {
         assertEq(factory.getP2pOperator(), p2pOperatorAddress);
     }
 
-    function testP2pSuperformProxyFactory_GetP2pSignerAddress() public {
+    function testP2pSuperformProxyFactory_GetP2pSignerAddress() public view {
         assertEq(factory.getP2pSigner(), p2pSignerAddress);
     }
 
