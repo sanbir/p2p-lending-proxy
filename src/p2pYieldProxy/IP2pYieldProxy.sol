@@ -31,7 +31,7 @@ interface IP2pYieldProxy is IERC165 {
         address indexed _asset,
         uint256 _assets,
         uint256 _totalWithdrawnAfter,
-        uint256 _newProfit,
+        int256 _accruedRewards,
         uint256 _p2pAmount,
         uint256 _clientAmount
     );

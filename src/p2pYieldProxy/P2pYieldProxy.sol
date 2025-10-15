@@ -12,6 +12,7 @@ import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../@permit2/libraries/Permit2Lib.sol";
 import "../common/IAllowedCalldataChecker.sol";
 import "../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
+import "../structs/P2pStructs.sol";
 import "./IP2pYieldProxy.sol";
 import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
@@ -73,7 +74,7 @@ abstract contract P2pYieldProxy is
 
     mapping(uint256 vaultId => mapping(address asset => uint256 amount)) internal s_totalDeposited;
 
-    mapping(uint256 vaultId => mapping(address asset => uint256 amount)) internal s_totalWithdrawn;
+    mapping(uint256 vaultId => mapping(address asset => Withdrawn withdrawn)) internal s_totalWithdrawn;
 
     /// @notice If caller is not factory, revert
     modifier onlyFactory() {
@@ -284,6 +285,8 @@ abstract contract P2pYieldProxy is
     onlyClient
     nonReentrant
     {
+        int256 accruedRewards = calculateAccruedRewards(_vaultId, _asset);
+
         bool isNative = _asset == NATIVE;
 
         uint256 assetAmountBefore = isNative
@@ -304,33 +307,19 @@ abstract contract P2pYieldProxy is
             return;
         }
 
-        uint256 totalWithdrawnBefore = s_totalWithdrawn[_vaultId][_asset];
+        Withdrawn memory withdrawn = s_totalWithdrawn[_vaultId][_asset];
+        uint256 totalWithdrawnBefore = uint256(withdrawn.amount);
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
-        uint256 totalDeposited = s_totalDeposited[_vaultId][_asset];
 
         // update total withdrawn
-        s_totalWithdrawn[_vaultId][_asset] = totalWithdrawnAfter;
-
-        // Calculate profit increment
-        // profit = (total withdrawn after this - total deposited)
-        // If it's negative or zero, no profit yet
-        uint256 profitBefore;
-        if (totalWithdrawnBefore > totalDeposited) {
-            profitBefore = totalWithdrawnBefore - totalDeposited;
-        }
-        uint256 profitAfter;
-        if (totalWithdrawnAfter > totalDeposited) {
-            profitAfter = totalWithdrawnAfter - totalDeposited;
-        }
-        uint256 newProfit;
-        if (profitAfter > profitBefore) {
-            newProfit = profitAfter - profitBefore;
-        }
+        withdrawn.amount = uint208(totalWithdrawnAfter);
+        withdrawn.lastFeeCollectionTime = uint48(block.timestamp);
+        s_totalWithdrawn[_vaultId][_asset] = withdrawn;
 
         uint256 p2pAmount;
-        if (newProfit > 0) {
+        if (accruedRewards > 0) {
             // That extra 9999 ensures that any nonzero remainder will push the result up by 1 (ceiling division).
-            p2pAmount = (newProfit * (10_000 - s_clientBasisPointsOfProfit) + 9999) / 10_000;
+            p2pAmount = (uint256(accruedRewards) * (10_000 - s_clientBasisPointsOfProfit) + 9999) / 10_000;
         }
         uint256 clientAmount = newAssetAmount - p2pAmount;
 
@@ -353,7 +342,7 @@ abstract contract P2pYieldProxy is
             _asset,
             newAssetAmount,
             totalWithdrawnAfter,
-            newProfit,
+            accruedRewards,
             p2pAmount,
             clientAmount
         );
@@ -447,7 +436,22 @@ abstract contract P2pYieldProxy is
 
     /// @inheritdoc IP2pYieldProxy
     function getTotalWithdrawn(uint256 _vaultId, address _asset) external view returns (uint256) {
-        return s_totalWithdrawn[_vaultId][_asset];
+        return s_totalWithdrawn[_vaultId][_asset].amount;
+    }
+
+    function getUserPrincipal(uint256 _vaultId, address _asset) public view returns(uint256) {
+        uint256 totalDeposited = s_totalDeposited[_vaultId][_asset];
+        uint256 totalWithdrawn = s_totalWithdrawn[_vaultId][_asset].amount;
+        if (totalDeposited > totalWithdrawn) {
+            return totalDeposited - totalWithdrawn;
+        }
+        return 0;
+    }
+
+    function calculateAccruedRewards(uint256 _vaultId, address _asset) public view virtual returns(int256);
+
+    function getLastFeeCollectionTime(uint256 _vaultId, address _asset) public view returns(uint48) {
+        return s_totalWithdrawn[_vaultId][_asset].lastFeeCollectionTime;
     }
 
     /// @inheritdoc ERC165

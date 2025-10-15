@@ -4,12 +4,12 @@
 pragma solidity 0.8.27;
 
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
+import "../IBaseForm.sol";
 import "../IBaseRouter.sol";
 import "../IERC1155A.sol";
 import "../IRewardsDistributor.sol";
 import "../p2pSuperformProxyFactory/IP2pSuperformProxyFactory.sol";
 import "./IP2pSuperformProxy.sol";
-import {console} from "../../../../lib/forge-std/src/console.sol";
 
 error P2pSuperformProxy__SuperformCalldataTooShort();
 error P2pSuperformProxy__SelectorNotSupported(bytes4 _selector);
@@ -269,6 +269,17 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         bytes calldata
     ) external pure returns (bytes4) {
         return bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"));
+    }
+
+    function calculateAccruedRewards(uint256 _vaultId, address _asset) public view override returns(int256) {
+        uint256 shares = IERC1155A(i_superPositions).balanceOf(
+            address(this),
+            _vaultId
+        );
+        IBaseForm vault = IBaseForm(address(uint160(_vaultId)));
+        uint256 currentAmount = vault.previewRedeemFrom(shares);
+        uint256 userPrincipal = getUserPrincipal(_vaultId, _asset);
+        return int256(currentAmount) - int256(userPrincipal);
     }
 
     /// @inheritdoc ERC165
