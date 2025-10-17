@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.10;
+// SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
+// SPDX-License-Identifier: MIT
 
-contract P2pStructs {
-    constructor(){
+pragma solidity 0.8.27;
 
-    }
+/// @dev 256 bit struct
+/// @member Amount
+/// @member lastFeeCollectionTime Last Fee Collection Time
+struct Withdrawn {
+    uint208 amount;
+    uint48 lastFeeCollectionTime;
 }

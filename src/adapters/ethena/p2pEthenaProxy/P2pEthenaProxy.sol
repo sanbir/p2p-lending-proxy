@@ -15,6 +15,8 @@ contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
     /// @dev USDe address
     address internal immutable i_USDe;
 
+    uint256 private s_accruedRewardsBeingCooledDown;
+
     /// @notice Constructor for P2pEthenaProxy
     /// @param _factory Factory address
     /// @param _p2pTreasury P2pTreasury address
@@ -52,6 +54,10 @@ contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
     external
     onlyClient
     returns (uint256 shares) {
+        int256 accruedRewards = calculateAccruedRewards(i_USDe);
+        if (accruedRewards > 0 ) {
+            s_accruedRewardsBeingCooledDown += uint256(accruedRewards);
+        }
         return IStakedUSDe(i_yieldProtocolAddress).cooldownAssets(_assets);
     }
 
@@ -60,6 +66,10 @@ contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
     external
     onlyClient
     returns (uint256 assets) {
+        int256 accruedRewards = calculateAccruedRewards(i_USDe);
+        if (accruedRewards > 0 ) {
+            s_accruedRewardsBeingCooledDown += uint256(accruedRewards);
+        }
         return IStakedUSDe(i_yieldProtocolAddress).cooldownShares(_shares);
     }
 

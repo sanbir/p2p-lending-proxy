@@ -13,6 +13,7 @@ import "../@permit2/libraries/Permit2Lib.sol";
 import "../common/AllowedCalldataChecker.sol";
 import "../common/P2pStructs.sol";
 import "../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
+import "../structs/P2pStructs.sol";
 import "./IP2pYieldProxy.sol";
 import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
@@ -86,8 +87,8 @@ abstract contract P2pYieldProxy is
     // asset => amount
     mapping(address => uint256) internal s_totalDeposited;
 
-    // asset => amount
-    mapping(address => uint256) internal s_totalWithdrawn;
+    // asset => amount,lastFeeCollectionTime
+    mapping(address => Withdrawn) internal s_totalWithdrawn;
 
     /// @notice If caller is not factory, revert
     modifier onlyFactory() {
@@ -234,33 +235,19 @@ abstract contract P2pYieldProxy is
 
         uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
 
-        uint256 totalWithdrawnBefore = s_totalWithdrawn[_asset];
+        Withdrawn memory withdrawn = s_totalWithdrawn[_asset];
+        uint256 totalWithdrawnBefore = uint256(withdrawn.amount);
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
-        uint256 totalDeposited = s_totalDeposited[_asset];
 
         // update total withdrawn
-        s_totalWithdrawn[_asset] = totalWithdrawnAfter;
-
-        // Calculate profit increment
-        // profit = (total withdrawn after this - total deposited)
-        // If it's negative or zero, no profit yet
-        uint256 profitBefore;
-        if (totalWithdrawnBefore > totalDeposited) {
-            profitBefore = totalWithdrawnBefore - totalDeposited;
-        }
-        uint256 profitAfter;
-        if (totalWithdrawnAfter > totalDeposited) {
-            profitAfter = totalWithdrawnAfter - totalDeposited;
-        }
-        uint256 newProfit;
-        if (profitAfter > profitBefore) {
-            newProfit = profitAfter - profitBefore;
-        }
+        withdrawn.amount = uint208(totalWithdrawnAfter);
+        withdrawn.lastFeeCollectionTime = uint48(block.timestamp);
+        s_totalWithdrawn[_asset] = withdrawn;
 
         uint256 p2pAmount;
-        if (newProfit > 0) {
+        if (accruedRewards > 0) {
             // That extra 9999 ensures that any nonzero remainder will push the result up by 1 (ceiling division).
-            p2pAmount = (newProfit * (10_000 - s_clientBasisPoints) + 9999) / 10_000;
+            p2pAmount = (uint256(accruedRewards) * (10_000 - s_clientBasisPoints) + 9999) / 10_000;
         }
         uint256 clientAmount = newAssetAmount - p2pAmount;
 
@@ -276,7 +263,7 @@ abstract contract P2pYieldProxy is
             _asset,
             newAssetAmount,
             totalWithdrawnAfter,
-            newProfit,
+            accruedRewards,
             p2pAmount,
             clientAmount
         );
@@ -336,7 +323,27 @@ abstract contract P2pYieldProxy is
 
     /// @inheritdoc IP2pYieldProxy
     function getTotalWithdrawn(address _asset) external view returns (uint256) {
-        return s_totalWithdrawn[_asset];
+        return s_totalWithdrawn[_asset].amount;
+    }
+
+    function getUserPrincipal(address _asset) public view returns(uint256) {
+        uint256 totalDeposited = s_totalDeposited[_asset];
+        uint256 totalWithdrawn = s_totalWithdrawn[_asset].amount;
+        if (totalDeposited > totalWithdrawn) {
+            return totalDeposited - totalWithdrawn;
+        }
+        return 0;
+    }
+
+    function calculateAccruedRewards(address _asset) public view returns(int256) {
+        uint256 shares = IERC20(i_yieldProtocolAddress).balanceOf(address(this));
+        uint256 currentAmount = IERC4626(i_yieldProtocolAddress).previewRedeem(shares);
+        uint256 userPrincipal = getUserPrincipal(_asset);
+        return int256(currentAmount) - int256(userPrincipal);
+    }
+
+    function getLastFeeCollectionTime(address _asset) public view returns(uint48) {
+        return s_totalWithdrawn[_asset].lastFeeCollectionTime;
     }
 
     /// @inheritdoc ERC165
