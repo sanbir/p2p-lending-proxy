@@ -1028,6 +1028,7 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
+
     function _doWithdraw(uint256 denominator) private {
         uint256 sharesBalance = IERC20(sUSDe).balanceOf(proxyAddress);
         console.log("sharesBalance");
