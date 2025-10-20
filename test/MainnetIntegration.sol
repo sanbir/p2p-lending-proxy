@@ -95,7 +95,7 @@ contract MainnetIntegration is Test {
 
         uint256 assetBalanceAfterAllWithdrawals = IERC20(USDe).balanceOf(clientAddress);
 
-        uint256 profit = 1626268546465784;
+        uint256 profit = 780608902303576;
         assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore + profit, 1);
     }
 
@@ -135,8 +135,8 @@ contract MainnetIntegration is Test {
         console.log(clientBalanceChange);
         console.log(p2pBalanceChange);
 
-//        assertApproxEqAbs(ClientBasisPoints, clientBasisPointsDeFacto, 1);
-//        assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
+        assertApproxEqAbs(ClientBasisPoints, clientBasisPointsDeFacto, 1);
+        assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
     }
 
     function test_transferP2pSigner_Mainnet() public {

@@ -218,9 +218,11 @@ abstract contract P2pYieldProxy is
     /// @notice Withdraw assets from yield protocol
     /// @param _asset ERC-20 asset address
     /// @param _yieldProtocolWithdrawalCalldata calldata for withdraw function of yield protocol
+    /// @param _accruedRewards accrued rewards
     function _withdraw(
         address _asset,
-        bytes memory _yieldProtocolWithdrawalCalldata
+        bytes memory _yieldProtocolWithdrawalCalldata,
+        int256 _accruedRewards
     )
     internal
     onlyClient
@@ -245,9 +247,9 @@ abstract contract P2pYieldProxy is
         s_totalWithdrawn[_asset] = withdrawn;
 
         uint256 p2pAmount;
-        if (accruedRewards > 0) {
+        if (_accruedRewards > 0) {
             // That extra 9999 ensures that any nonzero remainder will push the result up by 1 (ceiling division).
-            p2pAmount = (uint256(accruedRewards) * (10_000 - s_clientBasisPoints) + 9999) / 10_000;
+            p2pAmount = (uint256(_accruedRewards) * (10_000 - s_clientBasisPoints) + 9999) / 10_000;
         }
         uint256 clientAmount = newAssetAmount - p2pAmount;
 
@@ -263,7 +265,7 @@ abstract contract P2pYieldProxy is
             _asset,
             newAssetAmount,
             totalWithdrawnAfter,
-            accruedRewards,
+            _accruedRewards,
             p2pAmount,
             clientAmount
         );
