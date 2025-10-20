@@ -15,6 +15,8 @@ contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
     /// @dev USDe address
     address internal immutable i_USDe;
 
+    int256 private s_accruedRewardsBeingCooledDown;
+
     /// @notice Constructor for P2pEthenaProxy
     /// @param _factory Factory address
     /// @param _p2pTreasury P2pTreasury address
@@ -52,6 +54,8 @@ contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
     external
     onlyClient
     returns (uint256 shares) {
+        int256 accruedRewards = calculateAccruedRewards(i_USDe);
+        s_accruedRewardsBeingCooledDown += accruedRewards;
         return IStakedUSDe(i_yieldProtocolAddress).cooldownAssets(_assets);
     }
 
@@ -60,39 +64,49 @@ contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
     external
     onlyClient
     returns (uint256 assets) {
+        int256 accruedRewards = calculateAccruedRewards(i_USDe);
+        s_accruedRewardsBeingCooledDown += accruedRewards;
         return IStakedUSDe(i_yieldProtocolAddress).cooldownShares(_shares);
     }
 
     /// @inheritdoc IP2pEthenaProxy
     function withdrawAfterCooldown() external {
+        int256 accruedRewards = s_accruedRewardsBeingCooledDown;
+        s_accruedRewardsBeingCooledDown = 0;
+
         _withdraw(
             i_USDe,
             abi.encodeCall(
                 IStakedUSDe.unstake,
                 (address(this))
-            )
+            ),
+            accruedRewards
         );
     }
 
     /// @inheritdoc IP2pEthenaProxy
     function withdrawWithoutCooldown(uint256 _assets) external {
+        int256 accruedRewards = calculateAccruedRewards(i_USDe);
         _withdraw(
             i_USDe,
             abi.encodeCall(
                 IERC4626.withdraw,
                 (_assets, address(this), address(this))
-            )
+            ),
+            accruedRewards
         );
     }
 
     /// @inheritdoc IP2pEthenaProxy
     function redeemWithoutCooldown(uint256 _shares) external {
+        int256 accruedRewards = calculateAccruedRewards(i_USDe);
         _withdraw(
             i_USDe,
             abi.encodeCall(
                 IERC4626.redeem,
                 (_shares, address(this), address(this))
-            )
+            ),
+            accruedRewards
         );
     }
 
