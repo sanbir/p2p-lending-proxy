@@ -189,6 +189,11 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory, CalldataParser, IP2pMo
         return s_trustedDistributors[_distributor];
     }
 
+    /// @inheritdoc IP2pLendingProxyFactory
+    function getP2pOperator() public view override(P2pLendingProxyFactory, IP2pLendingProxyFactory) returns (address) {
+        return super.getP2pOperator();
+    }
+
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId) public view virtual override(P2pLendingProxyFactory, IERC165) returns (bool) {
         return interfaceId == type(IP2pMorphoProxyFactory).interfaceId ||
