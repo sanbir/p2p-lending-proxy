@@ -195,7 +195,6 @@ abstract contract P2pLendingProxy is
     )
     public
     virtual
-    onlyClient
     nonReentrant
     calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.Withdrawal)
     {

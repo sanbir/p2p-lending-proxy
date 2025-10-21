@@ -379,6 +379,11 @@ abstract contract P2pLendingProxyFactory is
     }
 
     /// @inheritdoc IP2pLendingProxyFactory
+    function getP2pOperator() public view virtual override(P2pOperator, IP2pLendingProxyFactory) returns (address) {
+        return super.getP2pOperator();
+    }
+
+    /// @inheritdoc IP2pLendingProxyFactory
     function getAllProxies() external view returns (address[] memory) {
         return s_allProxies;
     }

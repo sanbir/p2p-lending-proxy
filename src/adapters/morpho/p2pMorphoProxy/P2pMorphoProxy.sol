@@ -14,12 +14,21 @@ error P2pMorphoProxy__erc4626Redeem_shares_ne_shares();
 error P2pMorphoProxy__erc4626Redeem_receiver_ne_proxy();
 error P2pMorphoProxy__erc4626Redeem_owner_ne_proxy();
 error P2pMorphoProxy__NothingClaimed();
+error P2pMorphoProxy__NotP2pOperator(address _caller);
+error P2pMorphoProxy__ZeroAccruedRewards();
 
 contract P2pMorphoProxy is P2pLendingProxy, CalldataParser, IP2pMorphoProxy {
     using SafeERC20 for IERC20;
 
     /// @dev Morpho bundler
     IMorphoBundler private immutable i_morphoBundler;
+
+    /// @dev Throws if called by any account other than the P2pOperator.
+    modifier onlyP2pOperator() {
+        address p2pOperator = i_factory.getP2pOperator();
+        require (msg.sender == p2pOperator, P2pMorphoProxy__NotP2pOperator(msg.sender));
+        _;
+    }
 
     /// @notice Constructor for P2pMorphoProxy
     /// @param _morphoBundler The morpho bundler address
@@ -41,6 +50,7 @@ contract P2pMorphoProxy is P2pLendingProxy, CalldataParser, IP2pMorphoProxy {
         uint256 _shares
     )
     public
+    onlyClient
     override(P2pLendingProxy, IP2pLendingProxy) {
         // morpho multicall
         bytes[] memory dataForMulticall = abi.decode(_lendingProtocolCalldata[SELECTOR_LENGTH:], (bytes[]));
@@ -78,6 +88,26 @@ contract P2pMorphoProxy is P2pLendingProxy, CalldataParser, IP2pMorphoProxy {
             _lendingProtocolCalldata,
             _vault,
             _shares
+        );
+    }
+
+    function withdrawAccruedRewards(
+        address _lendingProtocolAddress,
+        bytes calldata _lendingProtocolCalldata,
+        address _vault
+    )
+    external
+    onlyP2pOperator {
+        address asset = IERC4626(_vault).asset();
+        int256 amount = calculateAccruedRewards(_vault, asset);
+        require (amount > 0, P2pMorphoProxy__ZeroAccruedRewards());
+        uint256 shares = IERC4626(_vault).convertToShares(uint256(amount));
+
+        super.withdraw(
+            _lendingProtocolAddress,
+            _lendingProtocolCalldata,
+            _vault,
+            shares
         );
     }
 
