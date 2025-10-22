@@ -11,7 +11,6 @@ import "../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
 import "../src/common/IMorphoBundler.sol";
 import "../src/common/P2pStructs.sol";
 import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
-import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
@@ -47,8 +46,6 @@ contract MainnetIntegration is Test {
     uint256 constant DepositAmount = 10000000;
 
     address proxyAddress;
-
-    uint48 nonce;
 
     function setUp() public {
         vm.createSelectFork("mainnet", 21308893);
@@ -170,84 +167,73 @@ contract MainnetIntegration is Test {
     function test_clientBasisPointsGreaterThan10000_Mainnet() public {
         uint96 invalidBasisPoints = 10001;
 
-        vm.startPrank(clientAddress);
-        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
-            _getMulticallDataAndPermitSingleForP2pLendingProxy();
-        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             invalidBasisPoints,
             SigDeadline
         );
 
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         vm.expectRevert(P2pMorphoProxyFactory__erc4626Deposit_receiver_ne_proxy.selector);
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
-            permitSingle,
-            permit2Signature,
+            asset,
+            DepositAmount,
             invalidBasisPoints,
             SigDeadline,
             p2pSignerSignature
         );
+        vm.stopPrank();
     }
 
     function test_zeroAddressAsset_Mainnet() public {
         vm.startPrank(clientAddress);
         
         // Get the multicall data and permit details
-        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
-            _getMulticallDataAndPermitSingleForP2pLendingProxy();
-        
-        // Set token to zero address
-        permitSingle.details.token = address(0);
-        
-        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
             SigDeadline
         );
 
-        vm.expectRevert(P2pMorphoProxyFactory__approve2_token_ne_permitSingleForP2pLendingProxy_token.selector);
+        vm.expectRevert(P2pMorphoProxyFactory__erc4626Deposit_vault_asset_mismatch.selector);
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
-            permitSingle,
-            permit2Signature,
+            address(0),
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
         );
+        vm.stopPrank();
     }
 
     function test_zeroAssetAmount_Mainnet() public {
-        vm.startPrank(clientAddress);
-        
-        // Get the multicall data and permit details
-        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
-            _getMulticallDataAndPermitSingleForP2pLendingProxy();
-        
-        // Set amount to zero
-        permitSingle.details.amount = 0;
-        
-        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
             SigDeadline
         );
 
-        vm.expectRevert(P2pMorphoProxyFactory__approve2_amount_ne_permitSingleForP2pLendingProxy_amount.selector);
+        vm.startPrank(clientAddress);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
+        vm.expectRevert(P2pMorphoProxyFactory__erc4626Deposit_assets_ne_amount.selector);
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
-            permitSingle,
-            permit2Signature,
+            asset,
+            0,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
         );
+        vm.stopPrank();
     }
 
     function test_depositDirectlyOnProxy_Mainnet() public {
@@ -256,14 +242,9 @@ contract MainnetIntegration is Test {
         // Add this line to give initial tokens to the client
         deal(asset, clientAddress, DepositAmount);
         
-        // Add this line to approve tokens for Permit2
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         
-        // Get the multicall data and permit details
-        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
-            _getMulticallDataAndPermitSingleForP2pLendingProxy();
-        
-        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
 
         // Create proxy first via factory
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -275,8 +256,8 @@ contract MainnetIntegration is Test {
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
-            permitSingle,
-            permit2Signature,
+            asset,
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -293,9 +274,10 @@ contract MainnetIntegration is Test {
         P2pMorphoProxy(proxyAddress).deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
-            permitSingle,
-            permit2Signature
+            asset,
+            DepositAmount
         );
+        vm.stopPrank();
     }
 
     function test_initializeDirectlyOnProxy_Mainnet() public {
@@ -308,12 +290,9 @@ contract MainnetIntegration is Test {
         // Add this line to give initial tokens to the client
         deal(asset, clientAddress, DepositAmount);
         
-        // Add this line to approve tokens for Permit2
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         
-        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
-            _getMulticallDataAndPermitSingleForP2pLendingProxy();
-        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
@@ -324,8 +303,8 @@ contract MainnetIntegration is Test {
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
-            permitSingle,
-            permit2Signature,
+            asset,
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -350,11 +329,9 @@ contract MainnetIntegration is Test {
         // Create proxy and do initial deposit
         deal(asset, clientAddress, DepositAmount);
         vm.startPrank(clientAddress);
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         
-        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
-            _getMulticallDataAndPermitSingleForP2pLendingProxy();
-        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
@@ -364,8 +341,8 @@ contract MainnetIntegration is Test {
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
-            permitSingle,
-            permit2Signature,
+            asset,
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -401,9 +378,6 @@ contract MainnetIntegration is Test {
         // Create proxy and do initial deposit
         deal(asset, clientAddress, DepositAmount);
         vm.startPrank(clientAddress);
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
-        
-        // Do initial deposit
         _doDeposit();
 
         // Try to withdraw with incorrect calldata
@@ -429,9 +403,6 @@ contract MainnetIntegration is Test {
         // Create proxy and do initial deposit
         deal(asset, clientAddress, DepositAmount);
         vm.startPrank(clientAddress);
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
-        
-        // Do initial deposit
         _doDeposit();
 
         // Try to withdraw using callAnyFunction
@@ -461,7 +432,7 @@ contract MainnetIntegration is Test {
         // Create proxy and do initial deposit
         deal(asset, clientAddress, DepositAmount);
         vm.startPrank(clientAddress);
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         
         // Do initial deposit
         _doDeposit();
@@ -507,7 +478,7 @@ contract MainnetIntegration is Test {
         // Create proxy and do initial deposit
         deal(asset, clientAddress, DepositAmount);
         vm.startPrank(clientAddress);
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         
         // Do initial deposit
         _doDeposit();
@@ -561,7 +532,7 @@ contract MainnetIntegration is Test {
         // Create proxy and do initial deposit
         deal(asset, clientAddress, DepositAmount);
         vm.startPrank(clientAddress);
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         
         // Do initial deposit
         _doDeposit();
@@ -606,7 +577,7 @@ contract MainnetIntegration is Test {
         // Create proxy and do initial deposit
         deal(asset, clientAddress, DepositAmount);
         vm.startPrank(clientAddress);
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         
         // Do initial deposit
         _doDeposit();
@@ -663,7 +634,7 @@ contract MainnetIntegration is Test {
         // Create proxy and do initial deposit
         deal(asset, clientAddress, DepositAmount);
         vm.startPrank(clientAddress);
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         
         // Do initial deposit
         _doDeposit();
@@ -724,25 +695,19 @@ contract MainnetIntegration is Test {
             SigDeadline
         );
 
-        // Get the multicall data and permit details
-        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
-            _getMulticallDataAndPermitSingleForP2pLendingProxy();
-        
-        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
 
         // Add this line to give tokens to the client before attempting deposit
         deal(asset, clientAddress, DepositAmount);
         
         vm.startPrank(clientAddress);
-        
-        // Add this line to approve tokens for Permit2
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
 
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
-            permitSingle,
-            permit2Signature,
+            asset,
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -797,41 +762,6 @@ contract MainnetIntegration is Test {
         assertEq(actualHash, expectedHash);
     }
 
-    function test_getPermit2HashTypedData_Mainnet() public view {
-        // Create a permit single struct
-        IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
-            details: IAllowanceTransfer.PermitDetails({
-                token: asset,
-                amount: uint160(DepositAmount),
-                expiration: uint48(SigDeadline),
-                nonce: 0
-            }),
-            spender: proxyAddress,
-            sigDeadline: SigDeadline
-        });
-
-        // Get the permit hash
-        bytes32 permitHash = factory.getPermitHash(permitSingle);
-
-        // Get the typed data hash
-        bytes32 actualTypedDataHash = factory.getPermit2HashTypedData(permitHash);
-
-        // Calculate expected hash
-        bytes32 expectedTypedDataHash = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                Permit2Lib.PERMIT2.DOMAIN_SEPARATOR(),
-                permitHash
-            )
-        );
-
-        assertEq(actualTypedDataHash, expectedTypedDataHash);
-
-        // Test the overloaded function that takes PermitSingle directly
-        bytes32 actualTypedDataHashFromPermitSingle = factory.getPermit2HashTypedData(permitSingle);
-        assertEq(actualTypedDataHashFromPermitSingle, expectedTypedDataHash);
-    }
-
     function test_supportsInterface_Mainnet() public view {
         // Test IP2pLendingProxyFactory interface support
         bool supportsP2pLendingProxyFactory = factory.supportsInterface(type(IP2pLendingProxyFactory).interfaceId);
@@ -852,13 +782,9 @@ contract MainnetIntegration is Test {
         deal(asset, clientAddress, DepositAmount);
         
         vm.startPrank(clientAddress);
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
 
-        // Get the multicall data and permit details
-        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
-            _getMulticallDataAndPermitSingleForP2pLendingProxy();
-        
-        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
 
         // Get p2p signer signature with expired deadline
         uint256 expiredDeadline = block.timestamp - 1;
@@ -878,8 +804,8 @@ contract MainnetIntegration is Test {
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
-            permitSingle,
-            permit2Signature,
+            asset,
+            DepositAmount,
             ClientBasisPoints,
             expiredDeadline,
             p2pSignerSignature
@@ -892,13 +818,9 @@ contract MainnetIntegration is Test {
         deal(asset, clientAddress, DepositAmount);
         
         vm.startPrank(clientAddress);
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
 
-        // Get the multicall data and permit details
-        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
-            _getMulticallDataAndPermitSingleForP2pLendingProxy();
-        
-        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
 
         // Create an invalid signature by using a different private key
         uint256 wrongPrivateKey = 0x12345; // Some random private key
@@ -917,8 +839,8 @@ contract MainnetIntegration is Test {
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
-            permitSingle,
-            permit2Signature,
+            asset,
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             invalidSignature
@@ -931,9 +853,7 @@ contract MainnetIntegration is Test {
         deal(asset, clientAddress, DepositAmount);
         
         vm.startPrank(clientAddress);
-        
-        // Add this line to approve tokens for Permit2
-        IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         
         // Create proxy first via factory
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -942,17 +862,13 @@ contract MainnetIntegration is Test {
             SigDeadline
         );
 
-        // Get the multicall data and permit details
-        (bytes memory multicallCallData, IAllowanceTransfer.PermitSingle memory permitSingle) = 
-            _getMulticallDataAndPermitSingleForP2pLendingProxy();
-        
-        bytes memory permit2Signature = _getPermit2SignatureForP2pLendingProxy(permitSingle);
+        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
 
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
-            permitSingle,
-            permit2Signature,
+            asset,
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
@@ -966,6 +882,7 @@ contract MainnetIntegration is Test {
         assertEq(proxy.getTotalDeposited(asset), DepositAmount);
         assertEq(factory.getP2pSigner(), p2pSignerAddress);
         assertEq(factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints), proxyAddress);
+        vm.stopPrank();
     }
 
     function test_acceptP2pOperator_Mainnet() public {
@@ -1076,31 +993,12 @@ contract MainnetIntegration is Test {
         // allowed calldata for factory
         bytes4 multicallSelector = IMorphoBundler.multicall.selector;
 
-        P2pStructs.Rule memory rule0Deposit = P2pStructs.Rule({ // approve2
-            ruleType: P2pStructs.RuleType.StartsWith,
+        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](1);
+        rulesDeposit[0] = P2pStructs.Rule({
+            ruleType: P2pStructs.RuleType.AnyCalldata,
             index: 0,
-            allowedBytes: hex"000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000002a00000000000000000000000000000000000000000000000000000000000000184af504202"
+            allowedBytes: bytes("")
         });
-        P2pStructs.Rule memory rule1Deposit = P2pStructs.Rule({ // spender in approve2 must be MorphoEthereumBundlerV2
-            ruleType: P2pStructs.RuleType.StartsWith,
-            index: 336,
-            allowedBytes: abi.encodePacked(MorphoEthereumBundlerV2)
-        });
-        P2pStructs.Rule memory rule2Deposit = P2pStructs.Rule({ // transferFrom2
-            ruleType: P2pStructs.RuleType.StartsWith,
-            index: 640,
-            allowedBytes: hex"54c53ef0"
-        });
-        P2pStructs.Rule memory rule3Deposit = P2pStructs.Rule({ // erc4626Deposit
-            ruleType: P2pStructs.RuleType.StartsWith,
-            index: 768,
-            allowedBytes: hex"6ef5eeae"
-        });
-        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](4);
-        rulesDeposit[0] = rule0Deposit;
-        rulesDeposit[1] = rule1Deposit;
-        rulesDeposit[2] = rule2Deposit;
-        rulesDeposit[3] = rule3Deposit;
 
         vm.startPrank(p2pOperatorAddress);
         factory.setCalldataRules(
@@ -1130,66 +1028,20 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function _getMulticallDataAndPermitSingleForP2pLendingProxy() private returns(bytes memory, IAllowanceTransfer.PermitSingle memory) {
-        // morpho approve2
-        IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
-            token: asset,
-            amount: uint160(DepositAmount),
-            expiration: uint48(SigDeadline),
-            nonce: nonce
-        });
-        nonce++;
-        IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
-            details: permitDetails,
-            spender: MorphoEthereumBundlerV2,
-            sigDeadline: SigDeadline
-        });
-        bytes32 permitSingleHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingle));
-        (uint8 v0, bytes32 r0, bytes32 s0) = vm.sign(clientPrivateKey, permitSingleHash);
-        bytes memory signatureForApprove2 = abi.encodePacked(r0, s0, v0);
-        bytes memory approve2CallData = abi.encodeCall(IMorphoBundler.approve2, (
-            permitSingle,
-            signatureForApprove2,
-            true
-        ));
-
-        // morpho transferFrom2
-        bytes memory transferFrom2CallData = abi.encodeCall(IMorphoBundler.transferFrom2, (
-            asset,
-            DepositAmount
-        ));
-
+    function _buildDepositMulticall(uint256 amount) private view returns(bytes memory) {
         // morpho erc4626Deposit
-        uint256 shares = IERC4626(vault).convertToShares(DepositAmount);
-        bytes memory erc4626Deposit2CallData = abi.encodeCall(IMorphoBundler.erc4626Deposit, (
+        uint256 shares = IERC4626(vault).convertToShares(amount);
+        bytes memory erc4626DepositCallData = abi.encodeCall(IMorphoBundler.erc4626Deposit, (
             vault,
-            DepositAmount,
+            amount,
             (shares * 100) / 102,
             proxyAddress
         ));
 
         // morpho multicall
-        bytes[] memory dataForMulticall = new bytes[](3);
-        dataForMulticall[0] = approve2CallData;
-        dataForMulticall[1] = transferFrom2CallData;
-        dataForMulticall[2] = erc4626Deposit2CallData;
-        bytes memory multicallCallData = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
-
-        // data for factory
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy = IAllowanceTransfer.PermitSingle({
-            details: permitDetails,
-            spender: proxyAddress,
-            sigDeadline: SigDeadline
-        });
-
-        return (multicallCallData, permitSingleForP2pLendingProxy);
-    }
-
-    function _getPermit2SignatureForP2pLendingProxy(IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy) private view returns(bytes memory) {
-        bytes32 permitSingleForP2pLendingProxyHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingleForP2pLendingProxy));
-        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(clientPrivateKey, permitSingleForP2pLendingProxyHash);
-        bytes memory permit2SignatureForP2pLendingProxy = abi.encodePacked(r1, s1, v1);
-        return permit2SignatureForP2pLendingProxy;
+        bytes[] memory dataForMulticall = new bytes[](1);
+        dataForMulticall[0] = erc4626DepositCallData;
+        return abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
     }
 
     function _getP2pSignerSignature(
@@ -1209,33 +1061,44 @@ contract MainnetIntegration is Test {
         return p2pSignerSignature;
     }
 
+    function _executeDeposit(
+        bytes memory multicallCallData,
+        uint256 amount,
+        uint96 clientBasisPoints,
+        uint256 sigDeadline,
+        bytes memory p2pSignerSignature
+    ) private {
+        vm.startPrank(clientAddress);
+        if (IERC20(asset).allowance(clientAddress, proxyAddress) < amount) {
+            IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
+        }
+        factory.deposit(
+            MorphoEthereumBundlerV2,
+            multicallCallData,
+            asset,
+            amount,
+            clientBasisPoints,
+            sigDeadline,
+            p2pSignerSignature
+        );
+        vm.stopPrank();
+    }
+
     function _doDeposit() private {
-        (
-            bytes memory multicallCallData,
-            IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy
-        ) = _getMulticallDataAndPermitSingleForP2pLendingProxy();
-        bytes memory permit2SignatureForP2pLendingProxy = _getPermit2SignatureForP2pLendingProxy(permitSingleForP2pLendingProxy);
+        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
             SigDeadline
         );
 
-        vm.startPrank(clientAddress);
-        if (IERC20(asset).allowance(clientAddress, address(Permit2Lib.PERMIT2)) == 0) {
-            IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
-        }
-        factory.deposit(
-            MorphoEthereumBundlerV2,
+        _executeDeposit(
             multicallCallData,
-            permitSingleForP2pLendingProxy,
-            permit2SignatureForP2pLendingProxy,
-
+            DepositAmount,
             ClientBasisPoints,
             SigDeadline,
             p2pSignerSignature
         );
-        vm.stopPrank();
     }
 
     function _getMulticallWithdrawalCallData(uint256 sharesToWithdraw) private view returns(bytes memory) {

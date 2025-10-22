@@ -16,7 +16,6 @@ import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
 import "forge-std/console2.sol";
-import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 import {P2pMorphoProxy} from "../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
 
 
@@ -49,8 +48,6 @@ contract MainnetMorphoClaiming is Test {
     uint256 constant DepositAmount = 10000000;
 
     address proxyAddress;
-
-    uint48 nonce;
 
     Merkle internal merkle;
     address internal distributor = 0x330eefa8a787552DC5cAd3C3cA644844B1E61Ddb;
@@ -173,31 +170,12 @@ contract MainnetMorphoClaiming is Test {
         // allowed calldata for factory
         bytes4 multicallSelector = IMorphoBundler.multicall.selector;
 
-        P2pStructs.Rule memory rule0Deposit = P2pStructs.Rule({ // approve2
-            ruleType: P2pStructs.RuleType.StartsWith,
+        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](1);
+        rulesDeposit[0] = P2pStructs.Rule({
+            ruleType: P2pStructs.RuleType.AnyCalldata,
             index: 0,
-            allowedBytes: hex"000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000002a00000000000000000000000000000000000000000000000000000000000000184af504202"
+            allowedBytes: bytes("")
         });
-        P2pStructs.Rule memory rule1Deposit = P2pStructs.Rule({ // spender in approve2 must be MorphoEthereumBundlerV2
-            ruleType: P2pStructs.RuleType.StartsWith,
-            index: 336,
-            allowedBytes: abi.encodePacked(MorphoEthereumBundlerV2)
-        });
-        P2pStructs.Rule memory rule2Deposit = P2pStructs.Rule({ // transferFrom2
-            ruleType: P2pStructs.RuleType.StartsWith,
-            index: 640,
-            allowedBytes: hex"54c53ef0"
-        });
-        P2pStructs.Rule memory rule3Deposit = P2pStructs.Rule({ // erc4626Deposit
-            ruleType: P2pStructs.RuleType.StartsWith,
-            index: 768,
-            allowedBytes: hex"6ef5eeae"
-        });
-        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](4);
-        rulesDeposit[0] = rule0Deposit;
-        rulesDeposit[1] = rule1Deposit;
-        rulesDeposit[2] = rule2Deposit;
-        rulesDeposit[3] = rule3Deposit;
 
         vm.startPrank(p2pOperatorAddress);
         factory.setCalldataRules(
@@ -227,66 +205,18 @@ contract MainnetMorphoClaiming is Test {
         vm.stopPrank();
     }
 
-    function _getMulticallDataAndPermitSingleForP2pLendingProxy() private returns(bytes memory, IAllowanceTransfer.PermitSingle memory) {
-        // morpho approve2
-        IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
-            token: asset,
-            amount: uint160(DepositAmount),
-            expiration: uint48(SigDeadline),
-            nonce: nonce
-        });
-        nonce++;
-        IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
-            details: permitDetails,
-            spender: MorphoEthereumBundlerV2,
-            sigDeadline: SigDeadline
-        });
-        bytes32 permitSingleHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingle));
-        (uint8 v0, bytes32 r0, bytes32 s0) = vm.sign(clientPrivateKey, permitSingleHash);
-        bytes memory signatureForApprove2 = abi.encodePacked(r0, s0, v0);
-        bytes memory approve2CallData = abi.encodeCall(IMorphoBundler.approve2, (
-            permitSingle,
-            signatureForApprove2,
-            true
-        ));
-
-        // morpho transferFrom2
-        bytes memory transferFrom2CallData = abi.encodeCall(IMorphoBundler.transferFrom2, (
-            asset,
-            DepositAmount
-        ));
-
-        // morpho erc4626Deposit
-        uint256 shares = IERC4626(vault).convertToShares(DepositAmount);
-        bytes memory erc4626Deposit2CallData = abi.encodeCall(IMorphoBundler.erc4626Deposit, (
+    function _buildDepositMulticall(uint256 amount) private view returns(bytes memory) {
+        uint256 shares = IERC4626(vault).convertToShares(amount);
+        bytes memory erc4626DepositCallData = abi.encodeCall(IMorphoBundler.erc4626Deposit, (
             vault,
-            DepositAmount,
+            amount,
             (shares * 100) / 102,
             proxyAddress
         ));
 
-        // morpho multicall
-        bytes[] memory dataForMulticall = new bytes[](3);
-        dataForMulticall[0] = approve2CallData;
-        dataForMulticall[1] = transferFrom2CallData;
-        dataForMulticall[2] = erc4626Deposit2CallData;
-        bytes memory multicallCallData = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
-
-        // data for factory
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy = IAllowanceTransfer.PermitSingle({
-            details: permitDetails,
-            spender: proxyAddress,
-            sigDeadline: SigDeadline
-        });
-
-        return (multicallCallData, permitSingleForP2pLendingProxy);
-    }
-
-    function _getPermit2SignatureForP2pLendingProxy(IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy) private view returns(bytes memory) {
-        bytes32 permitSingleForP2pLendingProxyHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingleForP2pLendingProxy));
-        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(clientPrivateKey, permitSingleForP2pLendingProxyHash);
-        bytes memory permit2SignatureForP2pLendingProxy = abi.encodePacked(r1, s1, v1);
-        return permit2SignatureForP2pLendingProxy;
+        bytes[] memory dataForMulticall = new bytes[](1);
+        dataForMulticall[0] = erc4626DepositCallData;
+        return abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
     }
 
     function _getP2pSignerSignature(
@@ -307,11 +237,7 @@ contract MainnetMorphoClaiming is Test {
     }
 
     function _doDeposit() private {
-        (
-            bytes memory multicallCallData,
-            IAllowanceTransfer.PermitSingle memory permitSingleForP2pLendingProxy
-        ) = _getMulticallDataAndPermitSingleForP2pLendingProxy();
-        bytes memory permit2SignatureForP2pLendingProxy = _getPermit2SignatureForP2pLendingProxy(permitSingleForP2pLendingProxy);
+        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
@@ -319,14 +245,14 @@ contract MainnetMorphoClaiming is Test {
         );
 
         vm.startPrank(clientAddress);
-        if (IERC20(asset).allowance(clientAddress, address(Permit2Lib.PERMIT2)) == 0) {
-            IERC20(asset).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        if (IERC20(asset).allowance(clientAddress, proxyAddress) < DepositAmount) {
+            IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         }
         factory.deposit(
             MorphoEthereumBundlerV2,
             multicallCallData,
-            permitSingleForP2pLendingProxy,
-            permit2SignatureForP2pLendingProxy,
+            asset,
+            DepositAmount,
 
             ClientBasisPoints,
             SigDeadline,

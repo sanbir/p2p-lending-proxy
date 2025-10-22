@@ -54,7 +54,7 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L1212) for a referen
 
 5. Backend returns JSON to the User with (client address, client basis points, signature deadline, and the signature).
 
-6. Client-side JS code prepares all the necessary data for the Morpho deposit function. Since the deposited tokens will first go from the client to the client's P2pLendingProxy instance and then from the P2pLendingProxy instance into the Morpho protocol, both of these transfers are approved by the client via Permit2. The client's P2pLendingProxy instance address is fetched from the P2pLendingProxyFactory contract's `predictP2pLendingProxyAddress` function:
+6. Client-side JS code prepares all the necessary data for the Morpho deposit function. The deposited tokens first go from the client to the client's P2pLendingProxy instance using a standard ERC20 `approve`/`transferFrom` flow, and the proxy forwards the received assets directly to the Morpho bundler. The client's P2pLendingProxy instance address is fetched from the P2pLendingProxyFactory contract's `predictP2pLendingProxyAddress` function:
 
 ```solidity
     /// @dev Computes the address of a P2pLendingProxy created by `_createP2pLendingProxy` function
@@ -67,21 +67,16 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L1212) for a referen
     ) external view returns (address);
 ```
 
-7. Client-side JS code checks if User has already approved the required amount of the deposited token for Permit2. If not, it prompts the User to call the `approve` function of the deposited token contract with the uint256 MAX value and Permit2 contract as the spender.
+7. Client-side JS code checks if the user has already approved the required amount of the deposited token for the predicted proxy address. If not, it prompts the user to call the token contract's `approve` function (typically with `uint256` max) using the proxy address as the spender.
 
-8. Client-side JS code prompts the User to do `eth_signTypedData_v4` twice:
-
-- first time to sign `PermitSingle` from the P2pLendingProxy instance into the Morpho protocol
-- second time to sign `PermitSingle` from the User's wallet into the P2pLendingProxy instance
-
-9. Client-side JS code prompts the User to call the `deposit` function of the P2pLendingProxyFactory contract:
+8. Client-side JS code prompts the user to call the `deposit` function of the P2pLendingProxyFactory contract:
 
 ```solidity
     /// @dev Deposits the lending protocol
     /// @param _lendingProtocolAddress The lending protocol address
     /// @param _lendingProtocolCalldata The lending protocol calldata
-    /// @param _permitSingleForP2pLendingProxy The permit single for P2pLendingProxy
-    /// @param _permit2SignatureForP2pLendingProxy The permit2 signature for P2pLendingProxy
+    /// @param _asset The asset supplied by the client
+    /// @param _amount The amount of `_asset` expected from the client
     /// @param _clientBasisPoints The client basis points
     /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
     /// @param _p2pSignerSignature The P2pSigner signature
@@ -89,8 +84,8 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L1212) for a referen
     function deposit(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata,
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy,
+        address _asset,
+        uint256 _amount,
 
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,

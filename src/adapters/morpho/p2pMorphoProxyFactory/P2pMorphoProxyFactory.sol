@@ -3,21 +3,18 @@
 
 pragma solidity 0.8.27;
 
-import "../../../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../../../p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
 import "../../common/CalldataParser.sol";
+import "../../../common/IMorphoBundler.sol";
 import "./IP2pMorphoProxyFactory.sol";
 import {P2pMorphoProxy} from "../p2pMorphoProxy/P2pMorphoProxy.sol";
 import {IERC4626} from "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 error P2pMorphoProxyFactory__DistributorNotTrusted(address _distributor);
 error P2pMorphoProxyFactory__IncorrectLengthOf_dataForMulticall();
-error P2pMorphoProxyFactory__approve2_amount_ne_permitSingleForP2pLendingProxy_amount();
-error P2pMorphoProxyFactory__transferFrom2_amount_ne_permitSingleForP2pLendingProxy_amount();
-error P2pMorphoProxyFactory__erc4626Deposit_assets_ne_permitSingleForP2pLendingProxy_amount();
-error P2pMorphoProxyFactory__approve2_token_ne_permitSingleForP2pLendingProxy_token();
-error P2pMorphoProxyFactory__transferFrom2_asset_ne_permitSingleForP2pLendingProxy_token();
-error P2pMorphoProxyFactory__erc4626Deposit_vault_asset_ne_permitSingleForP2pLendingProxy_token();
+error P2pMorphoProxyFactory__UnexpectedMulticallSelector(bytes4 _selector);
+error P2pMorphoProxyFactory__erc4626Deposit_assets_ne_amount();
+error P2pMorphoProxyFactory__erc4626Deposit_vault_asset_mismatch();
 error P2pMorphoProxyFactory__erc4626Deposit_receiver_ne_proxy();
 error P2pMorphoProxyFactory__ZeroTrustedDistributorAddress();
 
@@ -55,9 +52,8 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory, CalldataParser, IP2pMo
     function deposit(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata,
-
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy,
+        address _asset,
+        uint256 _amount,
 
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
@@ -70,52 +66,33 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory, CalldataParser, IP2pMo
         bytes[] memory dataForMulticall = abi.decode(_lendingProtocolCalldata[SELECTOR_LENGTH:], (bytes[]));
 
         require(
-            dataForMulticall.length == 3,
+            dataForMulticall.length == 1,
             P2pMorphoProxyFactory__IncorrectLengthOf_dataForMulticall()
         );
 
-        // morpho approve2
-        (IAllowanceTransfer.PermitSingle memory permitSingle,,) = abi.decode(
-            _slice(dataForMulticall[0], SELECTOR_LENGTH, dataForMulticall[0].length - SELECTOR_LENGTH),
-            (IAllowanceTransfer.PermitSingle, bytes, bool)
-        );
-
-        // morpho transferFrom2
-        (address asset, uint256 amount) = abi.decode(
-            _slice(dataForMulticall[1], SELECTOR_LENGTH, dataForMulticall[1].length - SELECTOR_LENGTH),
-            (address, uint256)
-        );
-
         // morpho erc4626Deposit
+        bytes memory depositCallData = dataForMulticall[0];
+        bytes4 selector;
+        assembly {
+            selector := mload(add(depositCallData, 0x20))
+        }
+        if (selector != IMorphoBundler.erc4626Deposit.selector) {
+            revert P2pMorphoProxyFactory__UnexpectedMulticallSelector(selector);
+        }
+
         (address vault, uint256 assets,, address receiver) = abi.decode(
-            _slice(dataForMulticall[2], SELECTOR_LENGTH, dataForMulticall[2].length - SELECTOR_LENGTH),
+            _slice(depositCallData, SELECTOR_LENGTH, depositCallData.length - SELECTOR_LENGTH),
             (address, uint256, uint256, address)
         );
 
         require(
-            permitSingle.details.amount == _permitSingleForP2pLendingProxy.details.amount,
-            P2pMorphoProxyFactory__approve2_amount_ne_permitSingleForP2pLendingProxy_amount()
-        );
-        require(
-            amount == _permitSingleForP2pLendingProxy.details.amount,
-            P2pMorphoProxyFactory__transferFrom2_amount_ne_permitSingleForP2pLendingProxy_amount()
-        );
-        require(
-            assets == _permitSingleForP2pLendingProxy.details.amount,
-            P2pMorphoProxyFactory__erc4626Deposit_assets_ne_permitSingleForP2pLendingProxy_amount()
+            assets == _amount,
+            P2pMorphoProxyFactory__erc4626Deposit_assets_ne_amount()
         );
 
         require(
-            permitSingle.details.token == _permitSingleForP2pLendingProxy.details.token,
-            P2pMorphoProxyFactory__approve2_token_ne_permitSingleForP2pLendingProxy_token()
-        );
-        require(
-            asset == _permitSingleForP2pLendingProxy.details.token,
-            P2pMorphoProxyFactory__transferFrom2_asset_ne_permitSingleForP2pLendingProxy_token()
-        );
-        require(
-            IERC4626(vault).asset() == _permitSingleForP2pLendingProxy.details.token,
-            P2pMorphoProxyFactory__erc4626Deposit_vault_asset_ne_permitSingleForP2pLendingProxy_token()
+            IERC4626(vault).asset() == _asset,
+            P2pMorphoProxyFactory__erc4626Deposit_vault_asset_mismatch()
         );
 
         require(
@@ -129,9 +106,8 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory, CalldataParser, IP2pMo
         return super.deposit(
             _lendingProtocolAddress,
             _lendingProtocolCalldata,
-
-            _permitSingleForP2pLendingProxy,
-            _permit2SignatureForP2pLendingProxy,
+            _asset,
+            _amount,
 
             _clientBasisPoints,
             _p2pSignerSigDeadline,

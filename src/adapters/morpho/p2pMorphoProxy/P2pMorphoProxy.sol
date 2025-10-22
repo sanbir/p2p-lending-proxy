@@ -5,6 +5,7 @@ pragma solidity 0.8.27;
 
 import "../../../p2pLendingProxy/P2pLendingProxy.sol";
 import "../../common/CalldataParser.sol";
+import "../../../common/IMorphoBundler.sol";
 import "../p2pMorphoProxyFactory/IP2pMorphoProxyFactory.sol";
 import "./IP2pMorphoProxy.sol";
 

@@ -3,24 +3,9 @@
 
 pragma solidity 0.8.27;
 
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
-
 /// @title IMorphoBundler
 /// @notice Based on https://github.com/morpho-org/morpho-blue-bundlers
 interface IMorphoBundler {
-    /// @notice Approves the given `amount` of `asset` from the initiator to be spent by `permitSingle.spender` via
-    /// Permit2 with the given `deadline` & EIP-712 `signature`.
-    /// @param permitSingle The `PermitSingle` struct.
-    /// @param signature The signature, serialized.
-    /// @param skipRevert Whether to avoid reverting the call in case the signature is frontrunned.
-    function approve2(IAllowanceTransfer.PermitSingle calldata permitSingle, bytes calldata signature, bool skipRevert)
-    external
-    payable;
-
-    /// @notice Transfers the given `amount` of `asset` from the initiator to the bundler via Permit2.
-    /// @param asset The address of the ERC20 token to transfer.
-    /// @param amount The amount of `asset` to transfer from the initiator. Capped at the initiator's balance.
-    function transferFrom2(address asset, uint256 amount) external payable;
 
     /// @notice Deposits the given amount of `assets` on the given ERC4626 `vault`, on behalf of `receiver`.
     /// @dev Initiator must have previously transferred their assets to the bundler.

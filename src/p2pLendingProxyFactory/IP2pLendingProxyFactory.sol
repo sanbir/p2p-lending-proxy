@@ -4,7 +4,6 @@
 pragma solidity 0.8.27;
 
 import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../common/IAllowedCalldataChecker.sol";
 import "../common/P2pStructs.sol";
 
@@ -63,8 +62,8 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @dev Deposits the lending protocol
     /// @param _lendingProtocolAddress The lending protocol address
     /// @param _lendingProtocolCalldata The lending protocol calldata
-    /// @param _permitSingleForP2pLendingProxy The permit single for P2pLendingProxy
-    /// @param _permit2SignatureForP2pLendingProxy The permit2 signature for P2pLendingProxy
+    /// @param _asset The asset being supplied
+    /// @param _amount The amount of asset being supplied
     /// @param _clientBasisPoints The client basis points
     /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
     /// @param _p2pSignerSignature The P2pSigner signature
@@ -72,8 +71,8 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
     function deposit(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata,
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy,
+        address _asset,
+        uint256 _amount,
 
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
@@ -111,21 +110,6 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline
     ) external view returns (bytes32);
-
-    /// @dev Gets the permit2 hash typed data
-    /// @param _permitSingle The permit single
-    /// @return The permit2 hash typed data
-    function getPermit2HashTypedData(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32);
-
-    /// @dev Gets the permit2 hash typed data
-    /// @param _permitHash The permit hash
-    /// @return The permit2 hash typed data
-    function getPermit2HashTypedData(bytes32 _permitHash) external view returns (bytes32);
-
-    /// @dev Gets the permit hash
-    /// @param _permitSingle The permit single
-    /// @return The permit hash
-    function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32);
 
     /// @dev Gets the calldata rules
     /// @param _functionType The function type

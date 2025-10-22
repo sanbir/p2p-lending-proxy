@@ -20,31 +20,12 @@ contract Deploy is Script {
         // allowed calldata for factory
         bytes4 multicallSelector = IMorphoBundler.multicall.selector;
 
-        P2pStructs.Rule memory rule0Deposit = P2pStructs.Rule({ // approve2
-            ruleType: P2pStructs.RuleType.StartsWith,
+        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](1);
+        rulesDeposit[0] = P2pStructs.Rule({
+            ruleType: P2pStructs.RuleType.AnyCalldata,
             index: 0,
-            allowedBytes: hex"000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000002a00000000000000000000000000000000000000000000000000000000000000184af504202"
+            allowedBytes: bytes("")
         });
-        P2pStructs.Rule memory rule1Deposit = P2pStructs.Rule({ // spender in approve2 must be MorphoEthereumBundlerV2
-            ruleType: P2pStructs.RuleType.StartsWith,
-            index: 336,
-            allowedBytes: abi.encodePacked(MorphoEthereumBundlerV2)
-        });
-        P2pStructs.Rule memory rule2Deposit = P2pStructs.Rule({ // transferFrom2
-            ruleType: P2pStructs.RuleType.StartsWith,
-            index: 640,
-            allowedBytes: hex"54c53ef0"
-        });
-        P2pStructs.Rule memory rule3Deposit = P2pStructs.Rule({ // erc4626Deposit
-            ruleType: P2pStructs.RuleType.StartsWith,
-            index: 768,
-            allowedBytes: hex"6ef5eeae"
-        });
-        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](4);
-        rulesDeposit[0] = rule0Deposit;
-        rulesDeposit[1] = rule1Deposit;
-        rulesDeposit[2] = rule2Deposit;
-        rulesDeposit[3] = rule3Deposit;
 
         P2pStructs.Rule memory rule0Withdrawal = P2pStructs.Rule({ // erc4626Redeem
             ruleType: P2pStructs.RuleType.StartsWith,

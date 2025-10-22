@@ -4,7 +4,6 @@
 pragma solidity 0.8.27;
 
 import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../common/IAllowedCalldataChecker.sol";
 
 /// @dev External interface of P2pLendingProxy declared to support ERC165 detection.
@@ -51,13 +50,13 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     /// @notice Deposits assets into the lending protocol
     /// @param _lendingProtocolAddress The address of the lending protocol
     /// @param _lendingProtocolCalldata The calldata to call the lending protocol
-    /// @param _permitSingleForP2pLendingProxy The permit single for the P2pLendingProxy
-    /// @param _permit2SignatureForP2pLendingProxy The permit2 signature for the P2pLendingProxy
+    /// @param _asset The ERC20 asset to transfer from the client to the proxy
+    /// @param _amount The amount of `_asset` to transfer
     function deposit(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata,
-        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy
+        address _asset,
+        uint256 _amount
     )
     external;
 

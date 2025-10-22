@@ -7,8 +7,6 @@ import "../@openzeppelin/contracts/proxy/Clones.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
-import "../@permit2/libraries/PermitHash.sol";
 import "../access/P2pOperator2Step.sol";
 import "../common/AllowedCalldataChecker.sol";
 import "../common/P2pStructs.sol";
@@ -75,7 +73,6 @@ abstract contract P2pLendingProxyFactory is
     ERC165,
     IP2pLendingProxyFactory {
 
-    using SafeCast160 for uint256;
     using SignatureChecker for address;
     using ECDSA for bytes32;
 
@@ -170,9 +167,8 @@ abstract contract P2pLendingProxyFactory is
     function deposit(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata,
-
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy,
+        address _asset,
+        uint256 _amount,
 
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
@@ -192,8 +188,8 @@ abstract contract P2pLendingProxyFactory is
         p2pLendingProxy.deposit(
             _lendingProtocolAddress,
             _lendingProtocolCalldata,
-            _permitSingleForP2pLendingProxy,
-            _permit2SignatureForP2pLendingProxy
+            _asset,
+            _amount
         );
 
         emit P2pLendingProxyFactory__Deposited(msg.sender, _clientBasisPoints);
@@ -347,21 +343,6 @@ abstract contract P2pLendingProxyFactory is
             address(this),
             block.chainid
         ));
-    }
-
-    /// @inheritdoc IP2pLendingProxyFactory
-    function getPermit2HashTypedData(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32) {
-        return getPermit2HashTypedData(getPermitHash(_permitSingle));
-    }
-
-    /// @inheritdoc IP2pLendingProxyFactory
-    function getPermit2HashTypedData(bytes32 _dataHash) public view returns (bytes32) {
-        return keccak256(abi.encodePacked("\x19\x01", Permit2Lib.PERMIT2.DOMAIN_SEPARATOR(), _dataHash));
-    }
-
-    /// @inheritdoc IP2pLendingProxyFactory
-    function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) public pure returns (bytes32) {
-        return PermitHash.hash(_permitSingle);
     }
 
     /// @inheritdoc IP2pLendingProxyFactory

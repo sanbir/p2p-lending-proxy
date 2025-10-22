@@ -7,13 +7,10 @@ import "../@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "../@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
+import "../@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
-import "../@permit2/libraries/Permit2Lib.sol";
-import "../@permit2/libraries/SignatureVerification.sol";
 import "../common/AllowedCalldataChecker.sol";
-import "../common/IMorphoBundler.sol";
 import "../common/P2pStructs.sol";
 import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
 import "./IP2pLendingProxy.sol";
@@ -41,6 +38,12 @@ error P2pLendingProxy__NotFactoryCalled(
     address _msgSender,
     IP2pLendingProxyFactory _actualFactory
 );
+
+/// @dev Error when the transferred amount does not match the requested amount
+error P2pLendingProxy__TransferredAmountMismatch(uint256 _expected, uint256 _actual);
+
+/// @dev Error when client signature verification fails
+error P2pLendingProxy__InvalidClientSignature();
 
 /// @dev Error when the client is not the caller
 /// @param _msgSender sender address.
@@ -132,39 +135,34 @@ abstract contract P2pLendingProxy is
     function deposit(
         address _lendingProtocolAddress,
         bytes calldata _lendingProtocolCalldata,
-        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pLendingProxy,
-        bytes calldata _permit2SignatureForP2pLendingProxy
+        address _asset,
+        uint256 _amount
     )
     external
     onlyFactory
     {
-        address asset = _permitSingleForP2pLendingProxy.details.token;
+        address asset = _asset;
         require (asset != address(0), P2pLendingProxy__ZeroAddressAsset());
 
-        uint160 amount = _permitSingleForP2pLendingProxy.details.amount;
+        uint256 amount = _amount;
         require (amount > 0, P2pLendingProxy__ZeroAssetAmount());
 
         address client = s_client;
 
-        // transfer tokens into Proxy
-        try Permit2Lib.PERMIT2.permit(
-            client,
-            _permitSingleForP2pLendingProxy,
-            _permit2SignatureForP2pLendingProxy
-        ) {}
-        catch {} // prevent unintended reverts due to invalidated nonce
-
         uint256 assetAmountBefore = IERC20(asset).balanceOf(address(this));
 
-        Permit2Lib.PERMIT2.transferFrom(
+        IERC20(asset).safeTransferFrom(
             client,
             address(this),
-            amount,
-            asset
+            amount
         );
 
         uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
         uint256 actualAmount = assetAmountAfter - assetAmountBefore;
+        require(
+            actualAmount == amount,
+            P2pLendingProxy__TransferredAmountMismatch(amount, actualAmount)
+        );
 
         uint256 totalDepositedAfter = s_totalDeposited[asset] + actualAmount;
         s_totalDeposited[asset] = totalDepositedAfter;
@@ -175,12 +173,7 @@ abstract contract P2pLendingProxy is
             totalDepositedAfter
         );
 
-        if (IERC20(asset).allowance(address(this), address(Permit2Lib.PERMIT2)) == 0) {
-            IERC20(asset).safeApprove(
-                address(Permit2Lib.PERMIT2),
-                type(uint256).max
-            );
-        }
+        IERC20(asset).safeTransfer(_lendingProtocolAddress, actualAmount);
 
         _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
     }
@@ -279,7 +272,9 @@ abstract contract P2pLendingProxy is
     }
 
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue) {
-        SignatureVerification.verify(signature, hash, s_client);
+        if (!SignatureChecker.isValidSignatureNow(s_client, hash, signature)) {
+            revert P2pLendingProxy__InvalidClientSignature();
+        }
 
         return IERC1271.isValidSignature.selector;
     }
