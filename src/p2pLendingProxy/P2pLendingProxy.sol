@@ -173,6 +173,12 @@ abstract contract P2pLendingProxy is
             totalDepositedAfter
         );
 
+        // The Morpho bundler’s erc4626Deposit (see its interface docs in src/common/IMorphoBundler.sol:12-21)
+        // is written to work with assets it already holds.
+        // Historically the bundler first pulled funds with its own transferFrom2,
+        // but now we front-load the transfer ourselves.
+        // When erc4626Deposit runs, it just consumes the balance already sitting on the bundler contract
+        // to mint vault shares for the proxy; it doesn’t try to pull again.
         IERC20(asset).safeTransfer(_lendingProtocolAddress, actualAmount);
 
         _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
