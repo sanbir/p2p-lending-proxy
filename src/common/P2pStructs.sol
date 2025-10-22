@@ -35,4 +35,12 @@ abstract contract P2pStructs {
         uint32 index;
         bytes allowedBytes;
     }
+
+    /// @dev 256 bit struct
+    /// @member Amount
+    /// @member lastFeeCollectionTime Last Fee Collection Time
+    struct Withdrawn {
+        uint208 amount;
+        uint48 lastFeeCollectionTime;
+    }
 }

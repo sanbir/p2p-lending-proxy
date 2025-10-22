@@ -16,7 +16,6 @@ import "../common/AllowedCalldataChecker.sol";
 import "../common/IMorphoBundler.sol";
 import "../common/P2pStructs.sol";
 import "../p2pLendingProxyFactory/IP2pLendingProxyFactory.sol";
-import "../structs/P2pStructs.sol";
 import "./IP2pLendingProxy.sol";
 import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
