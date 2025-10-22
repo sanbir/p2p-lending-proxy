@@ -121,6 +121,62 @@ contract MainnetIntegration is Test {
         assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
     }
 
+    function test_withdrawAccruedRewards_Mainnet() public {
+        // Assign USDC as the asset and VaultUSDC as the vault
+        asset = USDC;
+        vault = VaultUSDC;
+        deal(asset, clientAddress, 100e6);
+
+        // Do a deposit through the proxy
+        _doDeposit();
+
+        // Simulate yield accrual
+        uint256 shares = IERC20(vault).balanceOf(proxyAddress);
+        _forward(1_000_000); // Fast forward enough blocks/time to accrue yield
+
+        // Record P2pTreasury balance before rewards withdraw
+        uint256 p2pAssetBalanceBefore = IERC20(asset).balanceOf(P2pTreasury);
+
+        // Get the accrued rewards amount
+        P2pMorphoProxy proxy = P2pMorphoProxy(proxyAddress);
+        int256 accruedRewards = proxy.calculateAccruedRewards(vault, asset);
+        
+        // Only proceed if there are actually accrued rewards
+        if (accruedRewards > 0) {
+            // Create withdrawal calldata for the accrued rewards
+            uint256 sharesToWithdraw = IERC4626(vault).convertToShares(uint256(accruedRewards));
+            bytes memory withdrawalCallData = _getMulticallWithdrawalCallData(sharesToWithdraw);
+
+            // Withdraw accrued rewards as P2P Operator
+            vm.startPrank(p2pOperatorAddress);
+            proxy.withdrawAccruedRewards(
+                MorphoEthereumBundlerV2,
+                withdrawalCallData,
+                vault
+            );
+            vm.stopPrank();
+
+            // P2pTreasury should have increased by its cut of rewards
+            uint256 p2pAssetBalanceAfter = IERC20(asset).balanceOf(P2pTreasury);
+
+            assertGt(p2pAssetBalanceAfter, p2pAssetBalanceBefore, "No accrued rewards withdrawn to P2pTreasury");
+
+            // Also check that remaining rewards in the proxy have gone down
+            uint256 proxyAssetBalance = IERC20(asset).balanceOf(proxyAddress);
+            assertLt(proxyAssetBalance, IERC4626(vault).convertToAssets(shares), "Not all rewards withdrawn from proxy");
+        } else {
+            // If no rewards accrued, just verify the function would revert
+            vm.startPrank(p2pOperatorAddress);
+            vm.expectRevert();
+            proxy.withdrawAccruedRewards(
+                MorphoEthereumBundlerV2,
+                "",
+                vault
+            );
+            vm.stopPrank();
+        }
+    }
+
     function test_transferP2pSigner_Mainnet() public {
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
