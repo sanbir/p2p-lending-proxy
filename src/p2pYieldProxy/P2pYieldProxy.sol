@@ -223,7 +223,6 @@ abstract contract P2pYieldProxy is
         Withdrawn memory withdrawn = s_totalWithdrawn[_asset];
         uint256 totalWithdrawnBefore = uint256(withdrawn.amount);
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
-        uint256 totalDeposited = s_totalDeposited[_asset];
 
         // update total withdrawn
         withdrawn.amount = uint208(totalWithdrawnAfter);
