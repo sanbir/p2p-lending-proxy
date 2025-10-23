@@ -165,11 +165,9 @@ abstract contract P2pLendingProxyFactory is
 
     /// @inheritdoc IP2pLendingProxyFactory
     function deposit(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
         address _asset,
+        address _vault,
         uint256 _amount,
-
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
@@ -178,16 +176,25 @@ abstract contract P2pLendingProxyFactory is
     virtual
     p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
     p2pSignerSignatureShouldBeValid(_clientBasisPoints, _p2pSignerSigDeadline, _p2pSignerSignature)
-    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.Deposit)
     returns (address p2pLendingProxyAddress)
     {
+        (address lendingProtocol, bytes memory lendingCalldata) = _prepareDepositCall(
+            msg.sender,
+            _asset,
+            _vault,
+            _amount,
+            _clientBasisPoints
+        );
+
+        _checkCalldataFromMemory(lendingProtocol, lendingCalldata, FunctionType.Deposit);
+
         // create proxy if not created yet
         P2pLendingProxy p2pLendingProxy = _getOrCreateP2pLendingProxy(_clientBasisPoints);
 
         // deposit via proxy
         p2pLendingProxy.deposit(
-            _lendingProtocolAddress,
-            _lendingProtocolCalldata,
+            lendingProtocol,
+            lendingCalldata,
             _asset,
             _amount
         );
@@ -196,6 +203,14 @@ abstract contract P2pLendingProxyFactory is
 
         p2pLendingProxyAddress = address(p2pLendingProxy);
     }
+
+    function _prepareDepositCall(
+        address _client,
+        address _asset,
+        address _vault,
+        uint256 _amount,
+        uint96 _clientBasisPoints
+    ) internal view virtual returns (address lendingProtocol, bytes memory lendingCalldata);
 
     function _transferP2pSigner(
         address _newP2pSigner

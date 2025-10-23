@@ -138,7 +138,8 @@ abstract contract P2pLendingProxy is
         address _asset,
         uint256 _amount
     )
-    external
+    public
+    virtual
     onlyFactory
     {
         address asset = _asset;

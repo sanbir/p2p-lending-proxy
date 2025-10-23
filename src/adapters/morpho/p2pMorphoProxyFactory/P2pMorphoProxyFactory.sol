@@ -4,21 +4,19 @@
 pragma solidity 0.8.27;
 
 import "../../../p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
-import "../../common/CalldataParser.sol";
 import "../../../common/IMorphoBundler.sol";
 import "./IP2pMorphoProxyFactory.sol";
 import {P2pMorphoProxy} from "../p2pMorphoProxy/P2pMorphoProxy.sol";
 import {IERC4626} from "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 error P2pMorphoProxyFactory__DistributorNotTrusted(address _distributor);
-error P2pMorphoProxyFactory__IncorrectLengthOf_dataForMulticall();
-error P2pMorphoProxyFactory__UnexpectedMulticallSelector(bytes4 _selector);
 error P2pMorphoProxyFactory__erc4626Deposit_assets_ne_amount();
 error P2pMorphoProxyFactory__erc4626Deposit_vault_asset_mismatch();
 error P2pMorphoProxyFactory__erc4626Deposit_receiver_ne_proxy();
+error P2pMorphoProxyFactory__ZeroVaultAddress();
 error P2pMorphoProxyFactory__ZeroTrustedDistributorAddress();
 
-contract P2pMorphoProxyFactory is P2pLendingProxyFactory, CalldataParser, IP2pMorphoProxyFactory {
+contract P2pMorphoProxyFactory is P2pLendingProxyFactory, IP2pMorphoProxyFactory {
     /// @dev Emitted when the trusted distributor is set
     event P2pMorphoProxyFactory__TrustedDistributorSet(
         address indexed _newTrustedDistributor
@@ -28,6 +26,9 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory, CalldataParser, IP2pMo
     event P2pMorphoProxyFactory__TrustedDistributorRemoved(
         address indexed _trustedDistributor
     );
+
+    /// @dev Morpho bundler
+    IMorphoBundler private immutable i_morphoBundler;
 
     // distributor address => true
     mapping(address => bool) private s_trustedDistributors;
@@ -41,6 +42,7 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory, CalldataParser, IP2pMo
         address _p2pSigner,
         address _p2pTreasury
     ) P2pLendingProxyFactory(_p2pSigner) {
+        i_morphoBundler = IMorphoBundler(_morphoBundler);
         i_referenceP2pLendingProxy = new P2pMorphoProxy(
             _morphoBundler,
             address(this),
@@ -48,71 +50,50 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory, CalldataParser, IP2pMo
         );
     }
 
-    /// @inheritdoc IP2pLendingProxyFactory
-    function deposit(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
+    function _prepareDepositCall(
+        address _client,
         address _asset,
+        address _vault,
         uint256 _amount,
-
-        uint96 _clientBasisPoints,
-        uint256 _p2pSignerSigDeadline,
-        bytes calldata _p2pSignerSignature
-    )
-    public
-    override(P2pLendingProxyFactory, IP2pLendingProxyFactory)
-    returns (address p2pLendingProxyAddress) {
-        // morpho multicall
-        bytes[] memory dataForMulticall = abi.decode(_lendingProtocolCalldata[SELECTOR_LENGTH:], (bytes[]));
+        uint96 _clientBasisPoints
+    ) internal view override returns (address lendingProtocol, bytes memory lendingCalldata) {
+        require(_vault != address(0), P2pMorphoProxyFactory__ZeroVaultAddress());
 
         require(
-            dataForMulticall.length == 1,
-            P2pMorphoProxyFactory__IncorrectLengthOf_dataForMulticall()
-        );
-
-        // morpho erc4626Deposit
-        bytes memory depositCallData = dataForMulticall[0];
-        bytes4 selector;
-        assembly {
-            selector := mload(add(depositCallData, 0x20))
-        }
-        if (selector != IMorphoBundler.erc4626Deposit.selector) {
-            revert P2pMorphoProxyFactory__UnexpectedMulticallSelector(selector);
-        }
-
-        (address vault, uint256 assets,, address receiver) = abi.decode(
-            _slice(depositCallData, SELECTOR_LENGTH, depositCallData.length - SELECTOR_LENGTH),
-            (address, uint256, uint256, address)
-        );
-
-        require(
-            assets == _amount,
-            P2pMorphoProxyFactory__erc4626Deposit_assets_ne_amount()
-        );
-
-        require(
-            IERC4626(vault).asset() == _asset,
+            IERC4626(_vault).asset() == _asset,
             P2pMorphoProxyFactory__erc4626Deposit_vault_asset_mismatch()
         );
 
+        address predictedProxy = predictP2pLendingProxyAddress(
+            _client,
+            _clientBasisPoints
+        );
+
         require(
-            receiver == predictP2pLendingProxyAddress(
-                msg.sender,
-                _clientBasisPoints
-            ),
+            predictedProxy != address(0),
             P2pMorphoProxyFactory__erc4626Deposit_receiver_ne_proxy()
         );
 
-        return super.deposit(
-            _lendingProtocolAddress,
-            _lendingProtocolCalldata,
-            _asset,
-            _amount,
-
-            _clientBasisPoints,
-            _p2pSignerSigDeadline,
-            _p2pSignerSignature
+        require(
+            _amount > 0,
+            P2pMorphoProxyFactory__erc4626Deposit_assets_ne_amount()
         );
+
+        uint256 minShares = IERC4626(_vault).convertToShares(_amount);
+        minShares = (minShares * 100) / 102;
+
+        bytes memory erc4626DepositCall = abi.encodeCall(IMorphoBundler.erc4626Deposit, (
+            _vault,
+            _amount,
+            minShares,
+            predictedProxy
+        ));
+
+        bytes[] memory dataForMulticall = new bytes[](1);
+        dataForMulticall[0] = erc4626DepositCall;
+
+        lendingProtocol = address(i_morphoBundler);
+        lendingCalldata = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
     }
 
     /// @dev Sets the trusted distributor

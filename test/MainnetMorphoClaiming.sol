@@ -205,20 +205,6 @@ contract MainnetMorphoClaiming is Test {
         vm.stopPrank();
     }
 
-    function _buildDepositMulticall(uint256 amount) private view returns(bytes memory) {
-        uint256 shares = IERC4626(vault).convertToShares(amount);
-        bytes memory erc4626DepositCallData = abi.encodeCall(IMorphoBundler.erc4626Deposit, (
-            vault,
-            amount,
-            (shares * 100) / 102,
-            proxyAddress
-        ));
-
-        bytes[] memory dataForMulticall = new bytes[](1);
-        dataForMulticall[0] = erc4626DepositCallData;
-        return abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
-    }
-
     function _getP2pSignerSignature(
         address _clientAddress,
         uint96 _clientBasisPoints,
@@ -237,7 +223,6 @@ contract MainnetMorphoClaiming is Test {
     }
 
     function _doDeposit() private {
-        bytes memory multicallCallData = _buildDepositMulticall(DepositAmount);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
@@ -249,9 +234,8 @@ contract MainnetMorphoClaiming is Test {
             IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         }
         factory.deposit(
-            MorphoEthereumBundlerV2,
-            multicallCallData,
             asset,
+            vault,
             DepositAmount,
 
             ClientBasisPoints,

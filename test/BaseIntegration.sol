@@ -96,20 +96,6 @@ contract BaseIntegration is Test {
         );
         vm.stopPrank();
 
-        // morpho erc4626Deposit
-        uint256 shares = IERC4626(VaultUSDC).convertToShares(DepositAmount);
-        bytes memory erc4626DepositCallData = abi.encodeCall(IMorphoBundler.erc4626Deposit, (
-            VaultUSDC,
-            DepositAmount,
-            (shares * 100) / 102,
-            proxyAddress
-        ));
-
-        // morpho multicall
-        bytes[] memory dataForMulticall = new bytes[](1);
-        dataForMulticall[0] = erc4626DepositCallData;
-        bytes memory multicallCallData = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
-
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
         clientAddress,
@@ -123,9 +109,8 @@ contract BaseIntegration is Test {
         vm.startPrank(clientAddress);
         IERC20(USDC).approve(proxyAddress, type(uint256).max);
         factory.deposit(
-            MorphoEthereumBundlerV2,
-            multicallCallData,
             USDC,
+            VaultUSDC,
             DepositAmount,
 
             ClientBasisPoints,
