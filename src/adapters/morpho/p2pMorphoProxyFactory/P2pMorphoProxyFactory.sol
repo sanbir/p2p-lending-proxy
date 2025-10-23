@@ -52,17 +52,14 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory, IP2pMorphoProxyFactory
 
     function _prepareDepositCall(
         address _client,
-        address _asset,
         address _vault,
         uint256 _amount,
         uint96 _clientBasisPoints
-    ) internal view override returns (address lendingProtocol, bytes memory lendingCalldata) {
+    ) internal view override returns (address asset, address lendingProtocol, bytes memory lendingCalldata) {
         require(_vault != address(0), P2pMorphoProxyFactory__ZeroVaultAddress());
 
-        require(
-            IERC4626(_vault).asset() == _asset,
-            P2pMorphoProxyFactory__erc4626Deposit_vault_asset_mismatch()
-        );
+        asset = IERC4626(_vault).asset();
+        require(asset != address(0), P2pMorphoProxyFactory__erc4626Deposit_vault_asset_mismatch());
 
         address predictedProxy = predictP2pLendingProxyAddress(
             _client,

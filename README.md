@@ -73,18 +73,14 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L1212) for a referen
 
 ```solidity
     /// @dev Deposits the lending protocol
-    /// @param _lendingProtocolAddress The lending protocol address
-    /// @param _lendingProtocolCalldata The lending protocol calldata
-    /// @param _asset The asset supplied by the client
-    /// @param _amount The amount of `_asset` expected from the client
+    /// @param _vault The vault that receives the deposit
+    /// @param _amount The amount of assets expected from the client
     /// @param _clientBasisPoints The client basis points
     /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
     /// @param _p2pSignerSignature The P2pSigner signature
     /// @return p2pLendingProxyAddress The client's P2pLendingProxy instance address
     function deposit(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        address _asset,
+        address _vault,
         uint256 _amount,
 
         uint96 _clientBasisPoints,

@@ -165,7 +165,6 @@ abstract contract P2pLendingProxyFactory is
 
     /// @inheritdoc IP2pLendingProxyFactory
     function deposit(
-        address _asset,
         address _vault,
         uint256 _amount,
         uint96 _clientBasisPoints,
@@ -178,9 +177,8 @@ abstract contract P2pLendingProxyFactory is
     p2pSignerSignatureShouldBeValid(_clientBasisPoints, _p2pSignerSigDeadline, _p2pSignerSignature)
     returns (address p2pLendingProxyAddress)
     {
-        (address lendingProtocol, bytes memory lendingCalldata) = _prepareDepositCall(
+        (address asset, address lendingProtocol, bytes memory lendingCalldata) = _prepareDepositCall(
             msg.sender,
-            _asset,
             _vault,
             _amount,
             _clientBasisPoints
@@ -195,7 +193,7 @@ abstract contract P2pLendingProxyFactory is
         p2pLendingProxy.deposit(
             lendingProtocol,
             lendingCalldata,
-            _asset,
+            asset,
             _amount
         );
 
@@ -206,11 +204,10 @@ abstract contract P2pLendingProxyFactory is
 
     function _prepareDepositCall(
         address _client,
-        address _asset,
         address _vault,
         uint256 _amount,
         uint96 _clientBasisPoints
-    ) internal view virtual returns (address lendingProtocol, bytes memory lendingCalldata);
+    ) internal view virtual returns (address asset, address lendingProtocol, bytes memory lendingCalldata);
 
     function _transferP2pSigner(
         address _newP2pSigner

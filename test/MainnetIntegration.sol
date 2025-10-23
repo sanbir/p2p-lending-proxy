@@ -238,7 +238,6 @@ contract MainnetIntegration is Test {
             )
         );
         factory.deposit(
-            asset,
             vault,
             DepositAmount,
             invalidBasisPoints,
@@ -256,10 +255,9 @@ contract MainnetIntegration is Test {
         );
 
         vm.startPrank(clientAddress);
-        vm.expectRevert(P2pMorphoProxyFactory__erc4626Deposit_vault_asset_mismatch.selector);
+        vm.expectRevert(P2pMorphoProxyFactory__ZeroVaultAddress.selector);
         factory.deposit(
             address(0),
-            vault,
             DepositAmount,
             ClientBasisPoints,
             SigDeadline,
@@ -279,7 +277,6 @@ contract MainnetIntegration is Test {
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         vm.expectRevert(P2pMorphoProxyFactory__erc4626Deposit_assets_ne_amount.selector);
         factory.deposit(
-            asset,
             vault,
             0,
             ClientBasisPoints,
@@ -305,7 +302,6 @@ contract MainnetIntegration is Test {
         );
 
         factory.deposit(
-            asset,
             vault,
             DepositAmount,
             ClientBasisPoints,
@@ -349,7 +345,6 @@ contract MainnetIntegration is Test {
 
         // This will create the proxy
         factory.deposit(
-            asset,
             vault,
             DepositAmount,
             ClientBasisPoints,
@@ -385,7 +380,6 @@ contract MainnetIntegration is Test {
         );
 
         factory.deposit(
-            asset,
             vault,
             DepositAmount,
             ClientBasisPoints,
@@ -747,7 +741,6 @@ contract MainnetIntegration is Test {
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
 
         factory.deposit(
-            asset,
             vault,
             DepositAmount,
             ClientBasisPoints,
@@ -842,7 +835,6 @@ contract MainnetIntegration is Test {
         );
 
         factory.deposit(
-            asset,
             vault,
             DepositAmount,
             ClientBasisPoints,
@@ -874,7 +866,6 @@ contract MainnetIntegration is Test {
         vm.expectRevert(P2pLendingProxyFactory__InvalidP2pSignerSignature.selector);
 
         factory.deposit(
-            asset,
             vault,
             DepositAmount,
             ClientBasisPoints,
@@ -899,7 +890,6 @@ contract MainnetIntegration is Test {
         );
 
         factory.deposit(
-            asset,
             vault,
             DepositAmount,
             ClientBasisPoints,
@@ -1088,8 +1078,7 @@ contract MainnetIntegration is Test {
         if (IERC20(asset).allowance(clientAddress, proxyAddress) < amount) {
             IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         }
-        factory.deposit(
-            asset,
+       factory.deposit(
             vault,
             amount,
             clientBasisPoints,

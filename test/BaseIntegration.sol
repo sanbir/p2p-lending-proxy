@@ -109,7 +109,6 @@ contract BaseIntegration is Test {
         vm.startPrank(clientAddress);
         IERC20(USDC).approve(proxyAddress, type(uint256).max);
         factory.deposit(
-            USDC,
             VaultUSDC,
             DepositAmount,
 

@@ -60,7 +60,6 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
     ) external;
 
     /// @dev Deposits into a lending protocol via the client's proxy
-    /// @param _asset The asset being supplied
     /// @param _vault The vault that receives the deposit
     /// @param _amount The amount of asset being supplied
     /// @param _clientBasisPoints The client basis points
@@ -68,7 +67,6 @@ interface IP2pLendingProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @param _p2pSignerSignature The P2pSigner signature
     /// @return p2pLendingProxyAddress The client's P2pLendingProxy instance address
     function deposit(
-        address _asset,
         address _vault,
         uint256 _amount,
 

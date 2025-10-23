@@ -234,7 +234,6 @@ contract MainnetMorphoClaiming is Test {
             IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         }
         factory.deposit(
-            asset,
             vault,
             DepositAmount,
 
