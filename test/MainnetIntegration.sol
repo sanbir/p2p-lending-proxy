@@ -341,13 +341,7 @@ contract MainnetIntegration is Test {
         );
 
         // Now try to initialize it directly
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                P2pLendingProxy__NotFactoryCalled.selector,
-                clientAddress,
-                address(factory)
-            )
-        );
+        vm.expectRevert("Initializable: contract is already initialized");
         proxy.initialize(
             clientAddress,
             ClientBasisPoints

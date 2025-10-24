@@ -3,8 +3,8 @@
 
 pragma solidity 0.8.27;
 
+import "../@openzeppelin/contracts-upgradable/security/ReentrancyGuardUpgradeable.sol";
 import "../@openzeppelin/contracts/interfaces/IERC1271.sol";
-import "../@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
@@ -59,7 +59,7 @@ error P2pLendingProxy__NotClientCalled(
 abstract contract P2pLendingProxy is
     AllowedCalldataChecker,
     P2pStructs,
-    ReentrancyGuard,
+    ReentrancyGuardUpgradeable,
     ERC165,
     IP2pLendingProxy,
     IERC1271 {
@@ -118,8 +118,10 @@ abstract contract P2pLendingProxy is
         uint96 _clientBasisPoints
     )
     external
+    initializer
     onlyFactory
     {
+        __ReentrancyGuard_init();
         require(
             _clientBasisPoints > 0 && _clientBasisPoints <= 10_000,
             P2pLendingProxy__InvalidClientBasisPoints(_clientBasisPoints)
