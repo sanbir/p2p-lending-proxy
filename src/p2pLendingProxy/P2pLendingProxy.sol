@@ -142,34 +142,31 @@ abstract contract P2pLendingProxy is
     virtual
     onlyFactory
     {
-        address asset = _asset;
-        require (asset != address(0), P2pLendingProxy__ZeroAddressAsset());
-
-        uint256 amount = _amount;
-        require (amount > 0, P2pLendingProxy__ZeroAssetAmount());
+        require (_asset != address(0), P2pLendingProxy__ZeroAddressAsset());
+        require (_amount > 0, P2pLendingProxy__ZeroAssetAmount());
 
         address client = s_client;
 
-        uint256 assetAmountBefore = IERC20(asset).balanceOf(address(this));
+        uint256 assetAmountBefore = IERC20(_asset).balanceOf(address(this));
 
-        IERC20(asset).safeTransferFrom(
+        IERC20(_asset).safeTransferFrom(
             client,
             address(this),
-            amount
+            _amount
         );
 
-        uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
+        uint256 assetAmountAfter = IERC20(_asset).balanceOf(address(this));
         uint256 actualAmount = assetAmountAfter - assetAmountBefore;
         require(
-            actualAmount == amount,
-            P2pLendingProxy__TransferredAmountMismatch(amount, actualAmount)
+            actualAmount == _amount,
+            P2pLendingProxy__TransferredAmountMismatch(_amount, actualAmount)
         );
 
-        uint256 totalDepositedAfter = s_totalDeposited[asset] + actualAmount;
-        s_totalDeposited[asset] = totalDepositedAfter;
+        uint256 totalDepositedAfter = s_totalDeposited[_asset] + actualAmount;
+        s_totalDeposited[_asset] = totalDepositedAfter;
         emit P2pLendingProxy__Deposited(
             _lendingProtocolAddress,
-            asset,
+            _asset,
             actualAmount,
             totalDepositedAfter
         );
@@ -180,7 +177,7 @@ abstract contract P2pLendingProxy is
         // but now we front-load the transfer ourselves.
         // When erc4626Deposit runs, it just consumes the balance already sitting on the bundler contract
         // to mint vault shares for the proxy; it doesn’t try to pull again.
-        IERC20(asset).safeTransfer(_lendingProtocolAddress, actualAmount);
+        IERC20(_asset).safeTransfer(_lendingProtocolAddress, actualAmount);
 
         _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
     }
