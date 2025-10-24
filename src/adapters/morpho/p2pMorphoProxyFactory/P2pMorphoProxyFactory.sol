@@ -12,7 +12,6 @@ import {IERC4626} from "../../../@openzeppelin/contracts/interfaces/IERC4626.sol
 error P2pMorphoProxyFactory__DistributorNotTrusted(address _distributor);
 error P2pMorphoProxyFactory__erc4626Deposit_assets_ne_amount();
 error P2pMorphoProxyFactory__erc4626Deposit_vault_asset_mismatch();
-error P2pMorphoProxyFactory__erc4626Deposit_receiver_ne_proxy();
 error P2pMorphoProxyFactory__ZeroVaultAddress();
 error P2pMorphoProxyFactory__ZeroTrustedDistributorAddress();
 
@@ -60,24 +59,17 @@ contract P2pMorphoProxyFactory is P2pLendingProxyFactory, IP2pMorphoProxyFactory
 
         asset = IERC4626(_vault).asset();
         require(asset != address(0), P2pMorphoProxyFactory__erc4626Deposit_vault_asset_mismatch());
+        require(
+            _amount > 0,
+            P2pMorphoProxyFactory__erc4626Deposit_assets_ne_amount()
+        );
 
         address predictedProxy = predictP2pLendingProxyAddress(
             _client,
             _clientBasisPoints
         );
 
-        require(
-            predictedProxy != address(0),
-            P2pMorphoProxyFactory__erc4626Deposit_receiver_ne_proxy()
-        );
-
-        require(
-            _amount > 0,
-            P2pMorphoProxyFactory__erc4626Deposit_assets_ne_amount()
-        );
-
         uint256 minShares = IERC4626(_vault).convertToShares(_amount);
-        minShares = (minShares * 100) / 102;
 
         bytes memory erc4626DepositCall = abi.encodeCall(IMorphoBundler.erc4626Deposit, (
             _vault,

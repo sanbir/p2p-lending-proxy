@@ -17,7 +17,6 @@ error P2pMorphoProxy__erc4626Redeem_owner_ne_proxy();
 error P2pMorphoProxy__NothingClaimed();
 error P2pMorphoProxy__NotP2pOperator(address _caller);
 error P2pMorphoProxy__ZeroAccruedRewards();
-error P2pMorphoProxy__InvalidBundler(address _actual, address _expected);
 
 contract P2pMorphoProxy is P2pLendingProxy, CalldataParser, IP2pMorphoProxy {
     using SafeERC20 for IERC20;
@@ -42,32 +41,6 @@ contract P2pMorphoProxy is P2pLendingProxy, CalldataParser, IP2pMorphoProxy {
         address _p2pTreasury
     ) P2pLendingProxy(_factory, _p2pTreasury) {
         i_morphoBundler = IMorphoBundler(_morphoBundler);
-    }
-
-    /// @inheritdoc IP2pLendingProxy
-    function deposit(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        address _asset,
-        uint256 _amount
-    )
-    public
-    override(P2pLendingProxy, IP2pLendingProxy)
-    onlyFactory
-    {
-        if (_lendingProtocolAddress != address(i_morphoBundler)) {
-            revert P2pMorphoProxy__InvalidBundler(
-                _lendingProtocolAddress,
-                address(i_morphoBundler)
-            );
-        }
-
-        super.deposit(
-            _lendingProtocolAddress,
-            _lendingProtocolCalldata,
-            _asset,
-            _amount
-        );
     }
 
     /// @inheritdoc IP2pLendingProxy

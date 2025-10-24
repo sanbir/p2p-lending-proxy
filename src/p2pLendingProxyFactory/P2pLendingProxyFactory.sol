@@ -184,8 +184,6 @@ abstract contract P2pLendingProxyFactory is
             _clientBasisPoints
         );
 
-        _checkCalldataFromMemory(lendingProtocol, lendingCalldata, FunctionType.Deposit);
-
         // create proxy if not created yet
         P2pLendingProxy p2pLendingProxy = _getOrCreateP2pLendingProxy(_clientBasisPoints);
 
