@@ -120,25 +120,8 @@ contract BaseIntegration is Test {
 
         uint256 sharesBalance = IERC20(VaultUSDC).balanceOf(proxyAddress);
 
-        // morpho erc4626Redeem
-        uint256 assets = IERC4626(VaultUSDC).convertToAssets(sharesBalance);
-        bytes memory erc4626RedeemCallData = abi.encodeCall(IMorphoBundler.erc4626Redeem, (
-            VaultUSDC,
-            sharesBalance,
-            (assets * 100) / 102,
-            proxyAddress,
-            proxyAddress
-        ));
-
-        // morpho multicall
-        bytes[] memory dataForMulticallWithdrawal = new bytes[](1);
-        dataForMulticallWithdrawal[0] = erc4626RedeemCallData;
-        bytes memory multicallWithdrawalCallData = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticallWithdrawal));
-
         vm.startPrank(clientAddress);
         P2pMorphoProxy(proxyAddress).withdraw(
-            MorphoEthereumBundlerV2,
-            multicallWithdrawalCallData,
             VaultUSDC,
             sharesBalance
         );

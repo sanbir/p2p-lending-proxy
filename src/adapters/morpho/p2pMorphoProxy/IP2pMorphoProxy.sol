@@ -30,5 +30,5 @@ interface IP2pMorphoProxy is IP2pLendingProxy {
     )
     external;
 
-
+    function withdrawAccruedRewards(address _vault) external;
 }

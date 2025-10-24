@@ -61,13 +61,9 @@ interface IP2pLendingProxy is IAllowedCalldataChecker, IERC165 {
     external;
 
     /// @notice Withdraws assets from the lending protocol
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata to call the lending protocol
     /// @param _vault The vault address
     /// @param _shares The shares to withdraw
     function withdraw(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
         address _vault,
         uint256 _shares
     )

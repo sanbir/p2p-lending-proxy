@@ -184,17 +184,22 @@ abstract contract P2pLendingProxy is
 
     /// @inheritdoc IP2pLendingProxy
     function withdraw(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
         address _vault,
         uint256 _shares
     )
     public
     virtual
     nonReentrant
-    calldataShouldBeAllowed(_lendingProtocolAddress, _lendingProtocolCalldata, FunctionType.Withdrawal)
     {
         require (_shares > 0, P2pLendingProxy__ZeroSharesAmount());
+
+        (address lendingProtocolAddress, bytes memory lendingProtocolCalldata) = _prepareWithdrawCall(
+            msg.sender,
+            _vault,
+            _shares
+        );
+
+        _checkCalldataFromMemory(lendingProtocolAddress, lendingProtocolCalldata, FunctionType.Withdrawal);
 
         address asset = IERC4626(_vault).asset();
         uint256 assetAmountBefore = IERC20(asset).balanceOf(address(this));
@@ -202,10 +207,10 @@ abstract contract P2pLendingProxy is
         int256 accruedRewards = calculateAccruedRewards(_vault, asset);
 
         // approve shares from Proxy to Protocol
-        IERC20(_vault).safeIncreaseAllowance(_lendingProtocolAddress, _shares);
+        IERC20(_vault).safeIncreaseAllowance(lendingProtocolAddress, _shares);
 
         // withdraw assets from Protocol
-        _lendingProtocolAddress.functionCall(_lendingProtocolCalldata);
+        lendingProtocolAddress.functionCall(lendingProtocolCalldata);
 
         uint256 assetAmountAfter = IERC20(asset).balanceOf(address(this));
 
@@ -234,7 +239,7 @@ abstract contract P2pLendingProxy is
         IERC20(asset).safeTransfer(s_client, clientAmount);
 
         emit P2pLendingProxy__Withdrawn(
-            _lendingProtocolAddress,
+            lendingProtocolAddress,
             _vault,
             asset,
             _shares,
@@ -338,4 +343,10 @@ abstract contract P2pLendingProxy is
         return interfaceId == type(IP2pLendingProxy).interfaceId ||
             super.supportsInterface(interfaceId);
     }
+
+    function _prepareWithdrawCall(
+        address,
+        address,
+        uint256
+    ) internal view virtual returns (address lendingProtocol, bytes memory lendingCalldata);
 }

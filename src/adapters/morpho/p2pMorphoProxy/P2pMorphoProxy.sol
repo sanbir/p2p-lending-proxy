@@ -4,21 +4,15 @@
 pragma solidity 0.8.27;
 
 import "../../../p2pLendingProxy/P2pLendingProxy.sol";
-import "../../common/CalldataParser.sol";
 import "../../../common/IMorphoBundler.sol";
 import "../p2pMorphoProxyFactory/IP2pMorphoProxyFactory.sol";
 import "./IP2pMorphoProxy.sol";
 
-error P2pMorphoProxy__IncorrectLengthOf_dataForMulticall();
-error P2pMorphoProxy__erc4626Redeem_vault_ne_vault();
-error P2pMorphoProxy__erc4626Redeem_shares_ne_shares();
-error P2pMorphoProxy__erc4626Redeem_receiver_ne_proxy();
-error P2pMorphoProxy__erc4626Redeem_owner_ne_proxy();
 error P2pMorphoProxy__NothingClaimed();
 error P2pMorphoProxy__NotP2pOperator(address _caller);
 error P2pMorphoProxy__ZeroAccruedRewards();
 
-contract P2pMorphoProxy is P2pLendingProxy, CalldataParser, IP2pMorphoProxy {
+contract P2pMorphoProxy is P2pLendingProxy, IP2pMorphoProxy {
     using SafeERC20 for IERC20;
 
     /// @dev Morpho bundler
@@ -45,56 +39,17 @@ contract P2pMorphoProxy is P2pLendingProxy, CalldataParser, IP2pMorphoProxy {
 
     /// @inheritdoc IP2pLendingProxy
     function withdraw(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
         address _vault,
         uint256 _shares
     )
     public
     onlyClient
-    override(P2pLendingProxy, IP2pLendingProxy) {
-        // morpho multicall
-        bytes[] memory dataForMulticall = abi.decode(_lendingProtocolCalldata[SELECTOR_LENGTH:], (bytes[]));
-
-        require(
-            dataForMulticall.length == 1,
-            P2pMorphoProxy__IncorrectLengthOf_dataForMulticall()
-        );
-
-        // morpho erc4626Redeem
-        (address vault, uint256 shares,, address receiver, address owner) = abi.decode(
-            _slice(dataForMulticall[0], SELECTOR_LENGTH, dataForMulticall[0].length - SELECTOR_LENGTH),
-            (address, uint256, uint256, address, address)
-        );
-
-        require(
-            _vault == vault,
-            P2pMorphoProxy__erc4626Redeem_vault_ne_vault()
-        );
-        require(
-            _shares == shares,
-            P2pMorphoProxy__erc4626Redeem_shares_ne_shares()
-        );
-        require(
-            receiver == address(this),
-            P2pMorphoProxy__erc4626Redeem_receiver_ne_proxy()
-        );
-        require(
-            owner == address(this),
-            P2pMorphoProxy__erc4626Redeem_owner_ne_proxy()
-        );
-
-        super.withdraw(
-            _lendingProtocolAddress,
-            _lendingProtocolCalldata,
-            _vault,
-            _shares
-        );
+    override(P2pLendingProxy, IP2pLendingProxy)
+    {
+        super.withdraw(_vault, _shares);
     }
 
     function withdrawAccruedRewards(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
         address _vault
     )
     external
@@ -105,8 +60,6 @@ contract P2pMorphoProxy is P2pLendingProxy, CalldataParser, IP2pMorphoProxy {
         uint256 shares = IERC4626(_vault).convertToShares(uint256(amount));
 
         super.withdraw(
-            _lendingProtocolAddress,
-            _lendingProtocolCalldata,
             _vault,
             shares
         );
@@ -175,5 +128,28 @@ contract P2pMorphoProxy is P2pLendingProxy, CalldataParser, IP2pMorphoProxy {
     function supportsInterface(bytes4 interfaceId) public view virtual override(P2pLendingProxy, IERC165) returns (bool) {
         return interfaceId == type(IP2pMorphoProxy).interfaceId ||
             super.supportsInterface(interfaceId);
+    }
+
+    function _prepareWithdrawCall(
+        address,
+        address _vault,
+        uint256 _shares
+    ) internal view override returns (address lendingProtocol, bytes memory lendingCalldata) {
+        uint256 minAssets = IERC4626(_vault).convertToAssets(_shares);
+        minAssets = (minAssets * 100) / 102;
+
+        bytes memory erc4626RedeemCall = abi.encodeCall(IMorphoBundler.erc4626Redeem, (
+            _vault,
+            _shares,
+            minAssets,
+            address(this),
+            address(this)
+        ));
+
+        bytes[] memory dataForMulticall = new bytes[](1);
+        dataForMulticall[0] = erc4626RedeemCall;
+
+        lendingProtocol = address(i_morphoBundler);
+        lendingCalldata = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
     }
 }

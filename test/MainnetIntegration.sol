@@ -140,17 +140,9 @@ contract MainnetIntegration is Test {
         
         // Only proceed if there are actually accrued rewards
         if (accruedRewards > 0) {
-            // Create withdrawal calldata for the accrued rewards
-            uint256 sharesToWithdraw = IERC4626(vault).convertToShares(uint256(accruedRewards));
-            bytes memory withdrawalCallData = _getMulticallWithdrawalCallData(sharesToWithdraw);
-
             // Withdraw accrued rewards as P2P Operator
             vm.startPrank(p2pOperatorAddress);
-            proxy.withdrawAccruedRewards(
-                MorphoEthereumBundlerV2,
-                withdrawalCallData,
-                vault
-            );
+            proxy.withdrawAccruedRewards(vault);
             vm.stopPrank();
 
             // P2pTreasury should have increased by its cut of rewards
@@ -165,11 +157,7 @@ contract MainnetIntegration is Test {
             // If no rewards accrued, just verify the function would revert
             vm.startPrank(p2pOperatorAddress);
             vm.expectRevert();
-            proxy.withdrawAccruedRewards(
-                MorphoEthereumBundlerV2,
-                "",
-                vault
-            );
+            proxy.withdrawAccruedRewards(vault);
             vm.stopPrank();
         }
     }
@@ -392,10 +380,8 @@ contract MainnetIntegration is Test {
         vm.startPrank(nobody);
         P2pMorphoProxy proxy = P2pMorphoProxy(proxyAddress);
         
-        // Get withdrawal calldata
         uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
-        bytes memory withdrawalCallData = _getMulticallWithdrawalCallData(sharesBalance);
-        
+
         vm.expectRevert(
             abi.encodeWithSelector(
                 P2pLendingProxy__NotClientCalled.selector,
@@ -405,8 +391,6 @@ contract MainnetIntegration is Test {
         );
         
         proxy.withdraw(
-            MorphoEthereumBundlerV2,
-            withdrawalCallData,
             vault,
             sharesBalance
         );
@@ -419,21 +403,14 @@ contract MainnetIntegration is Test {
         vm.startPrank(clientAddress);
         _doDeposit();
 
-        // Try to withdraw with incorrect calldata
         P2pMorphoProxy proxy = P2pMorphoProxy(proxyAddress);
-        uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
-        
-        // Create incorrect withdrawal calldata (empty bytes)
-        bytes memory incorrectWithdrawalCalldata = "";
-        
+
         vm.startPrank(clientAddress);
 
-        vm.expectRevert();
+        vm.expectRevert(P2pLendingProxy__ZeroSharesAmount.selector);
         proxy.withdraw(
-            MorphoEthereumBundlerV2,
-            incorrectWithdrawalCalldata,
             vault,
-            sharesBalance
+            0
         );
         vm.stopPrank();
     }
@@ -1125,12 +1102,9 @@ contract MainnetIntegration is Test {
     function _doWithdraw(uint256 denominator) private {
         uint256 sharesBalance = IERC20(vault).balanceOf(proxyAddress);
         uint256 sharesToWithdraw = sharesBalance / denominator;
-        bytes memory multicallWithdrawalCallData = _getMulticallWithdrawalCallData(sharesToWithdraw);
 
         vm.startPrank(clientAddress);
         P2pMorphoProxy(proxyAddress).withdraw(
-            MorphoEthereumBundlerV2,
-            multicallWithdrawalCallData,
             vault,
             sharesToWithdraw
         );
