@@ -136,7 +136,6 @@ contract P2pMorphoProxy is P2pLendingProxy, IP2pMorphoProxy {
         uint256 _shares
     ) internal view override returns (address lendingProtocol, bytes memory lendingCalldata) {
         uint256 minAssets = IERC4626(_vault).convertToAssets(_shares);
-        minAssets = (minAssets * 100) / 102;
 
         bytes memory erc4626RedeemCall = abi.encodeCall(IMorphoBundler.erc4626Redeem, (
             _vault,

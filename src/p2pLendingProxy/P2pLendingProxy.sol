@@ -199,8 +199,6 @@ abstract contract P2pLendingProxy is
             _shares
         );
 
-        _checkCalldataFromMemory(lendingProtocolAddress, lendingProtocolCalldata, FunctionType.Withdrawal);
-
         address asset = IERC4626(_vault).asset();
         uint256 assetAmountBefore = IERC20(asset).balanceOf(address(this));
 

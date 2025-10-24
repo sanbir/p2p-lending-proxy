@@ -55,35 +55,4 @@ abstract contract AllowedCalldataChecker is IAllowedCalldataChecker {
         bytes calldata _calldataAfterSelector,
         P2pStructs.FunctionType _functionType
     ) public virtual view;
-
-    function _checkCalldataFromMemory(
-        address _target,
-        bytes memory _lendingProtocolCalldata,
-        P2pStructs.FunctionType _functionType
-    ) internal view {
-        require(_lendingProtocolCalldata.length >= 4, AllowedCalldataChecker__DataTooShort());
-
-        bytes4 selector;
-        assembly {
-            selector := mload(add(_lendingProtocolCalldata, 0x20))
-        }
-
-        bytes memory tail = new bytes(_lendingProtocolCalldata.length - 4);
-        assembly {
-            let len := sub(mload(_lendingProtocolCalldata), 4)
-            let src := add(_lendingProtocolCalldata, 0x24)
-            let dst := add(tail, 0x20)
-            for { let i := 0 } lt(i, len) { i := add(i, 0x20) } {
-                mstore(add(dst, i), mload(add(src, i)))
-            }
-            mstore(tail, len)
-        }
-
-        IAllowedCalldataChecker(address(this)).checkCalldata(
-            _target,
-            selector,
-            tail,
-            _functionType
-        );
-    }
 }
