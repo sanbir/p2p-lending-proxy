@@ -1,130 +1,85 @@
 // SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.27;
+pragma solidity 0.8.30;
 
 import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
+import "../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import "../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
 import "../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
+import "../src/common/AllowedCalldataChecker.sol";
 import "../src/common/IMorphoBundler.sol";
-import "../src/common/P2pStructs.sol";
-import "../src/p2pLendingProxyFactory/P2pLendingProxyFactory.sol";
 import "forge-std/Test.sol";
-import "forge-std/Vm.sol";
-import "forge-std/console.sol";
-import "forge-std/console2.sol";
 
 contract BaseIntegration is Test {
-    address constant P2pTreasury = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
+    using SafeERC20 for IERC20;
+
+    address constant P2P_TREASURY = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
+    address constant MORPHO_BUNDLER = 0x23055618898e202386e6c13955a58D3C68200BFB;
+    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address constant VAULT_USDC = 0xeE8F4eC5672F09119b96Ab6fB59C27E1b7e44b61;
+
+    uint256 constant SIG_DEADLINE = 1734464723;
+    uint96 constant CLIENT_BASIS_POINTS = 8700;
+    uint256 constant DEPOSIT_AMOUNT = 10_000_000; // 10 USDC (6 decimals)
+
     P2pMorphoProxyFactory private factory;
 
-    address private clientAddress;
-    uint256 private clientPrivateKey;
+    address private client;
+    uint256 private clientKey;
+    address private p2pSigner;
+    uint256 private p2pSignerKey;
+    address private p2pOperator;
 
-    address private p2pSignerAddress;
-    uint256 private p2pSignerPrivateKey;
-
-    address private p2pOperatorAddress;
-    address private nobody;
-
-    address constant MorphoEthereumBundlerV2 = 0x23055618898e202386e6c13955a58D3C68200BFB;
-    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    address constant VaultUSDC = 0xeE8F4eC5672F09119b96Ab6fB59C27E1b7e44b61;
-
-    uint256 constant SigDeadline = 1734464723;
-    uint96 constant ClientBasisPoints = 8700; // 13% fee
-    uint256 constant DepositAmount = 10000000;
-
-    address proxyAddress;
+    address private proxyAddress;
 
     function setUp() public {
         vm.createSelectFork("base", 23607078);
 
-        (clientAddress, clientPrivateKey) = makeAddrAndKey("client");
-        (p2pSignerAddress, p2pSignerPrivateKey) = makeAddrAndKey("p2pSigner");
-        p2pOperatorAddress = makeAddr("p2pOperator");
-        nobody = makeAddr("nobody");
+        (client, clientKey) = makeAddrAndKey("client");
+        (p2pSigner, p2pSignerKey) = makeAddrAndKey("p2pSigner");
+        p2pOperator = makeAddr("p2pOperator");
 
-        deal(USDC, clientAddress, 10000e18);
+        deal(USDC, client, 100_000_000e6);
 
-        vm.startPrank(p2pOperatorAddress);
+        vm.startPrank(p2pOperator);
+        AllowedCalldataChecker implementation = new AllowedCalldataChecker();
+        ProxyAdmin admin = new ProxyAdmin();
+        bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
+        TransparentUpgradeableProxy checkerProxy =
+            new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
         factory = new P2pMorphoProxyFactory(
-            MorphoEthereumBundlerV2,
-            p2pSignerAddress,
-            P2pTreasury
+            p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER, USDC, VAULT_USDC, address(0), address(0)
         );
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pLendingProxyAddress(clientAddress, ClientBasisPoints);
+        proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BASIS_POINTS);
     }
 
     function test_HappyPath_Base() external {
-        // allowed calldata for factory
-        bytes4 multicallSelector = IMorphoBundler.multicall.selector;
+        _doDeposit();
 
-        P2pStructs.Rule[] memory rulesDeposit = new P2pStructs.Rule[](1);
-        rulesDeposit[0] = P2pStructs.Rule({
-            ruleType: P2pStructs.RuleType.AnyCalldata,
-            index: 0,
-            allowedBytes: bytes("")
-        });
+        uint256 shares = IERC20(VAULT_USDC).balanceOf(proxyAddress);
+        assertGt(shares, 0);
 
-        vm.startPrank(p2pOperatorAddress);
-        factory.setCalldataRules(
-            P2pStructs.FunctionType.Deposit,
-            MorphoEthereumBundlerV2,
-            multicallSelector,
-            rulesDeposit
-        );
+        vm.startPrank(client);
+        P2pMorphoProxy(proxyAddress).withdraw(VAULT_USDC, shares);
         vm.stopPrank();
 
-        P2pStructs.Rule memory rule0Withdrawal = P2pStructs.Rule({ // erc4626Redeem
-            ruleType: P2pStructs.RuleType.StartsWith,
-            index: 0,
-            allowedBytes: hex"00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000a4a7f6e606"
-        });
+        assertEq(IERC20(VAULT_USDC).balanceOf(proxyAddress), 0);
+    }
 
-        P2pStructs.Rule[] memory rulesWithdrawal = new P2pStructs.Rule[](1);
-        rulesWithdrawal[0] = rule0Withdrawal;
+    function _doDeposit() internal {
+        bytes32 hashForSigner = factory.getHashForP2pSigner(client, CLIENT_BASIS_POINTS, SIG_DEADLINE);
+        bytes32 ethHash = ECDSA.toEthSignedMessageHash(hashForSigner);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(p2pSignerKey, ethHash);
+        bytes memory p2pSignature = abi.encodePacked(r, s, v);
 
-        vm.startPrank(p2pOperatorAddress);
-        factory.setCalldataRules(
-            P2pStructs.FunctionType.Withdrawal,
-            MorphoEthereumBundlerV2,
-            multicallSelector,
-            rulesWithdrawal
-        );
-        vm.stopPrank();
-
-        // p2p signer signing
-        bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
-        clientAddress,
-            ClientBasisPoints,
-            SigDeadline
-        );
-        bytes32 ethSignedMessageHashForP2pSigner = ECDSA.toEthSignedMessageHash(hashForP2pSigner);
-        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(p2pSignerPrivateKey, ethSignedMessageHashForP2pSigner);
-        bytes memory p2pSignerSignature = abi.encodePacked(r2, s2, v2);
-
-        vm.startPrank(clientAddress);
-        IERC20(USDC).approve(proxyAddress, type(uint256).max);
-        factory.deposit(
-            VaultUSDC,
-            DepositAmount,
-
-            ClientBasisPoints,
-            SigDeadline,
-            p2pSignerSignature
-        );
-        vm.stopPrank();
-
-        uint256 sharesBalance = IERC20(VaultUSDC).balanceOf(proxyAddress);
-
-        vm.startPrank(clientAddress);
-        P2pMorphoProxy(proxyAddress).withdraw(
-            VaultUSDC,
-            sharesBalance
-        );
+        vm.startPrank(client);
+        IERC20(USDC).approve(factory.predictP2pYieldProxyAddress(client, CLIENT_BASIS_POINTS), type(uint256).max);
+        factory.deposit(USDC, DEPOSIT_AMOUNT, CLIENT_BASIS_POINTS, SIG_DEADLINE, p2pSignature);
         vm.stopPrank();
     }
 }

@@ -1,6 +1,7 @@
-## p2p-lending-proxy
+## p2p-morpho-proxy
 
-Contracts for depositing and withdrawing ERC-20 tokens from lending protocols.
+Contracts for client-specific ERC-20 yield proxies.
+The current implementation integrates with [Morpho Blue](https://www.morpho.org/) via the Morpho Ethereum Bundler.
 
 ## Running tests
 
@@ -19,23 +20,23 @@ forge script script/Deploy.s.sol:Deploy --rpc-url $RPC_URL --private-key $PRIVAT
 
 This script will:
 
-- deploy and verify on Etherscan the **P2pLendingProxyFactory** and **P2pLendingProxy** contracts
-- set the **P2pTreasury** address permanently in the P2pLendingProxyFactory
-- set the rules for Morpho specific deposit and withdrawal functions
+- deploy and verify on Etherscan the **P2pMorphoProxyFactory** and the reference **P2pMorphoProxy**
+- set the **P2pTreasury** address permanently in the P2pMorphoProxyFactory
+- deploy the upgradeable **AllowedCalldataChecker** that guards `callAnyFunction`
 
 ## Basic use case
 
 ![Basic use case diagram](image-1.png)
 
-#### Morpho Deposit flow
+#### Morpho deposit flow
 
-Look at [function _doDeposit()](test/MainnetIntegration.sol#L1212) for a reference implementation of the flow.
+Look at [function _doDeposit()](test/MainnetIntegration.sol#L176) for a reference implementation of the flow.
 
 1. Website User (called Client in contracts) calls Backend with its (User's) Ethereum address and some Merchant info.
 
 2. Backend uses Merchant info to determine the P2P fee (expressed as client basis points in the contracts).
 
-3. Backend calls P2pLendingProxyFactory's `getHashForP2pSigner` function to get the hash for the P2pSigner.
+3. Backend calls `P2pMorphoProxyFactory.getHashForP2pSigner` to get the hash for the P2pSigner.
 
 ```solidity
     /// @dev Gets the hash for the P2pSigner
@@ -54,127 +55,60 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L1212) for a referen
 
 5. Backend returns JSON to the User with (client address, client basis points, signature deadline, and the signature).
 
-6. Client-side JS code prepares all the necessary data for the Morpho deposit function. The deposited tokens first go from the client to the client's P2pLendingProxy instance using a standard ERC20 `approve`/`transferFrom` flow, and the proxy forwards the received assets directly to the Morpho bundler. The client's P2pLendingProxy instance address is fetched from the P2pLendingProxyFactory contract's `predictP2pLendingProxyAddress` function:
+6. Client-side code prepares all the necessary data for the Morpho deposit function. The deposited tokens first move from the client to the client's `P2pMorphoProxy` and are then forwarded into the Morpho vault. The client approves the proxy address returned by `predictP2pYieldProxyAddress` via a standard ERC-20 `approve` call:
 
 ```solidity
-    /// @dev Computes the address of a P2pLendingProxy created by `_createP2pLendingProxy` function
-    /// @dev P2pLendingProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
+    /// @dev Computes the address of a proxy created by `_createP2pYieldProxy`
     /// @param _client The address of client
-    /// @return address The address of the P2pLendingProxy instance
-    function predictP2pLendingProxyAddress(
-        address _client,
-        uint96 _clientBasisPoints
-    ) external view returns (address);
+    /// @param _clientBasisPoints The client basis points
+    /// @return address The address of the proxy instance
+    function predictP2pYieldProxyAddress(address _client, uint96 _clientBasisPoints) external view returns (address);
 ```
 
-7. Client-side JS code checks if the user has already approved the required amount of the deposited token for the predicted proxy address. If not, it prompts the user to call the token contract's `approve` function (typically with `uint256` max) using the proxy address as the spender.
+7. Client-side logic checks whether the proxy already has sufficient allowance. If not, it prompts the user to call the token’s `approve(proxyAddress, amount)`.
 
-8. Client-side JS code prompts the user to call the `deposit` function of the P2pLendingProxyFactory contract:
+8. Client-side logic prompts the User to call the `deposit` function of `P2pMorphoProxyFactory`:
 
 ```solidity
-    /// @dev Deposits the lending protocol
-    /// @param _vault The vault that receives the deposit
-    /// @param _amount The amount of assets expected from the client
+    /// @dev Deposits into the Morpho vault through the user-specific proxy
+    /// @param _asset The ERC-20 asset address
+    /// @param _amount The amount of asset to deposit
     /// @param _clientBasisPoints The client basis points
     /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
     /// @param _p2pSignerSignature The P2pSigner signature
-    /// @return p2pLendingProxyAddress The client's P2pLendingProxy instance address
+    /// @return p2pYieldProxyAddress The client's P2pMorphoProxy instance address
     function deposit(
-        address _vault,
+        address _asset,
         uint256 _amount,
-
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
-    )
-    external
-    returns (address p2pLendingProxyAddress);
+    ) external returns (address p2pYieldProxyAddress);
 ```
 
-#### Morpho Withdrawal flow
+#### Morpho withdrawal flow
 
-Look at [function _doWithdraw()](test/MainnetIntegration.sol#L1260) for a reference implementation of the flow.
+Look at [function _doWithdraw()](test/MainnetIntegration.sol#L185) for a reference implementation of the flow.
 
-1. Client-side JS code prepares all the necessary data for the Morpho redeem function.
+1. Client-side code determines how many shares to redeem from the Morpho vault.
+2. Client calls `P2pMorphoProxy.withdraw(vault, shares)` from their address.
+3. The proxy redeems shares through the bundler, retains the protocol fee, and transfers the remaining assets back to the client.
 
-2. Client-side JS code prompts the User to call the `withdraw` function of the client's instance of the P2pLendingProxy contract:
 
-```solidity
-    /// @notice Withdraws assets from the lending protocol
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata to call the lending protocol
-    /// @param _vault The vault address
-    /// @param _shares The shares to withdraw
-    function withdraw(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata,
-        address _vault,
-        uint256 _shares
-    )
-    external;
-```
+## Calling any function on any contracts via P2pMorphoProxy
 
-The P2pLendingProxy contract will redeem the tokens from Morpho and send them to User. The amount on top of the deposited amount is split between the User and the P2pTreasury according to the client basis points.
+It is possible for the client to call arbitrary functions through their proxy when explicitly allowed.
+By default no additional calls are permitted; the upgradeable `AllowedCalldataChecker` can be upgraded in the future to permit extra selectors if needed.
 
-## Claiming from Morpho Universal Rewards Distributors
-
-This is Morpho specific. This feature is not available in other lending protocols.
-
-Look at [function test_MorphoClaimingByClient_Mainnet()](test/MainnetMorphoClaiming.sol#L84) for a reference implementation of the flow.
-
-1. Client-side JS code prepares all the necessary data for the Morpho `urdClaim` function according to the [Morpho docs](https://docs.morpho.org/rewards/tutorials/claim-rewards/).
-
-2. Client-side JS code prompts the User to call the `morphoUrdClaim` function of the client's instance of the P2pLendingProxy contract:
-
-```solidity
-    /// @notice Claims Morpho Urd rewards
-    /// @dev This function is Morpho specific. Cannot be reused for other protocols.
-    /// @param _distributor The distributor address
-    /// @param _reward The reward address
-    /// @param _amount The amount to claim
-    /// @param _proof The proof for the claim
-    function morphoUrdClaim(
-        address _distributor,
-        address _reward,
-        uint256 _amount,
-        bytes32[] calldata _proof
-    )
-    external;
-```
-
-The P2pLendingProxy contract will get the reward tokens from Morpho and split them between the User and the P2pTreasury according to the client basis points.
-
-## Calling any function on any contracts via P2pLendingProxy
-
-It's possible for the User to call any function on any contracts via P2pLendingProxy. This can be useful if it appears that functions of lending protocols beyond simple deposit and withdrawal are needed. Also, it can be useful for claiming any airdrops unknown in advance.
-
-Before the User can use this feature, the P2P operator needs to set the rules for the function call via the `setCalldataRules` function of the P2pLendingProxyFactory contract:
-
-```solidity
-    /// @dev Sets the calldata rules
-    /// @param _functionType The function type
-    /// @param _contract The contract address
-    /// @param _selector The selector
-    /// @param _rules The rules
-    function setCalldataRules(
-        P2pStructs.FunctionType _functionType,
-        address _contract,
-        bytes4 _selector,
-        P2pStructs.Rule[] calldata _rules
-    ) external;
-```
-
-The rules should be as strict as possible to prevent any undesired function calls.
-
-Once the rules are set, the User can call the permitted function on the permitted contract with the permitted calldata via P2pLendingProxy's `callAnyFunction` function:
+Once the rules are configured, the client can call the permitted function via `P2pMorphoProxy.callAnyFunction`:
 
 ```solidity
     /// @notice Calls an arbitrary allowed function
-    /// @param _lendingProtocolAddress The address of the lending protocol
-    /// @param _lendingProtocolCalldata The calldata to call the lending protocol
+    /// @param _yieldProtocolAddress The address of the yield protocol
+    /// @param _yieldProtocolCalldata The calldata to call the yield protocol
     function callAnyFunction(
-        address _lendingProtocolAddress,
-        bytes calldata _lendingProtocolCalldata
+        address _yieldProtocolAddress,
+        bytes calldata _yieldProtocolCalldata
     )
     external;
 ```

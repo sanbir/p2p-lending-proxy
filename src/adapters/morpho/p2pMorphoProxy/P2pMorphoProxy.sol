@@ -1,110 +1,107 @@
 // SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.27;
+pragma solidity 0.8.30;
 
-import "../../../p2pLendingProxy/P2pLendingProxy.sol";
+import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "../../../common/IMorphoBundler.sol";
+import "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../p2pMorphoProxyFactory/IP2pMorphoProxyFactory.sol";
 import "./IP2pMorphoProxy.sol";
 
+error P2pMorphoProxy__UnsupportedAsset(address _asset);
 error P2pMorphoProxy__NothingClaimed();
 error P2pMorphoProxy__NotP2pOperator(address _caller);
 error P2pMorphoProxy__ZeroAccruedRewards();
 
-contract P2pMorphoProxy is P2pLendingProxy, IP2pMorphoProxy {
+contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
     using SafeERC20 for IERC20;
 
-    /// @dev Morpho bundler
     IMorphoBundler private immutable i_morphoBundler;
+    address private immutable i_usdc;
+    address private immutable i_vaultUsdc;
+    address private immutable i_usdt;
+    address private immutable i_vaultUsdt;
 
-    /// @dev Throws if called by any account other than the P2pOperator.
     modifier onlyP2pOperator() {
         address p2pOperator = i_factory.getP2pOperator();
-        require (msg.sender == p2pOperator, P2pMorphoProxy__NotP2pOperator(msg.sender));
+        require(msg.sender == p2pOperator, P2pMorphoProxy__NotP2pOperator(msg.sender));
         _;
     }
 
-    /// @notice Constructor for P2pMorphoProxy
-    /// @param _morphoBundler The morpho bundler address
-    /// @param _factory The factory address
-    /// @param _p2pTreasury The P2pTreasury address
     constructor(
-        address _morphoBundler,
         address _factory,
-        address _p2pTreasury
-    ) P2pLendingProxy(_factory, _p2pTreasury) {
+        address _p2pTreasury,
+        address _allowedCalldataChecker,
+        address _morphoBundler,
+        address _usdc,
+        address _vaultUsdc,
+        address _usdt,
+        address _vaultUsdt
+    ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker) {
         i_morphoBundler = IMorphoBundler(_morphoBundler);
+        i_usdc = _usdc;
+        i_vaultUsdc = _vaultUsdc;
+        i_usdt = _usdt;
+        i_vaultUsdt = _vaultUsdt;
     }
 
-    /// @inheritdoc IP2pLendingProxy
-    function withdraw(
-        address _vault,
-        uint256 _shares
-    )
-    public
-    onlyClient
-    override(P2pLendingProxy, IP2pLendingProxy)
-    {
-        super.withdraw(_vault, _shares);
+    function deposit(address _asset, uint256 _amount) external override(IP2pMorphoProxy, P2pYieldProxy) {
+        address vault = _vaultForAsset(_asset);
+        uint256 minShares = IERC4626(vault).convertToShares(_amount);
+        bytes[] memory dataForMulticall = new bytes[](1);
+        dataForMulticall[0] =
+            abi.encodeCall(IMorphoBundler.erc4626Deposit, (vault, _amount, minShares, address(this)));
+        bytes memory depositCalldata = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
+        _deposit(vault, address(i_morphoBundler), depositCalldata, _asset, _amount, true);
     }
 
-    function withdrawAccruedRewards(
-        address _vault
-    )
-    external
-    onlyP2pOperator {
-        address asset = IERC4626(_vault).asset();
-        int256 amount = calculateAccruedRewards(_vault, asset);
-        require (amount > 0, P2pMorphoProxy__ZeroAccruedRewards());
-        uint256 shares = IERC4626(_vault).convertToShares(uint256(amount));
-
-        super.withdraw(
-            _vault,
-            shares
+    function withdraw(address _vault, uint256 _shares) external override onlyClient {
+        uint256 minAssets = IERC4626(_vault).convertToAssets(_shares);
+        bytes[] memory dataForMulticall = new bytes[](1);
+        dataForMulticall[0] = abi.encodeCall(
+            IMorphoBundler.erc4626Redeem, (_vault, _shares, minAssets, address(this), address(this))
         );
+        bytes memory redeemCalldata = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
+        _withdraw(_vault, _assetForVault(_vault), address(i_morphoBundler), redeemCalldata, _shares);
     }
 
-    /// @inheritdoc IP2pMorphoProxy
-    function morphoUrdClaim(
-        address _distributor,
-        address _reward,
-        uint256 _amount,
-        bytes32[] calldata _proof
-    )
-    external
-    nonReentrant
+    function withdrawAccruedRewards(address _vault) external onlyP2pOperator {
+        address asset = _assetForVault(_vault);
+        int256 amount = calculateAccruedRewards(_vault, asset);
+        require(amount > 0, P2pMorphoProxy__ZeroAccruedRewards());
+
+        uint256 shares = IERC4626(_vault).convertToShares(uint256(amount));
+        uint256 minAssets = IERC4626(_vault).convertToAssets(shares);
+        bytes[] memory dataForMulticall = new bytes[](1);
+        dataForMulticall[0] = abi.encodeCall(
+            IMorphoBundler.erc4626Redeem, (_vault, shares, minAssets, address(this), address(this))
+        );
+        bytes memory redeemCalldata = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
+        _withdraw(_vault, asset, address(i_morphoBundler), redeemCalldata, shares);
+    }
+
+    function morphoUrdClaim(address _distributor, address _reward, uint256 _amount, bytes32[] calldata _proof)
+        external
+        nonReentrant
     {
         bool shouldCheckP2pOperator;
         if (msg.sender != s_client) {
             shouldCheckP2pOperator = true;
         }
-        IP2pMorphoProxyFactory(address(i_factory)).checkMorphoUrdClaim(
-            msg.sender,
-            shouldCheckP2pOperator,
-            _distributor
-        );
+        IP2pMorphoProxyFactory(address(i_factory)).checkMorphoUrdClaim(msg.sender, shouldCheckP2pOperator, _distributor);
 
-        bytes memory urdClaimCalldata = abi.encodeCall(IMorphoBundler.urdClaim, (
-            _distributor,
-            address(this),
-            _reward,
-            _amount,
-            _proof,
-            false
-        ));
+        bytes memory urdClaimCalldata =
+            abi.encodeCall(IMorphoBundler.urdClaim, (_distributor, address(this), _reward, _amount, _proof, false));
         bytes[] memory dataForMulticall = new bytes[](1);
         dataForMulticall[0] = urdClaimCalldata;
 
         uint256 assetAmountBefore = IERC20(_reward).balanceOf(address(this));
-
-        // claim _reward token from Morpho
         i_morphoBundler.multicall(dataForMulticall);
-
         uint256 assetAmountAfter = IERC20(_reward).balanceOf(address(this));
 
         uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
-        require (newAssetAmount > 0, P2pMorphoProxy__NothingClaimed());
+        require(newAssetAmount > 0, P2pMorphoProxy__NothingClaimed());
 
         uint256 p2pAmount = (newAssetAmount * (10_000 - s_clientBasisPoints)) / 10_000;
         uint256 clientAmount = newAssetAmount - p2pAmount;
@@ -112,43 +109,50 @@ contract P2pMorphoProxy is P2pLendingProxy, IP2pMorphoProxy {
         if (p2pAmount > 0) {
             IERC20(_reward).safeTransfer(i_p2pTreasury, p2pAmount);
         }
-        // clientAmount must be > 0 at this point
         IERC20(_reward).safeTransfer(s_client, clientAmount);
 
-        emit P2pMorphoProxy__ClaimedMorphoUrd(
-            _distributor,
-            _reward,
-            newAssetAmount,
-            p2pAmount,
-            clientAmount
-        );
+        emit P2pMorphoProxy__ClaimedMorphoUrd(_distributor, _reward, newAssetAmount, p2pAmount, clientAmount);
     }
 
-    /// @inheritdoc ERC165
-    function supportsInterface(bytes4 interfaceId) public view virtual override(P2pLendingProxy, IERC165) returns (bool) {
-        return interfaceId == type(IP2pMorphoProxy).interfaceId ||
-            super.supportsInterface(interfaceId);
+    function calculateAccruedRewards(address _vault, address _asset)
+        public
+        view
+        override(P2pYieldProxy)
+        returns (int256)
+    {
+        uint256 shares = IERC20(_vault).balanceOf(address(this));
+        uint256 currentAmount = IERC4626(_vault).convertToAssets(shares);
+        uint256 userPrincipal = getUserPrincipal(_asset);
+        return int256(currentAmount) - int256(userPrincipal);
     }
 
-    function _prepareWithdrawCall(
-        address,
-        address _vault,
-        uint256 _shares
-    ) internal view override returns (address lendingProtocol, bytes memory lendingCalldata) {
-        uint256 minAssets = IERC4626(_vault).convertToAssets(_shares);
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(P2pYieldProxy, IERC165)
+        returns (bool)
+    {
+        return interfaceId == type(IP2pMorphoProxy).interfaceId || super.supportsInterface(interfaceId);
+    }
 
-        bytes memory erc4626RedeemCall = abi.encodeCall(IMorphoBundler.erc4626Redeem, (
-            _vault,
-            _shares,
-            minAssets,
-            address(this),
-            address(this)
-        ));
+    function _vaultForAsset(address _asset) private view returns (address vault) {
+        if (_asset == i_usdc) {
+            return i_vaultUsdc;
+        }
+        if (_asset == i_usdt && i_usdt != address(0)) {
+            return i_vaultUsdt;
+        }
+        revert P2pMorphoProxy__UnsupportedAsset(_asset);
+    }
 
-        bytes[] memory dataForMulticall = new bytes[](1);
-        dataForMulticall[0] = erc4626RedeemCall;
-
-        lendingProtocol = address(i_morphoBundler);
-        lendingCalldata = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
+    function _assetForVault(address _vault) private view returns (address asset) {
+        if (_vault == i_vaultUsdc) {
+            return i_usdc;
+        }
+        if (_vault == i_vaultUsdt && i_vaultUsdt != address(0)) {
+            return i_usdt;
+        }
+        revert P2pMorphoProxy__UnsupportedAsset(_vault);
     }
 }

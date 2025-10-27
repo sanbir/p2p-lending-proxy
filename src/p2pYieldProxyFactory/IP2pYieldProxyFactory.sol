@@ -1,0 +1,68 @@
+// SPDX-FileCopyrightText: 2025 P2P Validator <info@p2p.org>
+// SPDX-License-Identifier: MIT
+
+pragma solidity 0.8.30;
+
+import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import "../common/IAllowedCalldataChecker.sol";
+
+/// @dev External interface of P2pYieldProxyFactory
+interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
+    /// @dev Emitted when the P2pSigner is transferred
+    event P2pYieldProxyFactory__P2pSignerTransferred(address indexed _previousP2pSigner, address indexed _newP2pSigner);
+
+    /// @dev Emitted when the deposit is made
+    event P2pYieldProxyFactory__Deposited(address indexed _client, uint96 indexed _clientBasisPoints);
+
+    /// @dev Emitted when the a new proxy is created
+    event P2pYieldProxyFactory__ProxyCreated(address _proxy, address _client, uint96 _clientBasisPoints);
+
+    /// @dev Deposits the yield protocol
+    /// @param _asset asset
+    /// @param _amount amount
+    /// @param _clientBasisPoints The client basis points
+    /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
+    /// @param _p2pSignerSignature The P2pSigner signature
+    /// @return p2pYieldProxyAddress The client's P2pYieldProxy instance address
+    function deposit(
+        address _asset,
+        uint256 _amount,
+        uint96 _clientBasisPoints,
+        uint256 _p2pSignerSigDeadline,
+        bytes calldata _p2pSignerSignature
+    ) external returns (address p2pYieldProxyAddress);
+
+    /// @dev Computes the address of a P2pYieldProxy created by `_createP2pYieldProxy` function
+    /// @dev P2pYieldProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
+    /// @param _client The address of client
+    /// @return address The address of the P2pYieldProxy instance
+    function predictP2pYieldProxyAddress(address _client, uint96 _clientBasisPoints) external view returns (address);
+
+    /// @dev Transfers the P2pSigner
+    /// @param _newP2pSigner The new P2pSigner address
+    function transferP2pSigner(address _newP2pSigner) external;
+
+    /// @dev Returns a template set by P2P to be used for new P2pYieldProxy instances
+    /// @return a template set by P2P to be used for new P2pYieldProxy instances
+    function getReferenceP2pYieldProxy() external view returns (address);
+
+    /// @dev Gets the hash for the P2pSigner
+    /// @param _client The address of client
+    /// @param _clientBasisPoints The client basis points
+    /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
+    /// @return The hash for the P2pSigner
+    function getHashForP2pSigner(address _client, uint96 _clientBasisPoints, uint256 _p2pSignerSigDeadline)
+        external
+        view
+        returns (bytes32);
+
+    /// @dev Gets the P2pSigner
+    /// @return The P2pSigner address
+    function getP2pSigner() external view returns (address);
+
+    function getP2pOperator() external view returns (address);
+
+    /// @dev Gets all proxies
+    /// @return The proxy addresses
+    function getAllProxies() external view returns (address[] memory);
+}

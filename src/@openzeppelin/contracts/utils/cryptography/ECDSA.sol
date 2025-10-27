@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v4.9.0) (utils/cryptography/ECDSA.sol)
 
-pragma solidity 0.8.27;
+pragma solidity 0.8.30;
 
 import "../Strings.sol";
 
@@ -18,6 +18,7 @@ library ECDSA {
         InvalidSignatureLength,
         InvalidSignatureS,
         InvalidSignatureV // Deprecated in v4.8
+
     }
 
     function _throwError(RecoverError error) private pure {
