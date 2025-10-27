@@ -39,7 +39,7 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L176) for a referenc
 3. Backend calls `P2pMorphoProxyFactory.getHashForP2pSigner` to get the hash for the P2pSigner.
 
 ```solidity
-    /// @dev Gets the hash for the P2pSigner
+    /// @notice Computes the P2pSigner hash for a deposit authorization
     /// @param _client The address of client
     /// @param _clientBasisPoints The client basis points
     /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
@@ -70,15 +70,15 @@ Look at [function _doDeposit()](test/MainnetIntegration.sol#L176) for a referenc
 8. Client-side logic prompts the User to call the `deposit` function of `P2pMorphoProxyFactory`:
 
 ```solidity
-    /// @dev Deposits into the Morpho vault through the user-specific proxy
-    /// @param _asset The ERC-20 asset address
-    /// @param _amount The amount of asset to deposit
+    /// @notice Deposits into the Morpho vault through the user-specific proxy
+    /// @param _vault The ERC4626 vault to deposit into
+    /// @param _amount The amount of underlying asset to deposit
     /// @param _clientBasisPoints The client basis points
     /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
     /// @param _p2pSignerSignature The P2pSigner signature
     /// @return p2pYieldProxyAddress The client's P2pMorphoProxy instance address
     function deposit(
-        address _asset,
+        address _vault,
         uint256 _amount,
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
