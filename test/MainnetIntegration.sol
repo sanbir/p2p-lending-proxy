@@ -6,10 +6,15 @@ pragma solidity 0.8.30;
 import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import "../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../src/access/P2pOperator.sol";
 import "../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
+import "../src/adapters/morpho/p2pMorphoProxyFactory/IP2pMorphoProxyFactory.sol";
 import "../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
+import "../src/p2pYieldProxy/P2pYieldProxy.sol";
+import "../src/p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
+import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "../src/common/AllowedCalldataChecker.sol";
 import "forge-std/Test.sol";
 
@@ -22,27 +27,27 @@ contract MainnetIntegration is Test {
     address constant VAULT_USDC = 0x8eB67A509616cd6A7c1B3c8C21D48FF57df3d458;
     address constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address constant VAULT_USDT = 0xbEef047a543E45807105E51A8BBEFCc5950fcfBa;
+    address constant DISTRIBUTOR = 0x330eefa8a787552DC5cAd3C3cA644844B1E61Ddb;
 
-    uint256 constant SIG_DEADLINE = 1734464723;
-    uint96 constant CLIENT_BASIS_POINTS = 8700;
-    uint256 constant DEPOSIT_AMOUNT = 10_000_000; // 10 tokens
+    uint256 constant SIG_DEADLINE = 1_734_464_723;
+    uint96 constant CLIENT_BPS = 8_700;
+    uint256 constant DEPOSIT_AMOUNT = 10_000_000;
 
     P2pMorphoProxyFactory private factory;
-
     address private client;
     uint256 private clientKey;
     address private p2pSigner;
     uint256 private p2pSignerKey;
     address private p2pOperator;
     address private nobody;
+    address private allowedChecker;
 
     address private proxyAddress;
-
-    address asset;
-    address vault;
+    address private asset;
+    address private vault;
 
     function setUp() public {
-        vm.createSelectFork("mainnet", 21308893);
+        vm.createSelectFork("mainnet", 21_308_893);
 
         (client, clientKey) = makeAddrAndKey("client");
         (p2pSigner, p2pSignerKey) = makeAddrAndKey("p2pSigner");
@@ -55,12 +60,16 @@ contract MainnetIntegration is Test {
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
-        factory = new P2pMorphoProxyFactory(
-            p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER, USDC, VAULT_USDC, USDT, VAULT_USDT
-        );
+        factory = new P2pMorphoProxyFactory(p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER);
+        factory.setAssetVaultPair(USDC, VAULT_USDC);
+        factory.setAssetVaultPair(USDT, VAULT_USDT);
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BASIS_POINTS);
+        allowedChecker = address(checkerProxy);
+
+        proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
+        asset = USDC;
+        vault = VAULT_USDC;
     }
 
     function test_HappyPath_USDC_Mainnet() external {
@@ -103,12 +112,11 @@ contract MainnetIntegration is Test {
         uint256 totalChange = clientChange + treasuryChange;
 
         assertApproxEqAbs(totalChange, profit, 1);
-
         uint256 clientShare = clientChange * 10_000 / totalChange;
         uint256 treasuryShare = treasuryChange * 10_000 / totalChange;
 
-        assertApproxEqAbs(CLIENT_BASIS_POINTS, clientShare, 1);
-        assertApproxEqAbs(10_000 - CLIENT_BASIS_POINTS, treasuryShare, 1);
+        assertApproxEqAbs(CLIENT_BPS, clientShare, 1);
+        assertApproxEqAbs(10_000 - CLIENT_BPS, treasuryShare, 1);
     }
 
     function test_withdrawAccruedRewards_byOperator() external {
@@ -156,29 +164,369 @@ contract MainnetIntegration is Test {
         assertEq(factory.getP2pSigner(), nobody);
     }
 
-    function _happyPath() private {
-        deal(asset, client, 50e6);
-        uint256 balanceBefore = IERC20(asset).balanceOf(client);
+    function test_setAssetVaultPair_onlyOperator() external {
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.setAssetVaultPair(USDC, VAULT_USDC);
+        vm.stopPrank();
 
+        vm.startPrank(p2pOperator);
+        vm.expectEmit(true, true, false, false);
+        emit IP2pMorphoProxyFactory.P2pMorphoProxyFactory__AssetVaultPairSet(USDC, VAULT_USDC);
+        factory.setAssetVaultPair(USDC, VAULT_USDC);
+        vm.stopPrank();
+    }
+
+    function test_removeAssetVaultPair_onlyOperator() external {
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.removeAssetVaultPair(USDC);
+        vm.stopPrank();
+
+        vm.startPrank(p2pOperator);
+        vm.expectEmit(true, true, false, false);
+        emit IP2pMorphoProxyFactory.P2pMorphoProxyFactory__AssetVaultPairRemoved(USDC, VAULT_USDC);
+        factory.removeAssetVaultPair(USDC);
+        vm.stopPrank();
+
+        assertEq(factory.getVaultForAsset(USDC), address(0));
+        assertEq(factory.getAssetForVault(VAULT_USDC), address(0));
+    }
+
+    function test_setAssetVaultPair_mismatchReverts() external {
+        vm.startPrank(p2pOperator);
+        vm.expectRevert(
+            abi.encodeWithSelector(P2pMorphoProxyFactory__VaultAssetMismatch.selector, USDC, VAULT_USDT)
+        );
+        factory.setAssetVaultPair(USDC, VAULT_USDT);
+        vm.stopPrank();
+    }
+
+    function test_removeAssetVaultPair_notConfigured() external {
+        vm.startPrank(p2pOperator);
+        factory.removeAssetVaultPair(USDC);
+        vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxyFactory__AssetVaultPairNotConfigured.selector, USDC));
+        factory.removeAssetVaultPair(USDC);
+        vm.stopPrank();
+    }
+
+    function test_depositWithoutConfiguredAssetReverts() external {
+        vm.startPrank(p2pOperator);
+        factory.removeAssetVaultPair(USDC);
+        vm.stopPrank();
+
+        assertEq(factory.getVaultForAsset(USDC), address(0));
+
+        deal(USDC, client, DEPOSIT_AMOUNT);
+
+        vm.startPrank(client);
+        IERC20(USDC).safeApprove(proxyAddress, 0);
+        IERC20(USDC).safeApprove(proxyAddress, type(uint256).max);
+        (bool success, bytes memory returndata) = address(factory).call(
+            abi.encodeWithSelector(
+                IP2pYieldProxyFactory.deposit.selector,
+                USDC,
+                DEPOSIT_AMOUNT,
+                CLIENT_BPS,
+                SIG_DEADLINE,
+                _getP2pSignerSignature(CLIENT_BPS, SIG_DEADLINE)
+            )
+        );
+        vm.stopPrank();
+
+        assertFalse(success);
+        assertEq(bytes4(returndata), P2pMorphoProxy__UnsupportedAsset.selector);
+    }
+
+    function test_clientBasisPointsGreaterThan10000() external {
+        _ensureAssetVaultPair(USDC, VAULT_USDC);
+        uint96 invalidBasisPoints = 10_001;
+        bytes memory signature = _getP2pSignerSignature(invalidBasisPoints, SIG_DEADLINE);
+
+        asset = USDC;
+        deal(asset, client, DEPOSIT_AMOUNT);
+        vm.startPrank(client);
+        IERC20(asset).safeApprove(proxyAddress, 0);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
+        vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__InvalidClientBasisPoints.selector, invalidBasisPoints));
+        factory.deposit(asset, DEPOSIT_AMOUNT, invalidBasisPoints, SIG_DEADLINE, signature);
+        vm.stopPrank();
+    }
+
+    function test_zeroAddressAsset() external {
+        _ensureAssetVaultPair(USDC, VAULT_USDC);
+        asset = USDC;
+        bytes memory signature = _getP2pSignerSignature(CLIENT_BPS, SIG_DEADLINE);
+
+        vm.startPrank(client);
+        vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxy__UnsupportedAsset.selector, address(0)));
+        factory.deposit(address(0), DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
+        vm.stopPrank();
+    }
+
+    function test_zeroAssetAmount() external {
+        asset = USDC;
+        _ensureAssetVaultPair(asset, VAULT_USDC);
+        deal(asset, client, DEPOSIT_AMOUNT);
+        vm.startPrank(client);
+        IERC20(asset).safeApprove(proxyAddress, 0);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
+        (bool success, bytes memory returndata) = address(factory).call(
+            abi.encodeWithSelector(
+                IP2pYieldProxyFactory.deposit.selector,
+                asset,
+                0,
+                CLIENT_BPS,
+                SIG_DEADLINE,
+                _getP2pSignerSignature(CLIENT_BPS, SIG_DEADLINE)
+            )
+        );
+        vm.stopPrank();
+
+        assertFalse(success);
+        assertEq(bytes4(returndata), P2pYieldProxy__ZeroAssetAmount.selector);
+    }
+
+    function test_depositDirectlyOnProxy_reverts() external {
+        asset = USDC;
+        vault = VAULT_USDC;
+        deal(asset, client, DEPOSIT_AMOUNT);
         _doDeposit();
 
-        uint256 clientAfterDeposit = IERC20(asset).balanceOf(client);
-        assertEq(balanceBefore - clientAfterDeposit, DEPOSIT_AMOUNT);
+        vm.startPrank(client);
+        vm.expectRevert(
+            abi.encodeWithSelector(P2pYieldProxy__NotFactoryCalled.selector, client, factory)
+        );
+        P2pMorphoProxy(proxyAddress).deposit(asset, DEPOSIT_AMOUNT);
+        vm.stopPrank();
+    }
+
+    function test_initializeDirectlyOnProxy_reverts() external {
+        deal(asset, client, DEPOSIT_AMOUNT);
+        _doDeposit();
+
+        vm.expectRevert("Initializable: contract is already initialized");
+        P2pMorphoProxy(proxyAddress).initialize(client, CLIENT_BPS);
+    }
+
+    function test_withdrawOnProxyOnlyCallableByClient() external {
+        deal(asset, client, DEPOSIT_AMOUNT);
+        _doDeposit();
 
         uint256 shares = IERC20(vault).balanceOf(proxyAddress);
-        assertGt(shares, 0);
 
+        vm.startPrank(nobody);
+        vm.expectRevert(
+            abi.encodeWithSelector(P2pYieldProxy__NotClientCalled.selector, nobody, client)
+        );
+        P2pMorphoProxy(proxyAddress).withdraw(vault, shares);
+        vm.stopPrank();
+    }
+
+    function test_callAnyFunction_revertsByDefault() external {
+        vm.expectRevert(AllowedCalldataChecker__NoAllowedCalldata.selector);
+        AllowedCalldataChecker(allowedChecker).checkCalldata(
+            MORPHO_BUNDLER,
+            IMorphoBundler.multicall.selector,
+            bytes("")
+        );
+    }
+
+    function test_getVaultForAsset_returnsZeroWhenUnset() external {
+        vm.startPrank(p2pOperator);
+        factory.removeAssetVaultPair(USDC);
+        vm.stopPrank();
+
+        assertEq(factory.getVaultForAsset(USDC), address(0));
+    }
+
+    function test_getAssetForVault_returnsZeroWhenUnset() external {
+        vm.startPrank(p2pOperator);
+        factory.removeAssetVaultPair(USDC);
+        vm.stopPrank();
+
+        assertEq(factory.getAssetForVault(VAULT_USDC), address(0));
+    }
+
+    function test_getHashForP2pSigner() external view {
+        bytes32 expected = keccak256(
+            abi.encode(client, CLIENT_BPS, SIG_DEADLINE, address(factory), block.chainid)
+        );
+        assertEq(factory.getHashForP2pSigner(client, CLIENT_BPS, SIG_DEADLINE), expected);
+    }
+
+    function test_supportsInterface() external view {
+        assertTrue(factory.supportsInterface(type(IP2pMorphoProxyFactory).interfaceId));
+        assertFalse(factory.supportsInterface(type(IERC4626).interfaceId));
+    }
+
+    function test_p2pSignerSignatureExpired() external {
+        uint256 expiredDeadline = block.timestamp - 1;
+        bytes memory signature = _getP2pSignerSignature(CLIENT_BPS, expiredDeadline);
+
+        deal(asset, client, DEPOSIT_AMOUNT);
+        vm.startPrank(client);
+        IERC20(asset).safeApprove(proxyAddress, 0);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
+        vm.expectRevert(
+            abi.encodeWithSelector(P2pYieldProxyFactory__P2pSignerSignatureExpired.selector, expiredDeadline)
+        );
+        factory.deposit(asset, DEPOSIT_AMOUNT, CLIENT_BPS, expiredDeadline, signature);
+        vm.stopPrank();
+    }
+
+    function test_invalidP2pSignerSignature() external {
+        bytes memory signature = _getP2pSignerSignature(CLIENT_BPS + 1, SIG_DEADLINE);
+
+        deal(asset, client, DEPOSIT_AMOUNT);
+        vm.startPrank(client);
+        IERC20(asset).safeApprove(proxyAddress, 0);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
+        vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
+        factory.deposit(asset, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
+        vm.stopPrank();
+    }
+
+    function test_viewFunctions() external view {
+        assertTrue(factory.getReferenceP2pYieldProxy() != address(0));
+        assertEq(factory.getP2pSigner(), p2pSigner);
+        assertEq(factory.getP2pOperator(), p2pOperator);
+        assertEq(factory.getAllProxies().length, 0);
+    }
+
+    function test_acceptP2pOperator() external {
+        assertEq(factory.getP2pOperator(), p2pOperator);
+
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.transferP2pOperator(nobody);
+        vm.stopPrank();
+
+        address newOperator = makeAddr("newOperator");
+        vm.startPrank(p2pOperator);
+        factory.transferP2pOperator(newOperator);
+        vm.stopPrank();
+        assertEq(factory.getPendingP2pOperator(), newOperator);
+
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.acceptP2pOperator();
+        vm.stopPrank();
+
+        vm.startPrank(newOperator);
+        factory.acceptP2pOperator();
+        vm.stopPrank();
+
+        assertEq(factory.getP2pOperator(), newOperator);
+        assertEq(factory.getPendingP2pOperator(), address(0));
+    }
+
+    function test_setTrustedDistributor_onlyOperator() external {
+        address distributor = makeAddr("distributor");
+
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.setTrustedDistributor(distributor);
+        vm.stopPrank();
+
+        vm.startPrank(p2pOperator);
+        vm.expectEmit(false, true, false, false);
+        emit IP2pMorphoProxyFactory.P2pMorphoProxyFactory__TrustedDistributorSet(distributor);
+        factory.setTrustedDistributor(distributor);
+        vm.stopPrank();
+
+        assertTrue(factory.isTrustedDistributor(distributor));
+    }
+
+    function test_removeTrustedDistributor_onlyOperator() external {
+        address distributor = makeAddr("distributor");
+        vm.prank(p2pOperator);
+        factory.setTrustedDistributor(distributor);
+
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
+        factory.removeTrustedDistributor(distributor);
+        vm.stopPrank();
+
+        vm.startPrank(p2pOperator);
+        vm.expectEmit(false, true, false, false);
+        emit IP2pMorphoProxyFactory.P2pMorphoProxyFactory__TrustedDistributorRemoved(distributor);
+        factory.removeTrustedDistributor(distributor);
+        vm.stopPrank();
+
+        assertFalse(factory.isTrustedDistributor(distributor));
+    }
+
+    function test_checkMorphoUrdClaim_requiresTrustedDistributor() external {
+        vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxyFactory__DistributorNotTrusted.selector, DISTRIBUTOR));
+        factory.checkMorphoUrdClaim(p2pOperator, false, DISTRIBUTOR);
+    }
+
+    function test_checkMorphoUrdClaim_requiresOperatorWhenFlagSet() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody)
+        );
+        factory.checkMorphoUrdClaim(nobody, true, address(0));
+    }
+
+    function test_multipleDepositsReuseProxy() external {
+        asset = USDC;
+        vault = VAULT_USDC;
+        deal(asset, client, DEPOSIT_AMOUNT * 2);
+
+        _doDeposit();
+        uint256 proxiesCountAfterFirstDeposit = factory.getAllProxies().length;
+        assertEq(proxiesCountAfterFirstDeposit, 1);
+
+        _doDeposit();
+        uint256 proxiesCountAfterSecondDeposit = factory.getAllProxies().length;
+        assertEq(proxiesCountAfterSecondDeposit, 1);
+        assertEq(factory.getAllProxies()[0], proxyAddress);
+    }
+
+    function _happyPath() private {
+        deal(asset, client, DEPOSIT_AMOUNT * 6);
+
+        uint256 assetBefore = IERC20(asset).balanceOf(client);
+        assertEq(IERC20(vault).balanceOf(proxyAddress), 0);
+
+        _doDeposit();
+        uint256 assetAfterDeposit1 = IERC20(asset).balanceOf(client);
+        uint256 sharesAfterDeposit1 = IERC20(vault).balanceOf(proxyAddress);
+        assertGt(sharesAfterDeposit1, 0);
+        assertEq(assetBefore - assetAfterDeposit1, DEPOSIT_AMOUNT);
+
+        _doDeposit();
+        uint256 assetAfterDeposit2 = IERC20(asset).balanceOf(client);
+        uint256 sharesAfterDeposit2 = IERC20(vault).balanceOf(proxyAddress);
+        assertEq(assetAfterDeposit1 - assetAfterDeposit2, DEPOSIT_AMOUNT);
+        assertEq(sharesAfterDeposit2 - sharesAfterDeposit1, sharesAfterDeposit1);
+
+        _doDeposit();
+        _doDeposit();
+
+        uint256 assetAfterAllDeposits = IERC20(asset).balanceOf(client);
+
+        _doWithdraw(10);
+        uint256 assetAfterWithdraw1 = IERC20(asset).balanceOf(client);
+        assertApproxEqAbs(assetAfterWithdraw1 - assetAfterAllDeposits, DEPOSIT_AMOUNT * 4 / 10, 1);
+
+        _doWithdraw(5);
+        _doWithdraw(3);
+        _doWithdraw(2);
         _doWithdraw(1);
 
+        assertApproxEqAbs(IERC20(asset).balanceOf(client), assetBefore, 1);
         assertEq(IERC20(vault).balanceOf(proxyAddress), 0);
     }
 
     function _doDeposit() private {
-        bytes memory signerSignature = _getP2pSignerSignature(client, CLIENT_BASIS_POINTS, SIG_DEADLINE);
+        bytes memory signature = _getP2pSignerSignature(CLIENT_BPS, SIG_DEADLINE);
+
         vm.startPrank(client);
         IERC20(asset).safeApprove(proxyAddress, 0);
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
-        factory.deposit(asset, DEPOSIT_AMOUNT, CLIENT_BASIS_POINTS, SIG_DEADLINE, signerSignature);
+        factory.deposit(asset, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
         vm.stopPrank();
     }
 
@@ -191,19 +539,26 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function _getP2pSignerSignature(address _client, uint96 _clientBasisPoints, uint256 _sigDeadline)
+    function _getP2pSignerSignature(uint96 clientBasisPoints, uint256 deadline)
         private
         view
         returns (bytes memory)
     {
-        bytes32 hashForSigner = factory.getHashForP2pSigner(_client, _clientBasisPoints, _sigDeadline);
+        bytes32 hashForSigner = factory.getHashForP2pSigner(client, clientBasisPoints, deadline);
         bytes32 ethHash = ECDSA.toEthSignedMessageHash(hashForSigner);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(p2pSignerKey, ethHash);
         return abi.encodePacked(r, s, v);
     }
 
-    function _forward(uint256 blocks) internal {
+    function _forward(uint256 blocks) private {
         vm.roll(block.number + blocks);
         vm.warp(block.timestamp + blocks);
+    }
+    function _ensureAssetVaultPair(address _asset, address _vault) private {
+        vm.startPrank(p2pOperator);
+        if (factory.getVaultForAsset(_asset) != _vault) {
+            factory.setAssetVaultPair(_asset, _vault);
+        }
+        vm.stopPrank();
     }
 }

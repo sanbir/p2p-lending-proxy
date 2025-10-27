@@ -29,9 +29,9 @@ contract Deploy is Script {
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
-        factory = new P2pMorphoProxyFactory(
-            wallet.addr, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER, USDC, VAULT_USDC, USDT, VAULT_USDT
-        );
+        factory = new P2pMorphoProxyFactory(wallet.addr, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER);
+        factory.setAssetVaultPair(USDC, VAULT_USDC);
+        factory.setAssetVaultPair(USDT, VAULT_USDT);
         vm.stopBroadcast();
 
         proxy = P2pMorphoProxy(factory.getReferenceP2pYieldProxy());

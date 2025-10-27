@@ -18,10 +18,6 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
     using SafeERC20 for IERC20;
 
     IMorphoBundler private immutable i_morphoBundler;
-    address private immutable i_usdc;
-    address private immutable i_vaultUsdc;
-    address private immutable i_usdt;
-    address private immutable i_vaultUsdt;
 
     modifier onlyP2pOperator() {
         address p2pOperator = i_factory.getP2pOperator();
@@ -33,17 +29,9 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
         address _factory,
         address _p2pTreasury,
         address _allowedCalldataChecker,
-        address _morphoBundler,
-        address _usdc,
-        address _vaultUsdc,
-        address _usdt,
-        address _vaultUsdt
+        address _morphoBundler
     ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker) {
         i_morphoBundler = IMorphoBundler(_morphoBundler);
-        i_usdc = _usdc;
-        i_vaultUsdc = _vaultUsdc;
-        i_usdt = _usdt;
-        i_vaultUsdt = _vaultUsdt;
     }
 
     function deposit(address _asset, uint256 _amount) external override(IP2pMorphoProxy, P2pYieldProxy) {
@@ -137,21 +125,17 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
     }
 
     function _vaultForAsset(address _asset) private view returns (address vault) {
-        if (_asset == i_usdc) {
-            return i_vaultUsdc;
-        }
-        if (_asset == i_usdt && i_usdt != address(0)) {
-            return i_vaultUsdt;
+        vault = IP2pMorphoProxyFactory(address(i_factory)).getVaultForAsset(_asset);
+        if (vault != address(0)) {
+            return vault;
         }
         revert P2pMorphoProxy__UnsupportedAsset(_asset);
     }
 
     function _assetForVault(address _vault) private view returns (address asset) {
-        if (_vault == i_vaultUsdc) {
-            return i_usdc;
-        }
-        if (_vault == i_vaultUsdt && i_vaultUsdt != address(0)) {
-            return i_usdt;
+        asset = IP2pMorphoProxyFactory(address(i_factory)).getAssetForVault(_vault);
+        if (asset != address(0)) {
+            return asset;
         }
         revert P2pMorphoProxy__UnsupportedAsset(_vault);
     }

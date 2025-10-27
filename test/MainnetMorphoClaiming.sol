@@ -7,6 +7,7 @@ import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
 import "../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
 import "../src/common/AllowedCalldataChecker.sol";
@@ -59,9 +60,9 @@ contract MainnetMorphoClaiming is Test {
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
-        factory = new P2pMorphoProxyFactory(
-            p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER, USDC, VAULT_USDC, USDT, VAULT_USDT
-        );
+        factory = new P2pMorphoProxyFactory(p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER);
+        factory.setAssetVaultPair(USDC, VAULT_USDC);
+        factory.setAssetVaultPair(USDT, VAULT_USDT);
         factory.setTrustedDistributor(DISTRIBUTOR);
         vm.stopPrank();
 
@@ -130,7 +131,8 @@ contract MainnetMorphoClaiming is Test {
         bytes memory signerSignature = _getP2pSignerSignature(client, CLIENT_BASIS_POINTS, SIG_DEADLINE);
 
         vm.startPrank(client);
-        IERC20(asset).approve(proxyAddress, type(uint256).max);
+        IERC20(asset).safeApprove(proxyAddress, 0);
+        IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         factory.deposit(asset, DEPOSIT_AMOUNT, CLIENT_BASIS_POINTS, SIG_DEADLINE, signerSignature);
         vm.stopPrank();
     }
