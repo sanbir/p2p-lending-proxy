@@ -35,6 +35,7 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
         i_morphoBundler = IMorphoBundler(_morphoBundler);
     }
 
+    /// @inheritdoc IP2pMorphoProxy
     function deposit(address _vault, uint256 _amount) external override(IP2pMorphoProxy, P2pYieldProxy) {
         require(_vault != address(0), P2pMorphoProxy__ZeroVaultAddress());
 
@@ -49,6 +50,7 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
         _deposit(_vault, address(i_morphoBundler), depositCalldata, asset, _amount, true);
     }
 
+    /// @inheritdoc IP2pMorphoProxy
     function withdraw(address _vault, uint256 _shares) external override onlyClient {
         require(_vault != address(0), P2pMorphoProxy__ZeroVaultAddress());
 
@@ -64,7 +66,8 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
         _withdraw(_vault, asset, address(i_morphoBundler), redeemCalldata, _shares);
     }
 
-    function withdrawAccruedRewards(address _vault) external onlyP2pOperator {
+    /// @inheritdoc IP2pMorphoProxy
+    function withdrawAccruedRewards(address _vault) external override onlyP2pOperator {
         require(_vault != address(0), P2pMorphoProxy__ZeroVaultAddress());
 
         address asset = IERC4626(_vault).asset();
@@ -83,8 +86,10 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
         _withdraw(_vault, asset, address(i_morphoBundler), redeemCalldata, shares);
     }
 
+    /// @inheritdoc IP2pMorphoProxy
     function morphoUrdClaim(address _distributor, address _reward, uint256 _amount, bytes32[] calldata _proof)
         external
+        override
         nonReentrant
     {
         bool shouldCheckP2pOperator;
@@ -116,10 +121,11 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
         emit P2pMorphoProxy__ClaimedMorphoUrd(_distributor, _reward, newAssetAmount, p2pAmount, clientAmount);
     }
 
+    /// @inheritdoc IP2pYieldProxy
     function calculateAccruedRewards(address _vault, address _asset)
         public
         view
-        override(P2pYieldProxy)
+        override(IP2pYieldProxy, P2pYieldProxy)
         returns (int256)
     {
         uint256 shares = IERC20(_vault).balanceOf(address(this));

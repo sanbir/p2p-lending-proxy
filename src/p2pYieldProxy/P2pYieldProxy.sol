@@ -95,7 +95,7 @@ abstract contract P2pYieldProxy is Initializable, ReentrancyGuardUpgradeable, ER
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function initialize(address _client, uint96 _clientBasisPoints) external initializer onlyFactory {
+    function initialize(address _client, uint96 _clientBasisPoints) external override initializer onlyFactory {
         __ReentrancyGuard_init();
 
         require(
@@ -109,7 +109,8 @@ abstract contract P2pYieldProxy is Initializable, ReentrancyGuardUpgradeable, ER
         emit P2pYieldProxy__Initialized();
     }
 
-    function deposit(address _vault, uint256 _amount) external virtual;
+    /// @inheritdoc IP2pYieldProxy
+    function deposit(address _vault, uint256 _amount) external virtual override;
 
     /// @notice Deposit assets into yield protocol
     /// @param _vault yield-bearing vault token address
@@ -222,6 +223,7 @@ abstract contract P2pYieldProxy is Initializable, ReentrancyGuardUpgradeable, ER
     /// @inheritdoc IP2pYieldProxy
     function callAnyFunction(address _yieldProtocolAddress, bytes calldata _yieldProtocolCalldata)
         external
+        override
         onlyClient
         nonReentrant
         calldataShouldBeAllowed(_yieldProtocolAddress, _yieldProtocolCalldata)
@@ -239,36 +241,37 @@ abstract contract P2pYieldProxy is Initializable, ReentrancyGuardUpgradeable, ER
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getFactory() external view returns (address) {
+    function getFactory() external view override returns (address) {
         return address(i_factory);
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getP2pTreasury() external view returns (address) {
+    function getP2pTreasury() external view override returns (address) {
         return i_p2pTreasury;
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getClient() external view returns (address) {
+    function getClient() external view override returns (address) {
         return s_client;
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getClientBasisPoints() external view returns (uint96) {
+    function getClientBasisPoints() external view override returns (uint96) {
         return s_clientBasisPoints;
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getTotalDeposited(address _asset) external view returns (uint256) {
+    function getTotalDeposited(address _asset) external view override returns (uint256) {
         return s_totalDeposited[_asset];
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getTotalWithdrawn(address _asset) external view returns (uint256) {
+    function getTotalWithdrawn(address _asset) external view override returns (uint256) {
         return s_totalWithdrawn[_asset].amount;
     }
 
-    function getUserPrincipal(address _asset) public view returns (uint256) {
+    /// @inheritdoc IP2pYieldProxy
+    function getUserPrincipal(address _asset) public view override returns (uint256) {
         uint256 totalDeposited = s_totalDeposited[_asset];
         uint256 totalWithdrawn = s_totalWithdrawn[_asset].amount;
         if (totalDeposited > totalWithdrawn) {
@@ -277,10 +280,12 @@ abstract contract P2pYieldProxy is Initializable, ReentrancyGuardUpgradeable, ER
         return 0;
     }
 
+    /// @inheritdoc IP2pYieldProxy
     function calculateAccruedRewards(address _yieldProtocolAddress, address _asset)
         public
         view
         virtual
+        override
         returns (int256)
     {
         uint256 currentAmount = IERC20(_yieldProtocolAddress).balanceOf(address(this));
@@ -288,7 +293,8 @@ abstract contract P2pYieldProxy is Initializable, ReentrancyGuardUpgradeable, ER
         return int256(currentAmount) - int256(userPrincipal);
     }
 
-    function getLastFeeCollectionTime(address _asset) public view returns (uint48) {
+    /// @inheritdoc IP2pYieldProxy
+    function getLastFeeCollectionTime(address _asset) public view override returns (uint48) {
         return s_totalWithdrawn[_asset].lastFeeCollectionTime;
     }
 

@@ -17,13 +17,13 @@ interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @dev Emitted when the a new proxy is created
     event P2pYieldProxyFactory__ProxyCreated(address _proxy, address _client, uint96 _clientBasisPoints);
 
-    /// @dev Deposits into the yield protocol through the provided vault
-    /// @param _vault ERC4626 vault
-    /// @param _amount amount
-    /// @param _clientBasisPoints The client basis points
-    /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
-    /// @param _p2pSignerSignature The P2pSigner signature
-    /// @return p2pYieldProxyAddress The client's P2pYieldProxy instance address
+    /// @notice Deposits assets for the caller into a specific ERC4626 vault via their proxy
+    /// @param _vault The ERC4626 vault that should receive the deposit
+    /// @param _amount The amount of assets to deposit
+    /// @param _clientBasisPoints The fee share (basis points) that defines the client split
+    /// @param _p2pSignerSigDeadline The expiration timestamp for the P2P signer signature
+    /// @param _p2pSignerSignature The signature from the P2P signer authorizing the deposit
+    /// @return p2pYieldProxyAddress The address of the client-specific yield proxy
     function deposit(
         address _vault,
         uint256 _amount,
@@ -32,37 +32,39 @@ interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
         bytes calldata _p2pSignerSignature
     ) external returns (address p2pYieldProxyAddress);
 
-    /// @dev Computes the address of a P2pYieldProxy created by `_createP2pYieldProxy` function
-    /// @dev P2pYieldProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
-    /// @param _client The address of client
-    /// @return address The address of the P2pYieldProxy instance
+    /// @notice Predicts the address of the deterministic clone for a client and fee share
+    /// @param _client The client address that owns the proxy
+    /// @param _clientBasisPoints The fee share (basis points) assigned to the client
+    /// @return The predicted proxy address
     function predictP2pYieldProxyAddress(address _client, uint96 _clientBasisPoints) external view returns (address);
 
-    /// @dev Transfers the P2pSigner
-    /// @param _newP2pSigner The new P2pSigner address
+    /// @notice Transfers control of the P2P signer to a new address
+    /// @param _newP2pSigner The address of the new P2P signer
     function transferP2pSigner(address _newP2pSigner) external;
 
-    /// @dev Returns a template set by P2P to be used for new P2pYieldProxy instances
-    /// @return a template set by P2P to be used for new P2pYieldProxy instances
+    /// @notice Returns the implementation used for new proxy clones
+    /// @return The reference P2pYieldProxy implementation address
     function getReferenceP2pYieldProxy() external view returns (address);
 
-    /// @dev Gets the hash for the P2pSigner
-    /// @param _client The address of client
-    /// @param _clientBasisPoints The client basis points
-    /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
-    /// @return The hash for the P2pSigner
+    /// @notice Computes the P2P signer hash required to authorize a deposit
+    /// @param _client The client address that will initiate the deposit
+    /// @param _clientBasisPoints The client fee share in basis points
+    /// @param _p2pSignerSigDeadline The deadline that limits signature validity
+    /// @return The digest that must be signed by the P2P signer
     function getHashForP2pSigner(address _client, uint96 _clientBasisPoints, uint256 _p2pSignerSigDeadline)
         external
         view
         returns (bytes32);
 
-    /// @dev Gets the P2pSigner
-    /// @return The P2pSigner address
+    /// @notice Returns the current P2P signer address
+    /// @return The address that may authorize deposits
     function getP2pSigner() external view returns (address);
 
+    /// @notice Returns the address of the active P2P operator
+    /// @return The operator address
     function getP2pOperator() external view returns (address);
 
-    /// @dev Gets all proxies
-    /// @return The proxy addresses
+    /// @notice Returns all proxies that have been created by the factory
+    /// @return The list of proxy addresses
     function getAllProxies() external view returns (address[] memory);
 }

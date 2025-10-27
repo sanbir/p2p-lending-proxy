@@ -27,17 +27,20 @@ contract P2pMorphoProxyFactory is P2pYieldProxyFactory, IP2pMorphoProxyFactory {
             new P2pMorphoProxy(address(this), _p2pTreasury, _allowedCalldataChecker, _morphoBundler);
     }
 
-    function setTrustedDistributor(address _newTrustedDistributor) external onlyP2pOperator {
+    /// @inheritdoc IP2pMorphoProxyFactory
+    function setTrustedDistributor(address _newTrustedDistributor) external override onlyP2pOperator {
         require(_newTrustedDistributor != address(0), P2pMorphoProxyFactory__ZeroTrustedDistributorAddress());
         s_trustedDistributors[_newTrustedDistributor] = true;
         emit P2pMorphoProxyFactory__TrustedDistributorSet(_newTrustedDistributor);
     }
 
-    function removeTrustedDistributor(address _trustedDistributor) external onlyP2pOperator {
+    /// @inheritdoc IP2pMorphoProxyFactory
+    function removeTrustedDistributor(address _trustedDistributor) external override onlyP2pOperator {
         s_trustedDistributors[_trustedDistributor] = false;
         emit P2pMorphoProxyFactory__TrustedDistributorRemoved(_trustedDistributor);
     }
 
+    /// @inheritdoc IP2pMorphoProxyFactory
     function checkMorphoUrdClaim(address _p2pOperatorToCheck, bool _shouldCheckP2pOperator, address _distributor)
         external
         view
@@ -49,6 +52,7 @@ contract P2pMorphoProxyFactory is P2pYieldProxyFactory, IP2pMorphoProxyFactory {
         require(s_trustedDistributors[_distributor], P2pMorphoProxyFactory__DistributorNotTrusted(_distributor));
     }
 
+    /// @inheritdoc IP2pMorphoProxyFactory
     function isTrustedDistributor(address _distributor) external view override returns (bool) {
         return s_trustedDistributors[_distributor];
     }

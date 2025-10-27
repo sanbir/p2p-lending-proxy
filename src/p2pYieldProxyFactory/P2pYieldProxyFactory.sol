@@ -89,7 +89,7 @@ abstract contract P2pYieldProxyFactory is AllowedCalldataChecker, P2pOperator2St
     }
 
     /// @inheritdoc IP2pYieldProxyFactory
-    function transferP2pSigner(address _newP2pSigner) external onlyP2pOperator {
+    function transferP2pSigner(address _newP2pSigner) external override onlyP2pOperator {
         _transferP2pSigner(_newP2pSigner);
     }
 
@@ -102,6 +102,7 @@ abstract contract P2pYieldProxyFactory is AllowedCalldataChecker, P2pOperator2St
         bytes calldata _p2pSignerSignature
     )
         external
+        override
         p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
         p2pSignerSignatureShouldBeValid(_clientBasisPoints, _p2pSignerSigDeadline, _p2pSignerSignature)
         returns (address p2pYieldProxyAddress)
@@ -152,13 +153,18 @@ abstract contract P2pYieldProxyFactory is AllowedCalldataChecker, P2pOperator2St
     }
 
     /// @inheritdoc IP2pYieldProxyFactory
-    function predictP2pYieldProxyAddress(address _client, uint96 _clientBasisPoints) public view returns (address) {
+    function predictP2pYieldProxyAddress(address _client, uint96 _clientBasisPoints)
+        public
+        view
+        override
+        returns (address)
+    {
         return
             Clones.predictDeterministicAddress(address(i_referenceP2pYieldProxy), _getSalt(_client, _clientBasisPoints));
     }
 
     /// @inheritdoc IP2pYieldProxyFactory
-    function getReferenceP2pYieldProxy() external view returns (address) {
+    function getReferenceP2pYieldProxy() external view override returns (address) {
         return address(i_referenceP2pYieldProxy);
     }
 
@@ -166,13 +172,14 @@ abstract contract P2pYieldProxyFactory is AllowedCalldataChecker, P2pOperator2St
     function getHashForP2pSigner(address _client, uint96 _clientBasisPoints, uint256 _p2pSignerSigDeadline)
         public
         view
+        override
         returns (bytes32)
     {
         return keccak256(abi.encode(_client, _clientBasisPoints, _p2pSignerSigDeadline, address(this), block.chainid));
     }
 
     /// @inheritdoc IP2pYieldProxyFactory
-    function getP2pSigner() external view returns (address) {
+    function getP2pSigner() external view override returns (address) {
         return s_p2pSigner;
     }
 
@@ -181,7 +188,7 @@ abstract contract P2pYieldProxyFactory is AllowedCalldataChecker, P2pOperator2St
     }
 
     /// @inheritdoc IP2pYieldProxyFactory
-    function getAllProxies() external view returns (address[] memory) {
+    function getAllProxies() external view override returns (address[] memory) {
         return s_allProxies;
     }
 
