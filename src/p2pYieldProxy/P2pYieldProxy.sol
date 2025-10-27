@@ -109,7 +109,7 @@ abstract contract P2pYieldProxy is Initializable, ReentrancyGuardUpgradeable, ER
         emit P2pYieldProxy__Initialized();
     }
 
-    function deposit(address _asset, uint256 _amount) external virtual;
+    function deposit(address _vault, uint256 _amount) external virtual;
 
     /// @notice Deposit assets into yield protocol
     /// @param _vault yield-bearing vault token address

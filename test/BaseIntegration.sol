@@ -49,7 +49,6 @@ contract BaseIntegration is Test {
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
         factory = new P2pMorphoProxyFactory(p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER);
-        factory.setAssetVaultPair(USDC, VAULT_USDC);
         vm.stopPrank();
 
         proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
@@ -77,7 +76,7 @@ contract BaseIntegration is Test {
         vm.startPrank(client);
         IERC20(USDC).safeApprove(proxyAddress, 0);
         IERC20(USDC).safeApprove(proxyAddress, type(uint256).max);
-        factory.deposit(USDC, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, p2pSignature);
+        factory.deposit(VAULT_USDC, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, p2pSignature);
         vm.stopPrank();
     }
 }

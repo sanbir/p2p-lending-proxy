@@ -61,8 +61,6 @@ contract MainnetIntegration is Test {
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
         factory = new P2pMorphoProxyFactory(p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER);
-        factory.setAssetVaultPair(USDC, VAULT_USDC);
-        factory.setAssetVaultPair(USDT, VAULT_USDT);
         vm.stopPrank();
 
         allowedChecker = address(checkerProxy);
@@ -164,109 +162,35 @@ contract MainnetIntegration is Test {
         assertEq(factory.getP2pSigner(), nobody);
     }
 
-    function test_setAssetVaultPair_onlyOperator() external {
-        vm.startPrank(nobody);
-        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
-        factory.setAssetVaultPair(USDC, VAULT_USDC);
-        vm.stopPrank();
-
-        vm.startPrank(p2pOperator);
-        vm.expectEmit(true, true, false, false);
-        emit IP2pMorphoProxyFactory.P2pMorphoProxyFactory__AssetVaultPairSet(USDC, VAULT_USDC);
-        factory.setAssetVaultPair(USDC, VAULT_USDC);
-        vm.stopPrank();
-    }
-
-    function test_removeAssetVaultPair_onlyOperator() external {
-        vm.startPrank(nobody);
-        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
-        factory.removeAssetVaultPair(USDC);
-        vm.stopPrank();
-
-        vm.startPrank(p2pOperator);
-        vm.expectEmit(true, true, false, false);
-        emit IP2pMorphoProxyFactory.P2pMorphoProxyFactory__AssetVaultPairRemoved(USDC, VAULT_USDC);
-        factory.removeAssetVaultPair(USDC);
-        vm.stopPrank();
-
-        assertEq(factory.getVaultForAsset(USDC), address(0));
-        assertEq(factory.getAssetForVault(VAULT_USDC), address(0));
-    }
-
-    function test_setAssetVaultPair_mismatchReverts() external {
-        vm.startPrank(p2pOperator);
-        vm.expectRevert(
-            abi.encodeWithSelector(P2pMorphoProxyFactory__VaultAssetMismatch.selector, USDC, VAULT_USDT)
-        );
-        factory.setAssetVaultPair(USDC, VAULT_USDT);
-        vm.stopPrank();
-    }
-
-    function test_removeAssetVaultPair_notConfigured() external {
-        vm.startPrank(p2pOperator);
-        factory.removeAssetVaultPair(USDC);
-        vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxyFactory__AssetVaultPairNotConfigured.selector, USDC));
-        factory.removeAssetVaultPair(USDC);
-        vm.stopPrank();
-    }
-
-    function test_depositWithoutConfiguredAssetReverts() external {
-        vm.startPrank(p2pOperator);
-        factory.removeAssetVaultPair(USDC);
-        vm.stopPrank();
-
-        assertEq(factory.getVaultForAsset(USDC), address(0));
-
-        deal(USDC, client, DEPOSIT_AMOUNT);
-
-        vm.startPrank(client);
-        IERC20(USDC).safeApprove(proxyAddress, 0);
-        IERC20(USDC).safeApprove(proxyAddress, type(uint256).max);
-        (bool success, bytes memory returndata) = address(factory).call(
-            abi.encodeWithSelector(
-                IP2pYieldProxyFactory.deposit.selector,
-                USDC,
-                DEPOSIT_AMOUNT,
-                CLIENT_BPS,
-                SIG_DEADLINE,
-                _getP2pSignerSignature(CLIENT_BPS, SIG_DEADLINE)
-            )
-        );
-        vm.stopPrank();
-
-        assertFalse(success);
-        assertEq(bytes4(returndata), P2pMorphoProxy__UnsupportedAsset.selector);
-    }
 
     function test_clientBasisPointsGreaterThan10000() external {
-        _ensureAssetVaultPair(USDC, VAULT_USDC);
         uint96 invalidBasisPoints = 10_001;
         bytes memory signature = _getP2pSignerSignature(invalidBasisPoints, SIG_DEADLINE);
 
         asset = USDC;
+        vault = VAULT_USDC;
         deal(asset, client, DEPOSIT_AMOUNT);
         vm.startPrank(client);
         IERC20(asset).safeApprove(proxyAddress, 0);
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__InvalidClientBasisPoints.selector, invalidBasisPoints));
-        factory.deposit(asset, DEPOSIT_AMOUNT, invalidBasisPoints, SIG_DEADLINE, signature);
+        factory.deposit(vault, DEPOSIT_AMOUNT, invalidBasisPoints, SIG_DEADLINE, signature);
         vm.stopPrank();
     }
 
-    function test_zeroAddressAsset() external {
-        _ensureAssetVaultPair(USDC, VAULT_USDC);
+    function test_zeroAddressVault() external {
         asset = USDC;
         bytes memory signature = _getP2pSignerSignature(CLIENT_BPS, SIG_DEADLINE);
 
         vm.startPrank(client);
-        vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxy__UnsupportedAsset.selector, address(0)));
+        vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxy__ZeroVaultAddress.selector));
         factory.deposit(address(0), DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
         vm.stopPrank();
     }
 
     function test_zeroAssetAmount() external {
         asset = USDC;
-        _ensureAssetVaultPair(asset, VAULT_USDC);
+        vault = VAULT_USDC;
         deal(asset, client, DEPOSIT_AMOUNT);
         vm.startPrank(client);
         IERC20(asset).safeApprove(proxyAddress, 0);
@@ -274,7 +198,7 @@ contract MainnetIntegration is Test {
         (bool success, bytes memory returndata) = address(factory).call(
             abi.encodeWithSelector(
                 IP2pYieldProxyFactory.deposit.selector,
-                asset,
+                vault,
                 0,
                 CLIENT_BPS,
                 SIG_DEADLINE,
@@ -297,7 +221,7 @@ contract MainnetIntegration is Test {
         vm.expectRevert(
             abi.encodeWithSelector(P2pYieldProxy__NotFactoryCalled.selector, client, factory)
         );
-        P2pMorphoProxy(proxyAddress).deposit(asset, DEPOSIT_AMOUNT);
+        P2pMorphoProxy(proxyAddress).deposit(vault, DEPOSIT_AMOUNT);
         vm.stopPrank();
     }
 
@@ -332,22 +256,6 @@ contract MainnetIntegration is Test {
         );
     }
 
-    function test_getVaultForAsset_returnsZeroWhenUnset() external {
-        vm.startPrank(p2pOperator);
-        factory.removeAssetVaultPair(USDC);
-        vm.stopPrank();
-
-        assertEq(factory.getVaultForAsset(USDC), address(0));
-    }
-
-    function test_getAssetForVault_returnsZeroWhenUnset() external {
-        vm.startPrank(p2pOperator);
-        factory.removeAssetVaultPair(USDC);
-        vm.stopPrank();
-
-        assertEq(factory.getAssetForVault(VAULT_USDC), address(0));
-    }
-
     function test_getHashForP2pSigner() external view {
         bytes32 expected = keccak256(
             abi.encode(client, CLIENT_BPS, SIG_DEADLINE, address(factory), block.chainid)
@@ -371,7 +279,7 @@ contract MainnetIntegration is Test {
         vm.expectRevert(
             abi.encodeWithSelector(P2pYieldProxyFactory__P2pSignerSignatureExpired.selector, expiredDeadline)
         );
-        factory.deposit(asset, DEPOSIT_AMOUNT, CLIENT_BPS, expiredDeadline, signature);
+        factory.deposit(vault, DEPOSIT_AMOUNT, CLIENT_BPS, expiredDeadline, signature);
         vm.stopPrank();
     }
 
@@ -383,7 +291,7 @@ contract MainnetIntegration is Test {
         IERC20(asset).safeApprove(proxyAddress, 0);
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
-        factory.deposit(asset, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
+        factory.deposit(vault, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
         vm.stopPrank();
     }
 
@@ -526,7 +434,7 @@ contract MainnetIntegration is Test {
         vm.startPrank(client);
         IERC20(asset).safeApprove(proxyAddress, 0);
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
-        factory.deposit(asset, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
+        factory.deposit(vault, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
         vm.stopPrank();
     }
 
@@ -553,12 +461,5 @@ contract MainnetIntegration is Test {
     function _forward(uint256 blocks) private {
         vm.roll(block.number + blocks);
         vm.warp(block.timestamp + blocks);
-    }
-    function _ensureAssetVaultPair(address _asset, address _vault) private {
-        vm.startPrank(p2pOperator);
-        if (factory.getVaultForAsset(_asset) != _vault) {
-            factory.setAssetVaultPair(_asset, _vault);
-        }
-        vm.stopPrank();
     }
 }

@@ -9,10 +9,11 @@ import "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../p2pMorphoProxyFactory/IP2pMorphoProxyFactory.sol";
 import "./IP2pMorphoProxy.sol";
 
-error P2pMorphoProxy__UnsupportedAsset(address _asset);
 error P2pMorphoProxy__NothingClaimed();
 error P2pMorphoProxy__NotP2pOperator(address _caller);
 error P2pMorphoProxy__ZeroAccruedRewards();
+error P2pMorphoProxy__ZeroVaultAddress();
+error P2pMorphoProxy__VaultAssetNotSet(address _vault);
 
 contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
     using SafeERC20 for IERC20;
@@ -34,28 +35,41 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
         i_morphoBundler = IMorphoBundler(_morphoBundler);
     }
 
-    function deposit(address _asset, uint256 _amount) external override(IP2pMorphoProxy, P2pYieldProxy) {
-        address vault = _vaultForAsset(_asset);
-        uint256 minShares = IERC4626(vault).convertToShares(_amount);
+    function deposit(address _vault, uint256 _amount) external override(IP2pMorphoProxy, P2pYieldProxy) {
+        require(_vault != address(0), P2pMorphoProxy__ZeroVaultAddress());
+
+        address asset = IERC4626(_vault).asset();
+        require(asset != address(0), P2pMorphoProxy__VaultAssetNotSet(_vault));
+
+        uint256 minShares = IERC4626(_vault).convertToShares(_amount);
         bytes[] memory dataForMulticall = new bytes[](1);
         dataForMulticall[0] =
-            abi.encodeCall(IMorphoBundler.erc4626Deposit, (vault, _amount, minShares, address(this)));
+            abi.encodeCall(IMorphoBundler.erc4626Deposit, (_vault, _amount, minShares, address(this)));
         bytes memory depositCalldata = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
-        _deposit(vault, address(i_morphoBundler), depositCalldata, _asset, _amount, true);
+        _deposit(_vault, address(i_morphoBundler), depositCalldata, asset, _amount, true);
     }
 
     function withdraw(address _vault, uint256 _shares) external override onlyClient {
+        require(_vault != address(0), P2pMorphoProxy__ZeroVaultAddress());
+
+        address asset = IERC4626(_vault).asset();
+        require(asset != address(0), P2pMorphoProxy__VaultAssetNotSet(_vault));
+
         uint256 minAssets = IERC4626(_vault).convertToAssets(_shares);
         bytes[] memory dataForMulticall = new bytes[](1);
         dataForMulticall[0] = abi.encodeCall(
             IMorphoBundler.erc4626Redeem, (_vault, _shares, minAssets, address(this), address(this))
         );
         bytes memory redeemCalldata = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
-        _withdraw(_vault, _assetForVault(_vault), address(i_morphoBundler), redeemCalldata, _shares);
+        _withdraw(_vault, asset, address(i_morphoBundler), redeemCalldata, _shares);
     }
 
     function withdrawAccruedRewards(address _vault) external onlyP2pOperator {
-        address asset = _assetForVault(_vault);
+        require(_vault != address(0), P2pMorphoProxy__ZeroVaultAddress());
+
+        address asset = IERC4626(_vault).asset();
+        require(asset != address(0), P2pMorphoProxy__VaultAssetNotSet(_vault));
+
         int256 amount = calculateAccruedRewards(_vault, asset);
         require(amount > 0, P2pMorphoProxy__ZeroAccruedRewards());
 
@@ -124,19 +138,4 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
         return interfaceId == type(IP2pMorphoProxy).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    function _vaultForAsset(address _asset) private view returns (address vault) {
-        vault = IP2pMorphoProxyFactory(address(i_factory)).getVaultForAsset(_asset);
-        if (vault != address(0)) {
-            return vault;
-        }
-        revert P2pMorphoProxy__UnsupportedAsset(_asset);
-    }
-
-    function _assetForVault(address _vault) private view returns (address asset) {
-        asset = IP2pMorphoProxyFactory(address(i_factory)).getAssetForVault(_vault);
-        if (asset != address(0)) {
-            return asset;
-        }
-        revert P2pMorphoProxy__UnsupportedAsset(_vault);
-    }
 }

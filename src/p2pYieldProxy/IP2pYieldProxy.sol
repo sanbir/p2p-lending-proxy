@@ -35,7 +35,7 @@ interface IP2pYieldProxy is IERC165 {
     /// @param _clientBasisPoints The client basis points
     function initialize(address _client, uint96 _clientBasisPoints) external;
 
-    function deposit(address _asset, uint256 _amount) external;
+    function deposit(address _vault, uint256 _amount) external;
 
     /// @notice Calls an arbitrary allowed function
     /// @param _yieldProtocolAddress The address of the yield protocol

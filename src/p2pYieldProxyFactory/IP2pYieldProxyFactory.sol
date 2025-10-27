@@ -17,15 +17,15 @@ interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
     /// @dev Emitted when the a new proxy is created
     event P2pYieldProxyFactory__ProxyCreated(address _proxy, address _client, uint96 _clientBasisPoints);
 
-    /// @dev Deposits the yield protocol
-    /// @param _asset asset
+    /// @dev Deposits into the yield protocol through the provided vault
+    /// @param _vault ERC4626 vault
     /// @param _amount amount
     /// @param _clientBasisPoints The client basis points
     /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
     /// @param _p2pSignerSignature The P2pSigner signature
     /// @return p2pYieldProxyAddress The client's P2pYieldProxy instance address
     function deposit(
-        address _asset,
+        address _vault,
         uint256 _amount,
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,

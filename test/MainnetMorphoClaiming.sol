@@ -61,8 +61,6 @@ contract MainnetMorphoClaiming is Test {
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
         factory = new P2pMorphoProxyFactory(p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER);
-        factory.setAssetVaultPair(USDC, VAULT_USDC);
-        factory.setAssetVaultPair(USDT, VAULT_USDT);
         factory.setTrustedDistributor(DISTRIBUTOR);
         vm.stopPrank();
 
@@ -133,7 +131,7 @@ contract MainnetMorphoClaiming is Test {
         vm.startPrank(client);
         IERC20(asset).safeApprove(proxyAddress, 0);
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
-        factory.deposit(asset, DEPOSIT_AMOUNT, CLIENT_BASIS_POINTS, SIG_DEADLINE, signerSignature);
+        factory.deposit(vault, DEPOSIT_AMOUNT, CLIENT_BASIS_POINTS, SIG_DEADLINE, signerSignature);
         vm.stopPrank();
     }
 

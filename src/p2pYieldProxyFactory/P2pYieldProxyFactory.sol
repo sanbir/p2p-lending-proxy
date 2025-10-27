@@ -95,7 +95,7 @@ abstract contract P2pYieldProxyFactory is AllowedCalldataChecker, P2pOperator2St
 
     /// @inheritdoc IP2pYieldProxyFactory
     function deposit(
-        address _asset,
+        address _vault,
         uint256 _amount,
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
@@ -110,7 +110,7 @@ abstract contract P2pYieldProxyFactory is AllowedCalldataChecker, P2pOperator2St
         P2pYieldProxy p2pYieldProxy = _getOrCreateP2pYieldProxy(_clientBasisPoints);
 
         // deposit via proxy
-        p2pYieldProxy.deposit(_asset, _amount);
+        p2pYieldProxy.deposit(_vault, _amount);
 
         emit P2pYieldProxyFactory__Deposited(msg.sender, _clientBasisPoints);
 

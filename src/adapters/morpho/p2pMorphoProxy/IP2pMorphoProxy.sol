@@ -10,7 +10,7 @@ interface IP2pMorphoProxy is IP2pYieldProxy {
         address _distributor, address _reward, uint256 _totalAmount, uint256 _p2pAmount, uint256 _clientAmount
     );
 
-    function deposit(address _asset, uint256 _amount) external override;
+    function deposit(address _vault, uint256 _amount) external override;
 
     function withdraw(address _vault, uint256 _shares) external;
 

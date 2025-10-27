@@ -30,8 +30,6 @@ contract Deploy is Script {
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
         factory = new P2pMorphoProxyFactory(wallet.addr, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER);
-        factory.setAssetVaultPair(USDC, VAULT_USDC);
-        factory.setAssetVaultPair(USDT, VAULT_USDT);
         vm.stopBroadcast();
 
         proxy = P2pMorphoProxy(factory.getReferenceP2pYieldProxy());
