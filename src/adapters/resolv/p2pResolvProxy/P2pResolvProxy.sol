@@ -15,6 +15,7 @@ error P2pResolvProxy__UnauthorizedAccount(address _account);
 error P2pResolvProxy__NotP2pOperator(address _caller);
 error P2pResolvProxy__CallerNeitherClientNorP2pOperator(address _caller);
 error P2pResolvProxy__ZeroAccruedRewards();
+error P2pResolvProxy__UnsupportedAsset(address _asset);
 
 contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     using SafeERC20 for IERC20;
@@ -208,6 +209,22 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
 
     function getLastFeeCollectionTimeRESOLV() public view returns(uint48) {
         return getLastFeeCollectionTime(i_RESOLV);
+    }
+
+    function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view override returns (uint256) {
+        if (_asset == i_RESOLV) {
+            uint256 effective = IResolvStaking(_yieldProtocolAddress).getUserEffectiveBalance(address(this));
+            if (effective > 0) {
+                return effective;
+            }
+            return IERC20(_yieldProtocolAddress).balanceOf(address(this));
+        }
+
+        if (_asset == i_USR) {
+            return IERC20(_yieldProtocolAddress).balanceOf(address(this));
+        }
+
+        revert P2pResolvProxy__UnsupportedAsset(_asset);
     }
 
     /// @inheritdoc ERC165

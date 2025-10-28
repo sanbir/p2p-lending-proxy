@@ -12,7 +12,6 @@ import "../common/AllowedCalldataChecker.sol";
 import "../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "../structs/P2pStructs.sol";
 import "./IP2pYieldProxy.sol";
-import {IERC4626} from "../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 error P2pYieldProxy__ZeroAddressAsset();
 error P2pYieldProxy__ZeroAssetAmount();
@@ -33,7 +32,6 @@ error P2pYieldProxy__NotClientCalled(
 );
 error P2pYieldProxy__ZeroAddressFactory();
 error P2pYieldProxy__ZeroAddressP2pTreasury();
-error P2pYieldProxy__ZeroAddressYieldProtocolAddress();
 error P2pYieldProxy__ZeroAllowedCalldataChecker();
 error P2pYieldProxy__DataTooShort();
 
@@ -317,11 +315,13 @@ abstract contract P2pYieldProxy is
         return 0;
     }
 
-    function calculateAccruedRewards(address _yieldProtocolAddress, address _asset) public view returns(int256) {
-        uint256 currentAmount = IERC20(_yieldProtocolAddress).balanceOf(address(this));
+    function calculateAccruedRewards(address _yieldProtocolAddress, address _asset) public view virtual returns(int256) {
+        uint256 currentAmount = _getCurrentAssetAmount(_yieldProtocolAddress, _asset);
         uint256 userPrincipal = getUserPrincipal(_asset);
         return int256(currentAmount) - int256(userPrincipal);
     }
+
+    function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view virtual returns (uint256);
 
     function getLastFeeCollectionTime(address _asset) public view returns(uint48) {
         return s_totalWithdrawn[_asset].lastFeeCollectionTime;
