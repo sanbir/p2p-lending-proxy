@@ -98,19 +98,19 @@ contract USRIntegration is Test {
 
         _doWithdraw(10);
 
-//        uint256 assetBalanceAfterWithdraw1 = IERC20(USR).balanceOf(clientAddress);
-//
-//        assertApproxEqAbs(assetBalanceAfterWithdraw1 - assetBalanceAfterAllDeposits, DepositAmount * 4 / 10, 1);
+        uint256 assetBalanceAfterWithdraw1 = IERC20(USR).balanceOf(clientAddress);
+
+        assertApproxEqAbs(assetBalanceAfterWithdraw1 - assetBalanceAfterAllDeposits, DepositAmount * 4 / 10, 1);
 
         _doWithdraw(5);
         _doWithdraw(3);
         _doWithdraw(2);
         _doWithdraw(1);
 
-//        uint256 assetBalanceAfterAllWithdrawals = IERC20(USR).balanceOf(clientAddress);
-//
-//        uint256 profit = 1414853635425232;
-//        assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore + profit, 1);
+        uint256 assetBalanceAfterAllWithdrawals = IERC20(USR).balanceOf(clientAddress);
+
+        uint256 profit = 0;
+        assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore + profit, 1);
     }
 
     function test_Resolv_profitSplit_Mainnet() public {
@@ -121,29 +121,32 @@ contract USRIntegration is Test {
 
         _doDeposit();
 
-        uint256 shares = IERC20(stUSR).balanceOf(proxyAddress);
+        uint256 shares = IERC20Rebasing(stUSR).sharesOf(proxyAddress);
         uint256 assetsInResolvBefore = IERC20Rebasing(stUSR).convertToUnderlyingToken(shares);
 
         _forward(10000000);
+
+        uint256 yieldAmount = 5e17;
+        deal(USR, stUSR, IERC20(USR).balanceOf(stUSR) + yieldAmount);
 
         uint256 assetsInResolvAfter = IERC20Rebasing(stUSR).convertToUnderlyingToken(shares);
         uint256 profit = assetsInResolvAfter - assetsInResolvBefore;
 
         _doWithdraw(1);
 
-//        uint256 clientAssetBalanceAfter = IERC20(USR).balanceOf(clientAddress);
-//        uint256 p2pAssetBalanceAfter = IERC20(USR).balanceOf(P2pTreasury);
-//        uint256 clientBalanceChange = clientAssetBalanceAfter - clientAssetBalanceBefore;
-//        uint256 p2pBalanceChange = p2pAssetBalanceAfter - p2pAssetBalanceBefore;
-//        uint256 sumOfBalanceChanges = clientBalanceChange + p2pBalanceChange;
-//
-//        assertApproxEqAbs(sumOfBalanceChanges, profit, 1);
-//
-//        uint256 clientBasisPointsDeFacto = clientBalanceChange * 10_000 / sumOfBalanceChanges;
-//        uint256 p2pBasisPointsDeFacto = p2pBalanceChange * 10_000 / sumOfBalanceChanges;
-//
-//        assertApproxEqAbs(ClientBasisPoints, clientBasisPointsDeFacto, 1);
-//        assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
+        uint256 clientAssetBalanceAfter = IERC20(USR).balanceOf(clientAddress);
+        uint256 p2pAssetBalanceAfter = IERC20(USR).balanceOf(P2pTreasury);
+        uint256 clientBalanceChange = clientAssetBalanceAfter - clientAssetBalanceBefore;
+        uint256 p2pBalanceChange = p2pAssetBalanceAfter - p2pAssetBalanceBefore;
+        uint256 sumOfBalanceChanges = clientBalanceChange + p2pBalanceChange;
+
+        assertApproxEqAbs(sumOfBalanceChanges, profit, 1);
+
+        uint256 clientBasisPointsDeFacto = clientBalanceChange * 10_000 / sumOfBalanceChanges;
+        uint256 p2pBasisPointsDeFacto = p2pBalanceChange * 10_000 / sumOfBalanceChanges;
+
+        assertApproxEqAbs(ClientBasisPoints, clientBasisPointsDeFacto, 1);
+        assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
     }
 
     function test_withdrawUSRAccruedRewards_byP2pOperator_Mainnet() public {
@@ -617,14 +620,15 @@ contract USRIntegration is Test {
     }
 
     function _doWithdraw(uint256 denominator) private {
-        uint256 sharesBalance = IERC20(stUSR).balanceOf(proxyAddress);
+        uint256 sharesBalance = IERC20Rebasing(stUSR).sharesOf(proxyAddress);
         console.log("sharesBalance");
         console.log(sharesBalance);
 
         uint256 sharesToWithdraw = sharesBalance / denominator;
+        uint256 underlyingToWithdraw = IERC20Rebasing(stUSR).convertToUnderlyingToken(sharesToWithdraw);
 
         vm.startPrank(clientAddress);
-        P2pResolvProxy(proxyAddress).withdrawUSR(sharesToWithdraw);
+        P2pResolvProxy(proxyAddress).withdrawUSR(underlyingToWithdraw);
         vm.stopPrank();
     }
 
