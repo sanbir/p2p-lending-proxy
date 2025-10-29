@@ -621,9 +621,6 @@ contract USRIntegration is Test {
 
     function _doWithdraw(uint256 denominator) private {
         uint256 sharesBalance = IERC20Rebasing(stUSR).sharesOf(proxyAddress);
-        console.log("sharesBalance");
-        console.log(sharesBalance);
-
         uint256 sharesToWithdraw = sharesBalance / denominator;
         uint256 underlyingToWithdraw = IERC20Rebasing(stUSR).convertToUnderlyingToken(sharesToWithdraw);
 

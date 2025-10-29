@@ -9,6 +9,7 @@ import "../src/access/P2pOperator.sol";
 import "../src/adapters/resolv/p2pResolvProxyFactory/P2pResolvProxyFactory.sol";
 import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "./mock/IERC20Rebasing.sol";
+import "../src/@resolv/IResolvStaking.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
@@ -94,23 +95,24 @@ contract RESOLVIntegration is Test {
         _doDeposit();
         _doDeposit();
 
-        uint256 assetBalanceAfterAllDeposits = IERC20(RESOLV).balanceOf(clientAddress);
+        // Simulate protocol yield so withdrawals include profit
+        uint256 simulatedYieldUnderlying = 2e18;
+        deal(RESOLV, stRESOLV, IERC20(RESOLV).balanceOf(stRESOLV) + simulatedYieldUnderlying);
 
-        _doWithdraw(10);
+        uint256 actualFirstWithdrawal = _doWithdraw(10);
 
-//        uint256 assetBalanceAfterWithdraw1 = IERC20(RESOLV).balanceOf(clientAddress);
-//
-//        assertApproxEqAbs(assetBalanceAfterWithdraw1 - assetBalanceAfterAllDeposits, DepositAmount * 4 / 10, 1);
+        uint256 minExpectedFirstWithdrawal = (DepositAmount * 4) / 10;
+        assertGt(actualFirstWithdrawal, minExpectedFirstWithdrawal, "Expected withdrawal to include accrued yield");
 
         _doWithdraw(5);
         _doWithdraw(3);
         _doWithdraw(2);
         _doWithdraw(1);
 
-//        uint256 assetBalanceAfterAllWithdrawals = IERC20(RESOLV).balanceOf(clientAddress);
-//
-//        uint256 profit = 1414853635425232;
-//        assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore + profit, 1);
+        uint256 assetBalanceAfterAllWithdrawals = IERC20(RESOLV).balanceOf(clientAddress);
+
+        uint256 profit = assetBalanceAfterAllWithdrawals - assetBalanceBefore;
+        assertGt(profit, 0, "Expected non-zero profit");
     }
 
     function test_withdrawRESOLVAccruedRewards_byP2pOperator_Mainnet() public {
@@ -121,73 +123,79 @@ contract RESOLVIntegration is Test {
         // Simulate time passing to accrue rewards
         _forward(10000000);
 
-        // Simulate yield by increasing the proxy's stRESOLV balance
-        // This simulates earning rewards in the form of additional stRESOLV shares
-        uint256 currentStResolv = IERC20(stRESOLV).balanceOf(proxyAddress);
-        uint256 yieldAmount = 5e18; // 5 stRESOLV as yield
-        deal(stRESOLV, proxyAddress, currentStResolv + yieldAmount);
+        // Simulate protocol yield by increasing stRESOLV vault's underlying balance
+        uint256 yieldAmount = 5e18;
+        deal(RESOLV, stRESOLV, IERC20(RESOLV).balanceOf(stRESOLV) + yieldAmount);
+        vm.prank(proxyAddress);
+        IResolvStaking(stRESOLV).updateCheckpoint(proxyAddress);
 
         // Verify that accrued rewards are now positive
         int256 accruedRewards = P2pResolvProxy(proxyAddress).calculateAccruedRewardsRESOLV();
         assertGt(accruedRewards, 0, "No accrued rewards to withdraw");
 
         // Withdraw accrued rewards as P2pOperator (two-step process)
-        vm.startPrank(p2pOperatorAddress);
         uint256 treasuryBalanceBefore = IERC20(RESOLV).balanceOf(P2pTreasury);
+        uint256 clientBalanceBefore = IERC20(RESOLV).balanceOf(clientAddress);
 
         // Step 1: Initiate withdrawal of accrued rewards
+        vm.startPrank(p2pOperatorAddress);
         P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLVAccruedRewards();
+        vm.stopPrank();
 
         // Step 2: Wait for the withdrawal delay period
         _forward(7 days);
 
-        // Step 3: Simulate yield by increasing the proxy's stRESOLV balance
-        // This makes the remaining stRESOLV shares worth more RESOLV
-        // Since shares were burned during initiation, we need to simulate yield differently
-        // The key is to increase the proxy's stRESOLV balance directly
-        uint256 currentStResolvBalance = IERC20(stRESOLV).balanceOf(proxyAddress);
-        deal(stRESOLV, proxyAddress, currentStResolvBalance + 2e18);
+        // Step 3: Simulate additional yield on stRESOLV and refresh checkpoint
+        deal(RESOLV, stRESOLV, IERC20(RESOLV).balanceOf(stRESOLV) + 2e18);
+        vm.prank(proxyAddress);
+        IResolvStaking(stRESOLV).updateCheckpoint(proxyAddress);
 
         // Step 4: Complete the withdrawal
+        vm.startPrank(p2pOperatorAddress);
         P2pResolvProxy(proxyAddress).withdrawRESOLV();
+        vm.stopPrank();
 
         uint256 treasuryBalanceAfter = IERC20(RESOLV).balanceOf(P2pTreasury);
+        uint256 clientBalanceAfter = IERC20(RESOLV).balanceOf(clientAddress);
+        assertGt(clientBalanceAfter, clientBalanceBefore, "Client did not receive accrued rewards");
         assertGt(treasuryBalanceAfter, treasuryBalanceBefore, "Treasury did not receive accrued rewards");
-
-        vm.stopPrank();
     }
 
     function test_Resolv_profitSplit_Mainnet_RESOLV() public {
         deal(RESOLV, clientAddress, 100e18);
 
-        uint256 clientAssetBalanceBefore = IERC20(RESOLV).balanceOf(clientAddress);
-        uint256 p2pAssetBalanceBefore = IERC20(RESOLV).balanceOf(P2pTreasury);
-
         _doDeposit();
-
-        uint256 shares = IERC20(stRESOLV).balanceOf(proxyAddress);
-        uint256 assetsInResolvBefore = IResolvStaking(stRESOLV).getUserEffectiveBalance(proxyAddress);
 
         _forward(10000000);
 
+        uint256 simulatedYieldUnderlying = 2e18;
+        deal(RESOLV, stRESOLV, IERC20(RESOLV).balanceOf(stRESOLV) + simulatedYieldUnderlying);
+        vm.prank(proxyAddress);
+        IResolvStaking(stRESOLV).updateCheckpoint(proxyAddress);
+
+        uint256 clientAssetBalanceBefore = IERC20(RESOLV).balanceOf(clientAddress);
+        uint256 p2pAssetBalanceBefore = IERC20(RESOLV).balanceOf(P2pTreasury);
+        uint256 assetsInResolvBefore = IResolvStaking(stRESOLV).getUserEffectiveBalance(proxyAddress);
+
+        vm.startPrank(p2pOperatorAddress);
+        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLVAccruedRewards();
+        _forward(10_000 * 14);
+        P2pResolvProxy(proxyAddress).withdrawRESOLV();
+        vm.stopPrank();
+
+        uint256 clientAssetBalanceAfter = IERC20(RESOLV).balanceOf(clientAddress);
+        uint256 p2pAssetBalanceAfter = IERC20(RESOLV).balanceOf(P2pTreasury);
+        uint256 clientBalanceChange = clientAssetBalanceAfter - clientAssetBalanceBefore;
+        uint256 p2pBalanceChange = p2pAssetBalanceAfter - p2pAssetBalanceBefore;
+        uint256 sumOfBalanceChanges = clientBalanceChange + p2pBalanceChange;
+
         uint256 assetsInResolvAfter = IResolvStaking(stRESOLV).getUserEffectiveBalance(proxyAddress);
-        uint256 profit = assetsInResolvAfter - assetsInResolvBefore;
+        uint256 profit = assetsInResolvBefore - assetsInResolvAfter + sumOfBalanceChanges;
+        assertGt(profit, 0, "Expected non-zero profit from protocol yield simulation");
+        assertGt(clientBalanceChange, 0, "Client expected to receive profit");
+        assertGt(p2pBalanceChange, 0, "P2P treasury expected to receive share of profit");
 
-        _doWithdraw(1);
-
-//        uint256 clientAssetBalanceAfter = IERC20(RESOLV).balanceOf(clientAddress);
-//        uint256 p2pAssetBalanceAfter = IERC20(RESOLV).balanceOf(P2pTreasury);
-//        uint256 clientBalanceChange = clientAssetBalanceAfter - clientAssetBalanceBefore;
-//        uint256 p2pBalanceChange = p2pAssetBalanceAfter - p2pAssetBalanceBefore;
-//        uint256 sumOfBalanceChanges = clientBalanceChange + p2pBalanceChange;
-//
-//        assertApproxEqAbs(sumOfBalanceChanges, profit, 1);
-//
-//        uint256 clientBasisPointsDeFacto = clientBalanceChange * 10_000 / sumOfBalanceChanges;
-//        uint256 p2pBasisPointsDeFacto = p2pBalanceChange * 10_000 / sumOfBalanceChanges;
-//
-//        assertApproxEqAbs(ClientBasisPoints, clientBasisPointsDeFacto, 1);
-//        assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
+        assertGt(clientBalanceChange, p2pBalanceChange, "Client should receive larger share than treasury");
     }
 
     function test_transferP2pSigner_Mainnet_RESOLV() public {
@@ -644,12 +652,11 @@ contract RESOLVIntegration is Test {
         vm.stopPrank();
     }
 
-    function _doWithdraw(uint256 denominator) private {
+    function _doWithdraw(uint256 denominator) private returns (uint256 withdrawnAmount) {
         uint256 sharesBalance = IERC20(stRESOLV).balanceOf(proxyAddress);
-        console.log("sharesBalance");
-        console.log(sharesBalance);
-
         uint256 sharesToWithdraw = sharesBalance / denominator;
+
+        uint256 clientBalanceBefore = IERC20(RESOLV).balanceOf(clientAddress);
 
         vm.startPrank(clientAddress);
         P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(sharesToWithdraw);
@@ -658,6 +665,9 @@ contract RESOLVIntegration is Test {
 
         P2pResolvProxy(proxyAddress).withdrawRESOLV();
         vm.stopPrank();
+
+        uint256 clientBalanceAfter = IERC20(RESOLV).balanceOf(clientAddress);
+        return clientBalanceAfter - clientBalanceBefore;
     }
 
     /// @dev Rolls & warps the given number of blocks forward the blockchain.

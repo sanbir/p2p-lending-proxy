@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.8.30;
-
 import "../../../@resolv/IResolvStaking.sol";
 import "../../../@resolv/IStUSR.sol";
 import "../../../@resolv/IStakedTokenDistributor.sol";
@@ -222,11 +221,8 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
 
     function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view override returns (uint256) {
         if (_asset == i_RESOLV) {
-            uint256 effective = IResolvStaking(_yieldProtocolAddress).getUserEffectiveBalance(address(this));
-            if (effective > 0) {
-                return effective;
-            }
-            return IERC20(_yieldProtocolAddress).balanceOf(address(this));
+            uint256 pendingClaimable = IResolvStaking(_yieldProtocolAddress).getUserClaimableAmounts(address(this), i_RESOLV);
+            return getUserPrincipal(_asset) + pendingClaimable;
         }
 
         if (_asset == i_USR) {
