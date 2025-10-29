@@ -44,7 +44,6 @@ interface IP2pYieldProxyFactory is IERC165 {
         address _asset,
         uint256 _amount,
         bytes calldata _yieldProtocolCalldata,
-
         uint48 _clientBasisPointsOfDeposit,
         uint48 _clientBasisPointsOfProfit,
         uint256 _p2pSignerSigDeadline,

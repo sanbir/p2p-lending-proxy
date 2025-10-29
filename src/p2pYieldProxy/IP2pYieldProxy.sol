@@ -67,13 +67,11 @@ interface IP2pYieldProxy is IERC165 {
     /// @param _vaultId Identifier of the target vault (e.g., Superform ID).
     /// @param _asset ERC-20 asset address to pull from the client (use `NATIVE` sentinel for ETH).
     /// @param _amount Amount of `_asset` to transfer from the client to the proxy (ignored for native deposits).
-    /// @param _nativeAmountToDepositAfterFee Portion of `msg.value` that should be forwarded to the yield protocol.
     /// @param _yieldProtocolDepositCalldata Calldata that performs the actual deposit on the yield protocol.
     function deposit(
         uint256 _vaultId,
         address _asset,
         uint256 _amount,
-        uint256 _nativeAmountToDepositAfterFee,
         bytes calldata _yieldProtocolDepositCalldata
     ) external payable;
 

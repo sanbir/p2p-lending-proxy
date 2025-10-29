@@ -94,7 +94,6 @@ abstract contract P2pYieldProxyFactory is
         address _asset,
         uint256 _amount,
         bytes calldata _yieldProtocolCalldata,
-
         uint48 _clientBasisPointsOfDeposit,
         uint48 _clientBasisPointsOfProfit,
         uint256 _p2pSignerSigDeadline,
@@ -112,15 +111,11 @@ abstract contract P2pYieldProxyFactory is
             _clientBasisPointsOfProfit
         );
 
-        // Calculate native amount to deposit after fee
-        uint256 nativeAmountToDepositAfterFee = msg.value * _clientBasisPointsOfDeposit / 10_000;
-
         // deposit via proxy
         p2pYieldProxy.deposit{value: msg.value}(
             _vaultId,
             _asset,
             _amount,
-            nativeAmountToDepositAfterFee,
             _yieldProtocolCalldata
         );
 

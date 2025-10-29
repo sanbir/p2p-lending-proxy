@@ -66,7 +66,6 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         uint256 _vaultId,
         address _asset,
         uint256 _amount,
-        uint256 _nativeAmountToDepositAfterFee,
         bytes calldata _yieldProtocolDepositCalldata
     ) external override(P2pYieldProxy, IP2pYieldProxy) payable {
         require (_yieldProtocolDepositCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
@@ -79,12 +78,14 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
 
         SingleDirectSingleVaultStateReq memory req = abi.decode(_yieldProtocolDepositCalldata[4:], (SingleDirectSingleVaultStateReq));
 
+        uint256 nativeAmountToDepositAfterFee = msg.value * s_clientBasisPointsOfDeposit / 10_000;
+
         bool isNative = req.superformData.liqRequest.token == NATIVE;
         if (isNative) {
             require (
-                _nativeAmountToDepositAfterFee >= req.superformData.liqRequest.nativeAmount,
+                nativeAmountToDepositAfterFee >= req.superformData.liqRequest.nativeAmount,
                 P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanliqRequestNativeAmount(
-                    _nativeAmountToDepositAfterFee,
+                    nativeAmountToDepositAfterFee,
                     req.superformData.liqRequest.nativeAmount
                 )
             );
@@ -113,8 +114,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             _asset,
             _amount,
             _yieldProtocolDepositCalldata,
-            isNative,
-            _nativeAmountToDepositAfterFee
+            isNative
         );
     }
 

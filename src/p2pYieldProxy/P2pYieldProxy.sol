@@ -163,7 +163,6 @@ abstract contract P2pYieldProxy is
         uint256 _vaultId,
         address _asset,
         uint256 _amount,
-        uint256 _nativeAmountToDepositAfterFee,
         bytes calldata _yieldProtocolDepositCalldata
     ) external virtual payable;
 
@@ -173,25 +172,25 @@ abstract contract P2pYieldProxy is
     /// @param _amount Amount of ERC-20 asset to transfer from client (ignored for native deposits)
     /// @param _yieldProtocolDepositCalldata calldata for deposit function of yield protocol
     /// @param _isNative whether ETH (native currency) is being deposited
-    /// @param _nativeAmountToDepositAfterFee native amount to deposit after fee
     function _deposit(
         uint256 _vaultId,
         address _asset,
         uint256 _amount,
         bytes memory _yieldProtocolDepositCalldata,
-        bool _isNative,
-        uint256 _nativeAmountToDepositAfterFee
+        bool _isNative
     )
     internal
     onlyFactory
     {
+        uint256 nativeAmountToDepositAfterFee = msg.value * s_clientBasisPointsOfDeposit / 10_000;
+
         if (_isNative) {
-            uint256 totalDepositedAfter = s_totalDeposited[_vaultId][NATIVE] + _nativeAmountToDepositAfterFee;
+            uint256 totalDepositedAfter = s_totalDeposited[_vaultId][NATIVE] + nativeAmountToDepositAfterFee;
             s_totalDeposited[_vaultId][NATIVE] = totalDepositedAfter;
             emit P2pYieldProxy__Deposited(
                 _vaultId,
                 NATIVE,
-                _nativeAmountToDepositAfterFee,
+                nativeAmountToDepositAfterFee,
                 totalDepositedAfter
             );
         } else {
@@ -238,7 +237,7 @@ abstract contract P2pYieldProxy is
             );
         }
 
-        uint256 nativeFeeAmount = msg.value - _nativeAmountToDepositAfterFee;
+        uint256 nativeFeeAmount = msg.value - nativeAmountToDepositAfterFee;
         if (nativeFeeAmount > 0) {
             emit P2pYieldProxy__DepositFee(NATIVE, nativeFeeAmount);
             Address.sendValue(i_p2pTreasury, nativeFeeAmount);
@@ -246,7 +245,7 @@ abstract contract P2pYieldProxy is
 
         i_yieldProtocolAddress.functionCallWithValue(
             _yieldProtocolDepositCalldata,
-            _nativeAmountToDepositAfterFee
+            nativeAmountToDepositAfterFee
         );
     }
 
