@@ -6,7 +6,6 @@ pragma solidity 0.8.27;
 import "../lib/forge-std/src/Vm.sol";
 import "../src/adapters/superform/p2pSuperformProxyFactory/P2pSuperformProxyFactory.sol";
 import {Script} from "forge-std/Script.sol";
-import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
 contract RunTestDepositBase is Script {
     using SafeERC20 for IERC20;
@@ -39,8 +38,6 @@ contract RunTestDepositBase is Script {
             ClientBasisPointsOfProfit
         );
 
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = _getPermitSingleForP2pYieldProxy();
-        bytes memory permit2SignatureForP2pYieldProxy = _getPermit2SignatureForP2pYieldProxy(permitSingleForP2pYieldProxy);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             wallet.addr,
             ClientBasisPointsOfDeposit,
@@ -76,15 +73,15 @@ contract RunTestDepositBase is Script {
         bytes memory superformCalldata = hex'b19dcc3300000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000210500000001668bcc80d9b85de4e683a5e1d64946e175a3a748000000000000000000000000000000000000000000000000000000000001e208000000000000000000000000000000000000000000000000000000000001dcb600000000000000000000000000000000000000000000000000000000000000320000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000024000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e1158d9158d41186994b400ab833b85284f2e06c000000000000000000000000e1158d9158d41186994b400ab833b85284f2e06c000000000000000000000000000000000000000000000000000000000000026000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda029130000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'; //abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
 
         vm.startBroadcast(deployerKey);
-        if (IERC20(USDC).allowance(wallet.addr, address(Permit2Lib.PERMIT2)) == 0) {
-            IERC20(USDC).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        // Approve the proxy to spend USDC tokens
+        if (IERC20(USDC).allowance(wallet.addr, proxyAddress) == 0) {
+            IERC20(USDC).safeApprove(proxyAddress, type(uint256).max);
         }
         factory.deposit(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
-
+            SuperformId,
+            USDC,
+            DepositAmount,
             superformCalldata,
-
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
             SigDeadline,
@@ -93,34 +90,6 @@ contract RunTestDepositBase is Script {
         vm.stopBroadcast();
     }
 
-    function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
-        uint256 deployerKey = vm.envUint("PRIVATE_KEY");
-        Vm.Wallet memory wallet = vm.createWallet(deployerKey);
-        (, , uint48 nonce) = IAllowanceTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3).allowance(wallet.addr, USDC, proxyAddress);
-
-        IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
-            token: USDC,
-            amount: uint160(DepositAmount),
-            expiration: uint48(SigDeadline),
-            nonce: nonce
-        });
-
-        // data for factory
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = IAllowanceTransfer.PermitSingle({
-            details: permitDetails,
-            spender: proxyAddress,
-            sigDeadline: SigDeadline
-        });
-
-        return permitSingleForP2pYieldProxy;
-    }
-
-    function _getPermit2SignatureForP2pYieldProxy(IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy) private view returns(bytes memory) {
-        bytes32 permitSingleForP2pYieldProxyHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingleForP2pYieldProxy));
-        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(vm.envUint("PRIVATE_KEY"), permitSingleForP2pYieldProxyHash);
-        bytes memory permit2SignatureForP2pYieldProxy = abi.encodePacked(r1, s1, v1);
-        return permit2SignatureForP2pYieldProxy;
-    }
 
     function _getP2pSignerSignature(
         address _clientAddress,

@@ -4,7 +4,6 @@
 pragma solidity 0.8.27;
 
 import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
 
 /// @dev External interface of P2pYieldProxy declared to support ERC165 detection.
 interface IP2pYieldProxy is IERC165 {
@@ -64,9 +63,17 @@ interface IP2pYieldProxy is IERC165 {
     )
     external;
 
+    /// @notice Deposits assets into a specific vault handled by the proxy.
+    /// @param _vaultId Identifier of the target vault (e.g., Superform ID).
+    /// @param _asset ERC-20 asset address to pull from the client (use `NATIVE` sentinel for ETH).
+    /// @param _amount Amount of `_asset` to transfer from the client to the proxy (ignored for native deposits).
+    /// @param _nativeAmountToDepositAfterFee Portion of `msg.value` that should be forwarded to the yield protocol.
+    /// @param _yieldProtocolDepositCalldata Calldata that performs the actual deposit on the yield protocol.
     function deposit(
-        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
-        bytes calldata _permit2SignatureForP2pYieldProxy,
+        uint256 _vaultId,
+        address _asset,
+        uint256 _amount,
+        uint256 _nativeAmountToDepositAfterFee,
         bytes calldata _yieldProtocolDepositCalldata
     ) external payable;
 

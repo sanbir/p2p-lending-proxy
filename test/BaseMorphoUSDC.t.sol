@@ -14,7 +14,6 @@ import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
 import "forge-std/console2.sol";
-import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
 
 contract BaseMorphoUSDC is Test {
@@ -49,8 +48,6 @@ contract BaseMorphoUSDC is Test {
     uint256 DepositAmountWithFee;
 
     address proxyAddress;
-
-    uint48 nonce;
 
     function setUp() public {
         vm.createSelectFork("base", 27412018);
@@ -124,31 +121,6 @@ contract BaseMorphoUSDC is Test {
         return address(uint160(SuperformId));
     }
 
-    function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
-        IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
-            token: USDC,
-            amount: uint160(DepositAmountWithFee),
-            expiration: uint48(SigDeadline),
-            nonce: nonce
-        });
-        nonce++;
-
-        // data for factory
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = IAllowanceTransfer.PermitSingle({
-            details: permitDetails,
-            spender: proxyAddress,
-            sigDeadline: SigDeadline
-        });
-
-        return permitSingleForP2pYieldProxy;
-    }
-
-    function _getPermit2SignatureForP2pYieldProxy(IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy) private view returns(bytes memory) {
-        bytes32 permitSingleForP2pYieldProxyHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingleForP2pYieldProxy));
-        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(clientPrivateKey, permitSingleForP2pYieldProxyHash);
-        bytes memory permit2SignatureForP2pYieldProxy = abi.encodePacked(r1, s1, v1);
-        return permit2SignatureForP2pYieldProxy;
-    }
 
     function _getP2pSignerSignature(
         address _clientAddress,
@@ -170,8 +142,6 @@ contract BaseMorphoUSDC is Test {
     }
 
     function _doDeposit() private {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = _getPermitSingleForP2pYieldProxy();
-        bytes memory permit2SignatureForP2pYieldProxy = _getPermit2SignatureForP2pYieldProxy(permitSingleForP2pYieldProxy);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPointsOfDeposit,
@@ -180,8 +150,9 @@ contract BaseMorphoUSDC is Test {
         );
 
         vm.startPrank(clientAddress);
-        if (IERC20(USDC).allowance(clientAddress, address(Permit2Lib.PERMIT2)) == 0) {
-            IERC20(USDC).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        // Approve the proxy to spend USDC tokens
+        if (IERC20(USDC).allowance(clientAddress, proxyAddress) == 0) {
+            IERC20(USDC).safeApprove(proxyAddress, type(uint256).max);
         }
 
         LiqRequest memory liqRequest = LiqRequest({
@@ -212,11 +183,10 @@ contract BaseMorphoUSDC is Test {
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
 
         factory.deposit(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
-
-        superformCalldata,
-
+            SuperformId,
+            USDC,
+            DepositAmountWithFee,
+            superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
             SigDeadline,

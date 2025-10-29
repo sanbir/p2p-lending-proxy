@@ -15,7 +15,6 @@ import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
 import "forge-std/console2.sol";
-import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
 
 contract OptimismUSDT is Test, MerkleReader {
@@ -49,9 +48,9 @@ contract OptimismUSDT is Test, MerkleReader {
     uint256 constant DepositAmount = 124071208818789728;
     uint256 constant SharesAmount = 124071208818789728;
 
-    address proxyAddress;
+    uint256 DepositAmountWithFee;
 
-    uint48 nonce;
+    address proxyAddress;
 
     uint64 public constant CHAIN_ID = 10;
 
@@ -92,6 +91,8 @@ contract OptimismUSDT is Test, MerkleReader {
         );
 
         deal(USDT, clientAddress, 10000e18);
+
+        DepositAmountWithFee = DepositAmount + DepositAmount * (10_000 - ClientBasisPointsOfDeposit) / 10_000;
     }
 
     function test_happyPath_Optimism() public {
@@ -126,18 +127,7 @@ contract OptimismUSDT is Test, MerkleReader {
         assertEq(factory.getPendingP2pOperator(), address(0));
     }
 
-    function testP2pSuperformProxy__LiqRequestTokenShouldBeEqualToPermitForP2pYieldProxyToken() public {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = IAllowanceTransfer.PermitSingle({
-            details: IAllowanceTransfer.PermitDetails({
-            token: address(0x1234), // Different token than in liqRequest
-            amount: uint160(DepositAmount),
-            expiration: uint48(block.timestamp + 1 days),
-            nonce: 0
-        }),
-            spender: address(factory),
-            sigDeadline: SigDeadline
-        });
-        bytes memory permit2SignatureForP2pYieldProxy = _getPermit2SignatureForP2pYieldProxy(permitSingleForP2pYieldProxy);
+    function testP2pSuperformProxy__LiqRequestTokenShouldBeEqualToAsset() public {
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPointsOfDeposit,
@@ -146,8 +136,9 @@ contract OptimismUSDT is Test, MerkleReader {
         );
 
         vm.startPrank(clientAddress);
-        if (IERC20(USDT).allowance(clientAddress, address(Permit2Lib.PERMIT2)) == 0) {
-            IERC20(USDT).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        // Approve the proxy to spend USDT tokens
+        if (IERC20(USDT).allowance(clientAddress, proxyAddress) == 0) {
+            IERC20(USDT).safeApprove(proxyAddress, type(uint256).max);
         }
 
         LiqRequest memory liqRequest = LiqRequest({
@@ -178,16 +169,15 @@ contract OptimismUSDT is Test, MerkleReader {
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
 
         vm.expectRevert(abi.encodeWithSelector(
-            P2pSuperformProxy__LiqRequestTokenShouldBeEqualToPermitForP2pYieldProxyToken.selector,
+            P2pSuperformProxy__LiqRequestTokenShouldBeEqualToAsset.selector,
             USDT,
-            address(0x1234)
+            address(0x1234) // Different token than in liqRequest
         ));
         factory.deposit(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
-
+            SuperformId,
+            address(0x1234), // Different token than in liqRequest
+            DepositAmountWithFee,
             superformCalldata,
-
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
             SigDeadline,
@@ -197,19 +187,16 @@ contract OptimismUSDT is Test, MerkleReader {
     }
 
     function test_P2pYieldProxyFactory__InvalidP2pSignerSignature() public {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
-        bytes memory permit2SignatureForP2pYieldProxy;
         bytes memory p2pSignerSignature;
         bytes memory superformCalldata = new bytes(3); // Less than 4 bytes for function selector
 
         vm.startPrank(clientAddress);
         vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
         factory.deposit(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
-
+            SuperformId,
+            USDT,
+            DepositAmountWithFee,
             superformCalldata,
-
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
             SigDeadline,
@@ -243,8 +230,6 @@ contract OptimismUSDT is Test, MerkleReader {
     }
 
     function test_P2pSuperformProxy__SuperformCalldataTooShort() public {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
-        bytes memory permit2SignatureForP2pYieldProxy;
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPointsOfDeposit,
@@ -256,11 +241,10 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.startPrank(clientAddress);
         vm.expectRevert(P2pSuperformProxy__SuperformCalldataTooShort.selector);
         factory.deposit(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
-
+            SuperformId,
+            USDT,
+            DepositAmountWithFee,
             superformCalldata,
-
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
             SigDeadline,
@@ -270,8 +254,6 @@ contract OptimismUSDT is Test, MerkleReader {
     }
 
     function test_P2pSuperformProxy__SelectorNotSupported() public {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
-        bytes memory permit2SignatureForP2pYieldProxy;
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPointsOfDeposit,
@@ -286,11 +268,10 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.startPrank(clientAddress);
         vm.expectRevert(abi.encodeWithSelector(P2pSuperformProxy__SelectorNotSupported.selector, unsupportedSelector));
         factory.deposit(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
-
+            SuperformId,
+            USDT,
+            DepositAmountWithFee,
             superformCalldata,
-
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
             SigDeadline,
@@ -406,31 +387,6 @@ contract OptimismUSDT is Test, MerkleReader {
         return address(uint160(SuperformId));
     }
 
-    function _getPermitSingleForP2pYieldProxy() private returns(IAllowanceTransfer.PermitSingle memory) {
-        IAllowanceTransfer.PermitDetails memory permitDetails = IAllowanceTransfer.PermitDetails({
-            token: USDT,
-            amount: uint160(DepositAmount),
-            expiration: uint48(SigDeadline),
-            nonce: nonce
-        });
-        nonce++;
-
-        // data for factory
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = IAllowanceTransfer.PermitSingle({
-            details: permitDetails,
-            spender: proxyAddress,
-            sigDeadline: SigDeadline
-        });
-
-        return permitSingleForP2pYieldProxy;
-    }
-
-    function _getPermit2SignatureForP2pYieldProxy(IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy) private view returns(bytes memory) {
-        bytes32 permitSingleForP2pYieldProxyHash = factory.getPermit2HashTypedData(PermitHash.hash(permitSingleForP2pYieldProxy));
-        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(clientPrivateKey, permitSingleForP2pYieldProxyHash);
-        bytes memory permit2SignatureForP2pYieldProxy = abi.encodePacked(r1, s1, v1);
-        return permit2SignatureForP2pYieldProxy;
-    }
 
     function _getP2pSignerSignature(
         address _clientAddress,
@@ -452,8 +408,6 @@ contract OptimismUSDT is Test, MerkleReader {
     }
 
     function _doDeposit() private {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy = _getPermitSingleForP2pYieldProxy();
-        bytes memory permit2SignatureForP2pYieldProxy = _getPermit2SignatureForP2pYieldProxy(permitSingleForP2pYieldProxy);
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPointsOfDeposit,
@@ -462,8 +416,9 @@ contract OptimismUSDT is Test, MerkleReader {
         );
 
         vm.startPrank(clientAddress);
-        if (IERC20(USDT).allowance(clientAddress, address(Permit2Lib.PERMIT2)) == 0) {
-            IERC20(USDT).safeApprove(address(Permit2Lib.PERMIT2), type(uint256).max);
+        // Approve the proxy to spend USDT tokens
+        if (IERC20(USDT).allowance(clientAddress, proxyAddress) == 0) {
+            IERC20(USDT).safeApprove(proxyAddress, type(uint256).max);
         }
 
         LiqRequest memory liqRequest = LiqRequest({
@@ -492,13 +447,12 @@ contract OptimismUSDT is Test, MerkleReader {
         });
 
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
-        
+
         factory.deposit(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
-
-        superformCalldata,
-
+            SuperformId,
+            USDT,
+            DepositAmountWithFee,
+            superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
             SigDeadline,

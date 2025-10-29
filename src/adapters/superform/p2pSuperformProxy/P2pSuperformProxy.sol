@@ -17,9 +17,9 @@ error P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanliqRequestNativeAm
     uint256 _nativeAmountToDepositAfterFee,
     uint256 _liqRequestNativeAmount
 );
-error P2pSuperformProxy__LiqRequestTokenShouldBeEqualToPermitForP2pYieldProxyToken(
+error P2pSuperformProxy__LiqRequestTokenShouldBeEqualToAsset(
     address _liqRequestToken,
-    address _permitSingleForP2pYieldProxyToken
+    address _asset
 );
 error P2pSuperformProxy__ShouldNotRetain4626();
 error P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy(
@@ -63,37 +63,37 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
 
     /// @inheritdoc IP2pYieldProxy
     function deposit(
-        IAllowanceTransfer.PermitSingle calldata _permitSingleForP2pYieldProxy,
-        bytes calldata _permit2SignatureForP2pYieldProxy,
-        bytes calldata _superformCalldata
+        uint256 _vaultId,
+        address _asset,
+        uint256 _amount,
+        uint256 _nativeAmountToDepositAfterFee,
+        bytes calldata _yieldProtocolDepositCalldata
     ) external override(P2pYieldProxy, IP2pYieldProxy) payable {
-        require (_superformCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
+        require (_yieldProtocolDepositCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
 
-        bytes4 selector = bytes4(_superformCalldata[:4]);
+        bytes4 selector = bytes4(_yieldProtocolDepositCalldata[:4]);
         require (
             selector == IBaseRouter.singleDirectSingleVaultDeposit.selector,
             P2pSuperformProxy__SelectorNotSupported(selector)
         );
 
-        SingleDirectSingleVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectSingleVaultStateReq));
-
-        uint256 nativeAmountToDepositAfterFee = msg.value * s_clientBasisPointsOfDeposit / 10_000;
+        SingleDirectSingleVaultStateReq memory req = abi.decode(_yieldProtocolDepositCalldata[4:], (SingleDirectSingleVaultStateReq));
 
         bool isNative = req.superformData.liqRequest.token == NATIVE;
         if (isNative) {
             require (
-                nativeAmountToDepositAfterFee >= req.superformData.liqRequest.nativeAmount,
+                _nativeAmountToDepositAfterFee >= req.superformData.liqRequest.nativeAmount,
                 P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanliqRequestNativeAmount(
-                    nativeAmountToDepositAfterFee,
+                    _nativeAmountToDepositAfterFee,
                     req.superformData.liqRequest.nativeAmount
                 )
             );
         } else {
             require (
-                req.superformData.liqRequest.token == _permitSingleForP2pYieldProxy.details.token,
-                P2pSuperformProxy__LiqRequestTokenShouldBeEqualToPermitForP2pYieldProxyToken(
+                req.superformData.liqRequest.token == _asset,
+                P2pSuperformProxy__LiqRequestTokenShouldBeEqualToAsset(
                     req.superformData.liqRequest.token,
-                    _permitSingleForP2pYieldProxy.details.token
+                    _asset
                 )
             );
             // ETH can still be used to pay for bridging, swaps, etc., so msg.value can be > 0
@@ -109,13 +109,12 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         );
 
         _deposit(
-            req.superformData.superformId,
-            _superformCalldata,
-            _permitSingleForP2pYieldProxy,
-            _permit2SignatureForP2pYieldProxy,
-            false,
+            _vaultId,
+            _asset,
+            _amount,
+            _yieldProtocolDepositCalldata,
             isNative,
-            nativeAmountToDepositAfterFee
+            _nativeAmountToDepositAfterFee
         );
     }
 

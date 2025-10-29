@@ -7,8 +7,6 @@ import "../@openzeppelin/contracts/proxy/Clones.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
-import "../@permit2/libraries/PermitHash.sol";
 import "../access/P2pOperator2Step.sol";
 import "../p2pYieldProxy/P2pYieldProxy.sol";
 import "./IP2pYieldProxyFactory.sol";
@@ -32,7 +30,6 @@ abstract contract P2pYieldProxyFactory is
     ERC165,
     IP2pYieldProxyFactory {
 
-    using SafeCast160 for uint256;
     using SignatureChecker for address;
     using ECDSA for bytes32;
 
@@ -93,9 +90,9 @@ abstract contract P2pYieldProxyFactory is
 
     /// @inheritdoc IP2pYieldProxyFactory
     function deposit(
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pYieldProxy,
-        bytes calldata _permit2SignatureForP2pYieldProxy,
-
+        uint256 _vaultId,
+        address _asset,
+        uint256 _amount,
         bytes calldata _yieldProtocolCalldata,
 
         uint48 _clientBasisPointsOfDeposit,
@@ -115,10 +112,15 @@ abstract contract P2pYieldProxyFactory is
             _clientBasisPointsOfProfit
         );
 
+        // Calculate native amount to deposit after fee
+        uint256 nativeAmountToDepositAfterFee = msg.value * _clientBasisPointsOfDeposit / 10_000;
+
         // deposit via proxy
         p2pYieldProxy.deposit{value: msg.value}(
-            _permitSingleForP2pYieldProxy,
-            _permit2SignatureForP2pYieldProxy,
+            _vaultId,
+            _asset,
+            _amount,
+            nativeAmountToDepositAfterFee,
             _yieldProtocolCalldata
         );
 
@@ -239,21 +241,6 @@ abstract contract P2pYieldProxyFactory is
             address(this),
             block.chainid
         ));
-    }
-
-    /// @inheritdoc IP2pYieldProxyFactory
-    function getPermit2HashTypedData(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32) {
-        return getPermit2HashTypedData(getPermitHash(_permitSingle));
-    }
-
-    /// @inheritdoc IP2pYieldProxyFactory
-    function getPermit2HashTypedData(bytes32 _dataHash) public view returns (bytes32) {
-        return keccak256(abi.encodePacked("\x19\x01", Permit2Lib.PERMIT2.DOMAIN_SEPARATOR(), _dataHash));
-    }
-
-    /// @inheritdoc IP2pYieldProxyFactory
-    function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) public pure returns (bytes32) {
-        return PermitHash.hash(_permitSingle);
     }
 
     /// @inheritdoc IP2pYieldProxyFactory
