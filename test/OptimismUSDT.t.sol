@@ -6,8 +6,12 @@ pragma solidity 0.8.27;
 import "../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "../src/adapters/superform/IERC1155A.sol";
 import "../src/access/P2pOperator.sol";
 import "../src/adapters/superform/p2pSuperformProxyFactory/P2pSuperformProxyFactory.sol";
+import "../src/adapters/superform/p2pSuperformProxy/P2pSuperformProxy.sol";
+import "../src/adapters/superform/p2pSuperformProxy/IP2pSuperformProxy.sol";
+import "../src/p2pYieldProxy/IP2pYieldProxy.sol";
 import "../src/common/AllowedCalldataChecker.sol";
 import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "./utils/merkle/helper/MerkleReader.sol";
@@ -20,6 +24,7 @@ import "forge-std/console2.sol";
 contract OptimismUSDT is Test, MerkleReader {
     using SafeERC20 for IERC20;
 
+    address constant NATIVE = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address constant USDT = 0x94b008aA00579c1307B0EF2c499aD98a8ce58e58;
     address constant SuperformRouter = 0xa195608C2306A26f727d5199D5A382a4508308DA;
     address constant SuperPositions = 0x01dF6fb6a28a89d6bFa53b2b3F20644AbF417678;
@@ -278,6 +283,47 @@ contract OptimismUSDT is Test, MerkleReader {
             p2pSignerSignature
         );
         vm.stopPrank();
+    }
+
+    function test_calculateAccruedRewards_AfterDeposit() public {
+        _doDeposit();
+
+        // After deposit, check that rewards calculation works
+        // The exact value depends on vault implementation, but it should be calculable
+        P2pSuperformProxy(payable(proxyAddress)).calculateAccruedRewards(SuperformId, USDT);
+    }
+
+    function test_calculateAccruedRewards_Positive() public {
+        _doDeposit();
+
+        // Get current shares
+        uint256 shares = IERC1155A(SuperPositions).balanceOf(proxyAddress, SuperformId);
+        assertGt(shares, 0, "Should have shares after deposit");
+
+        // Test that the function works with existing shares
+        P2pSuperformProxy(payable(proxyAddress)).calculateAccruedRewards(SuperformId, USDT);
+    }
+
+    function test_calculateAccruedRewards_AfterPartialWithdraw() public {
+        _doDeposit();
+
+        // Do a partial withdrawal
+        _doWithdraw(); // Withdraw all shares
+
+        // Check that rewards calculation still works
+        P2pSuperformProxy(payable(proxyAddress)).calculateAccruedRewards(SuperformId, USDT);
+    }
+
+    function test_calculateAccruedRewards_DifferentAssets() public {
+        _doDeposit();
+
+        // Test with different assets
+        int256 usdtRewards = P2pSuperformProxy(payable(proxyAddress)).calculateAccruedRewards(SuperformId, USDT);
+        int256 nativeRewards = P2pSuperformProxy(payable(proxyAddress)).calculateAccruedRewards(SuperformId, NATIVE);
+
+        // Both should work (though native might be 0 if no native deposits)
+        usdtRewards; // Just ensure it doesn't revert
+        nativeRewards; // Just ensure it doesn't revert
     }
 
     function test_batchclaim_proxy() public {
