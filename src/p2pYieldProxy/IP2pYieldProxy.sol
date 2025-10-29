@@ -45,6 +45,9 @@ interface IP2pYieldProxy is IERC165 {
     )
     external;
 
+    /// @notice Deposits the given asset amount into the underlying yield protocol.
+    /// @param _asset Address of the ERC-20 asset the client wants to supply.
+    /// @param _amount Amount of `_asset` in wei requested for deposit.
     function deposit(address _asset, uint256 _amount) external;
 
     /// @notice Calls an arbitrary allowed function

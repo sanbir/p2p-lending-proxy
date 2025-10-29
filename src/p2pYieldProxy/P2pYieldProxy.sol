@@ -140,6 +140,7 @@ abstract contract P2pYieldProxy is
         emit P2pYieldProxy__Initialized();
     }
 
+    /// @inheritdoc IP2pYieldProxy
     function deposit(address _asset, uint256 _amount) external virtual;
 
     /// @notice Deposit assets into yield protocol
