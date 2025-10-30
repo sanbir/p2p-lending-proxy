@@ -30,7 +30,6 @@ interface IP2pYieldProxyFactory is IERC165 {
     );
 
     /// @dev Deposits the yield protocol
-    /// @param _vaultId vault ID
     /// @param _asset ERC-20 asset address (use NATIVE sentinel for ETH)
     /// @param _amount Amount of ERC-20 asset to transfer from client (ignored for native deposits)
     /// @param _yieldProtocolCalldata Yield protocol calldata
@@ -40,7 +39,6 @@ interface IP2pYieldProxyFactory is IERC165 {
     /// @param _p2pSignerSignature The P2pSigner signature
     /// @return p2pYieldProxyAddress The client's P2pYieldProxy instance address
     function deposit(
-        uint256 _vaultId,
         address _asset,
         uint256 _amount,
         bytes calldata _yieldProtocolCalldata,

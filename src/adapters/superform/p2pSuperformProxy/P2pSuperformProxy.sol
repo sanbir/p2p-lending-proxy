@@ -17,10 +17,6 @@ error P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanliqRequestNativeAm
     uint256 _nativeAmountToDepositAfterFee,
     uint256 _liqRequestNativeAmount
 );
-error P2pSuperformProxy__LiqRequestTokenShouldBeEqualToAsset(
-    address _liqRequestToken,
-    address _asset
-);
 error P2pSuperformProxy__ShouldNotRetain4626();
 error P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy(
     address _receiverAddress
@@ -65,7 +61,6 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
 
     /// @inheritdoc IP2pYieldProxy
     function deposit(
-        uint256 _vaultId,
         address _asset,
         uint256 _amount,
         bytes calldata _yieldProtocolDepositCalldata
@@ -92,13 +87,6 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
                 )
             );
         } else {
-            require (
-                req.superformData.liqRequest.token == _asset,
-                P2pSuperformProxy__LiqRequestTokenShouldBeEqualToAsset(
-                    req.superformData.liqRequest.token,
-                    _asset
-                )
-            );
             // ETH can still be used to pay for bridging, swaps, etc., so msg.value can be > 0
         }
         require (!req.superformData.retain4626, P2pSuperformProxy__ShouldNotRetain4626());
@@ -111,10 +99,12 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(req.superformData.receiverAddressSP)
         );
 
+        uint256 amount = calculateMinAmountToApproveForDeposit(req.superformData.amount);
+
         _deposit(
-            _vaultId,
-            _asset,
-            _amount,
+            req.superformData.superformId,
+            req.superformData.liqRequest.token,
+            amount,
             _yieldProtocolDepositCalldata,
             isNative
         );

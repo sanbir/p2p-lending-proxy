@@ -132,65 +132,6 @@ contract OptimismUSDT is Test, MerkleReader {
         assertEq(factory.getPendingP2pOperator(), address(0));
     }
 
-    function testP2pSuperformProxy__LiqRequestTokenShouldBeEqualToAsset() public {
-        bytes memory p2pSignerSignature = _getP2pSignerSignature(
-            clientAddress,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline
-        );
-
-        vm.startPrank(clientAddress);
-        // Approve the proxy to spend USDT tokens
-        if (IERC20(USDT).allowance(clientAddress, proxyAddress) == 0) {
-            IERC20(USDT).safeApprove(proxyAddress, type(uint256).max);
-        }
-
-        LiqRequest memory liqRequest = LiqRequest({
-            txData: hex'4630a0d896ba9cffae8a22aa75ffdc6910e52d52ee9a199ee31eb8893dc693d7c89ed4a800000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000010000000000000000000000000097116661c85c4e1ee35aa10f7fc5fe5e67b83a5b00000000000000000000000000000000000000000000000001a2c000701289810000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000000d7375706572666f726d2e78797a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a30783030303030303030303030303030303030303030303030303030303030303030303030303030303000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000006140b987d6b51fd75b66c3b07733beb5167c42fc0000000000000000000000006140b987d6b51fd75b66c3b07733beb5167c42fc00000000000000000000000094b008aa00579c1307b0ef2c499ad98a8ce58e58000000000000000000000000c40f949f8a4e094d1b49a23ea9241d289b7b2819000000000000000000000000000000000000000000000000000000000001e20800000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001842646478b00000000000000000000000094b008aa00579c1307b0ef2c499ad98a8ce58e58000000000000000000000000000000000000000000000000000000000001e208000000000000000000000000c40f949f8a4e094d1b49a23ea9241d289b7b281900000000000000000000000000000000000000000000000001a2c000701289810000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae00000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000840294b008aa00579c1307b0ef2c499ad98a8ce58e5801ffff01962e23cd3f58f887a5238082a75d223f71890629006140b987d6b51fd75b66c3b07733beb5167c42fc010b2c639c533813f4aa9d7837caf62653d097ff8501ffff018ac2f9dac7a2852d44f3c09634444d533e4c078e011231deb6f5749ef6ce6943a275a1d3e7486f4eae0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-            token: USDT,
-            interimToken: address(0),
-            bridgeId: 101,
-            liqDstChainId: 10,
-            nativeAmount: 0
-        });
-        SingleVaultSFData memory superformData = SingleVaultSFData({
-            superformId: SuperformId,
-            amount: DepositAmount,
-            outputAmount: SharesAmount,
-            maxSlippage: 500,
-            liqRequest: liqRequest,
-            permit2data: "",
-            hasDstSwap: false,
-            retain4626: false,
-            receiverAddress: proxyAddress,
-            receiverAddressSP: proxyAddress,
-            extraFormData: ""
-        });
-        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({
-            superformData: superformData
-        });
-
-        bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
-
-        vm.expectRevert(abi.encodeWithSelector(
-            P2pSuperformProxy__LiqRequestTokenShouldBeEqualToAsset.selector,
-            USDT,
-            address(0x1234) // Different token than in liqRequest
-        ));
-        factory.deposit(
-            SuperformId,
-            address(0x1234), // Different token than in liqRequest
-            DepositAmountWithFee,
-            superformCalldata,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline,
-            p2pSignerSignature
-        );
-        vm.stopPrank();
-    }
-
     function test_P2pYieldProxyFactory__InvalidP2pSignerSignature() public {
         bytes memory p2pSignerSignature;
         bytes memory superformCalldata = new bytes(3); // Less than 4 bytes for function selector
@@ -198,7 +139,6 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.startPrank(clientAddress);
         vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
         factory.deposit(
-            SuperformId,
             USDT,
             DepositAmountWithFee,
             superformCalldata,
@@ -246,7 +186,6 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.startPrank(clientAddress);
         vm.expectRevert(P2pSuperformProxy__SuperformCalldataTooShort.selector);
         factory.deposit(
-            SuperformId,
             USDT,
             DepositAmountWithFee,
             superformCalldata,
@@ -273,7 +212,6 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.startPrank(clientAddress);
         vm.expectRevert(abi.encodeWithSelector(P2pSuperformProxy__SelectorNotSupported.selector, unsupportedSelector));
         factory.deposit(
-            SuperformId,
             USDT,
             DepositAmountWithFee,
             superformCalldata,
@@ -495,7 +433,6 @@ contract OptimismUSDT is Test, MerkleReader {
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
 
         factory.deposit(
-            SuperformId,
             USDT,
             DepositAmountWithFee,
             superformCalldata,

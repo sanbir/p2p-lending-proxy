@@ -78,7 +78,6 @@ contract RunTestDepositBase is Script {
             IERC20(USDC).safeApprove(proxyAddress, type(uint256).max);
         }
         factory.deposit(
-            SuperformId,
             USDC,
             DepositAmount,
             superformCalldata,

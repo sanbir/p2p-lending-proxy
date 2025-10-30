@@ -169,7 +169,6 @@ abstract contract P2pYieldProxy is
     }
 
     function deposit(
-        uint256 _vaultId,
         address _asset,
         uint256 _amount,
         bytes calldata _yieldProtocolDepositCalldata
@@ -447,6 +446,10 @@ abstract contract P2pYieldProxy is
 
     function getLastFeeCollectionTime(uint256 _vaultId, address _asset) public view returns(uint48) {
         return s_totalWithdrawn[_vaultId][_asset].lastFeeCollectionTime;
+    }
+
+    function calculateMinAmountToApproveForDeposit(uint256 _amountToDeposit) public view returns(uint256) {
+        return (_amountToDeposit * 10_000 + s_clientBasisPointsOfDeposit - 1) / s_clientBasisPointsOfDeposit;
     }
 
     /// @inheritdoc ERC165

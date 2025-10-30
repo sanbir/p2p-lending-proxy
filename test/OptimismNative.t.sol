@@ -176,7 +176,6 @@ contract OptimismNative is Test, MerkleReader {
             DepositAmount
         ));
         factory.deposit{value: actual}(
-            SuperformId,
             NATIVE,
             0, // amount is 0 for native deposits
             superformCalldata,
@@ -343,7 +342,6 @@ contract OptimismNative is Test, MerkleReader {
 
         vm.expectRevert(abi.encodeWithSelector(P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy.selector, address(0x123)));
         factory.deposit{value: DepositAmount}(
-            SuperformId,
             NATIVE,
             0, // amount is 0 for native deposits
             superformCalldata,
@@ -394,7 +392,6 @@ contract OptimismNative is Test, MerkleReader {
 
         vm.expectRevert(abi.encodeWithSelector(P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy.selector, address(0x123)));
         factory.deposit{value: DepositAmount}(
-            SuperformId,
             NATIVE,
             0, // amount is 0 for native deposits
             superformCalldata,
@@ -445,7 +442,6 @@ contract OptimismNative is Test, MerkleReader {
 
         vm.expectRevert(P2pSuperformProxy__ShouldNotRetain4626.selector);
         factory.deposit{value: DepositAmount}(
-            SuperformId,
             NATIVE,
             0, // amount is 0 for native deposits
             superformCalldata,
@@ -518,7 +514,6 @@ contract OptimismNative is Test, MerkleReader {
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
 
         factory.deposit{value: DepositAmount * 113 / 100}(
-            SuperformId,
             NATIVE,
             0, // amount is 0 for native deposits
             superformCalldata,

@@ -90,7 +90,6 @@ abstract contract P2pYieldProxyFactory is
 
     /// @inheritdoc IP2pYieldProxyFactory
     function deposit(
-        uint256 _vaultId,
         address _asset,
         uint256 _amount,
         bytes calldata _yieldProtocolCalldata,
@@ -113,7 +112,6 @@ abstract contract P2pYieldProxyFactory is
 
         // deposit via proxy
         p2pYieldProxy.deposit{value: msg.value}(
-            _vaultId,
             _asset,
             _amount,
             _yieldProtocolCalldata

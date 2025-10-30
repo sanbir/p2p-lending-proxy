@@ -51,11 +51,9 @@ contract RunTestDepositOptimism is Script {
             IERC20(USDT).safeApprove(proxyAddress, type(uint256).max);
         }
         factory.deposit(
-            62771017356379199835532377802369906037722899472923496568460,
             USDT,
             DepositAmount,
-        superformCalldata,
-
+            superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
             SigDeadline,
