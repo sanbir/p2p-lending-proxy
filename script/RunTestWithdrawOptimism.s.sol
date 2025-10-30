@@ -6,7 +6,6 @@ pragma solidity 0.8.27;
 import "../lib/forge-std/src/Vm.sol";
 import "../src/adapters/superform/p2pSuperformProxyFactory/P2pSuperformProxyFactory.sol";
 import {Script} from "forge-std/Script.sol";
-import {PermitHash} from "../src/@permit2/libraries/PermitHash.sol";
 
 contract RunTestWithdrawOptimism is Script {
     using SafeERC20 for IERC20;

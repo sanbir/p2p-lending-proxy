@@ -57,7 +57,7 @@ Look at [function _doDeposit()](test/OptimismUSDT.t.sol#L430) for a reference im
 
 6. Backend returns JSON to the User with (client address, client basis points, signature deadline, and the signature).
 
-7. Client-side JS code prepares all the necessary data for the Morpho deposit function. Since the deposited tokens will first go from the client to the client's P2pSuperformProxy instance and then from the P2pSuperformProxy instance into the Superform protocol, both of these transfers are approved by the client via Permit2. The client's P2pSuperformProxy instance address is fetched from the P2pSuperformProxyFactory contract's `predictP2pYieldProxyAddress` function:
+7. Client-side JS code prepares all the necessary data for the Morpho deposit function. The client's P2pSuperformProxy instance address is fetched from the P2pSuperformProxyFactory contract's `predictP2pYieldProxyAddress` function:
 
 ```solidity
     /// @dev Computes the address of a P2pYieldProxy created by `_getOrCreateP2pYieldProxy` function
@@ -73,16 +73,12 @@ Look at [function _doDeposit()](test/OptimismUSDT.t.sol#L430) for a reference im
     ) external view returns (address);
 ```
 
-8. Client-side JS code checks if User has already approved the required amount of the deposited token for Permit2. If not, it prompts the User to call the `approve` function of the deposited token contract with the uint256 MAX value and Permit2 contract as the spender.
+8. Client-side JS code checks if the user has already approved the required amount of the deposited token for the P2pSuperformProxy instance. If not, it prompts the user to call the ERC20 `approve` function with an allowance that covers the intended deposit amount.
 
-9. Client-side JS code prompts the User to do `eth_signTypedData_v4` to sign `PermitSingle` from the User's wallet into the P2pSuperformProxy instance
-
-10. Client-side JS code prompts the User to call the `deposit` function of the P2pSuperformProxyFactory contract:
+9. Client-side JS code prompts the user to call the `deposit` function of the P2pSuperformProxyFactory contract:
 
 ```solidity
     /// @dev Deposits the yield protocol
-    /// @param _permitSingleForP2pYieldProxy The permit single for P2pYieldProxy
-    /// @param _permit2SignatureForP2pYieldProxy The permit2 signature for P2pYieldProxy
     /// @param _yieldProtocolCalldata Yield protocol calldata
     /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
     /// @param _clientBasisPointsOfProfit The client basis points (share) of profit
@@ -90,8 +86,6 @@ Look at [function _doDeposit()](test/OptimismUSDT.t.sol#L430) for a reference im
     /// @param _p2pSignerSignature The P2pSigner signature
     /// @return p2pYieldProxyAddress The client's P2pYieldProxy instance address
     function deposit(
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pYieldProxy,
-        bytes calldata _permit2SignatureForP2pYieldProxy,
         bytes calldata _yieldProtocolCalldata,
         uint48 _clientBasisPointsOfDeposit,
         uint48 _clientBasisPointsOfProfit,

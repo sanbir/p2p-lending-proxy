@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.8.27;
-import "../../../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../../../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 
 /// @dev External interface of P2pSuperformProxyFactory

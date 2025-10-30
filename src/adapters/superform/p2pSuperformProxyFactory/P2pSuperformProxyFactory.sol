@@ -3,7 +3,6 @@
 
 pragma solidity 0.8.27;
 
-import "../../../@permit2/interfaces/IAllowanceTransfer.sol";
 import "../../../p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "../p2pSuperformProxy/P2pSuperformProxy.sol";
 import "./IP2pSuperformProxyFactory.sol";
