@@ -25,6 +25,11 @@ interface IP2pSuperformProxy is IP2pYieldProxy, IERC1155Receiver {
         bytes calldata _superformCalldata
     ) external;
 
+    /// @notice Claims queued rewards from the Superform rewards distributor
+    /// @param _periodIds Reward period identifiers being claimed
+    /// @param _rewardTokens Nested array containing reward token addresses for each period
+    /// @param _amountsClaimed Nested array containing amounts being claimed for each reward token
+    /// @param _proofs Nested array with Merkle proofs proving eligibility for each reward entry
     function batchClaim(
         uint256[] calldata _periodIds,
         address[][] calldata _rewardTokens,

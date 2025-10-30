@@ -47,6 +47,32 @@ contract P2pSuperformProxyFactory is P2pYieldProxyFactory, IP2pSuperformProxyFac
         );
     }
 
+    /// @inheritdoc IP2pYieldProxyFactory
+    function transferP2pOperator(address _newP2pOperator)
+        public
+        override(P2pYieldProxyFactory, IP2pYieldProxyFactory)
+    {
+        P2pYieldProxyFactory.transferP2pOperator(_newP2pOperator);
+    }
+
+    /// @inheritdoc IP2pYieldProxyFactory
+    function acceptP2pOperator()
+        public
+        override(P2pYieldProxyFactory, IP2pYieldProxyFactory)
+    {
+        P2pYieldProxyFactory.acceptP2pOperator();
+    }
+
+    /// @inheritdoc IP2pYieldProxyFactory
+    function getPendingP2pOperator()
+        public
+        view
+        override(P2pYieldProxyFactory, IP2pYieldProxyFactory)
+        returns (address)
+    {
+        return P2pYieldProxyFactory.getPendingP2pOperator();
+    }
+
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId) public view virtual override(P2pYieldProxyFactory, IERC165) returns (bool) {
         return interfaceId == type(IP2pSuperformProxyFactory).interfaceId ||

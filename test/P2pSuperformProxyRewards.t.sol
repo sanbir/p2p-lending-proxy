@@ -91,6 +91,7 @@ contract MockRewardsDistributor {
 
 contract MockFactory is IP2pYieldProxyFactory {
     address private s_operator;
+    address private s_pendingOperator;
 
     constructor(address operator_) {
         s_operator = operator_;
@@ -98,6 +99,19 @@ contract MockFactory is IP2pYieldProxyFactory {
 
     function setP2pOperator(address operator_) external {
         s_operator = operator_;
+    }
+
+    function transferP2pOperator(address _newP2pOperator) external override {
+        s_pendingOperator = _newP2pOperator;
+    }
+
+    function acceptP2pOperator() external override {
+        s_operator = s_pendingOperator;
+        s_pendingOperator = address(0);
+    }
+
+    function getPendingP2pOperator() external view override returns (address) {
+        return s_pendingOperator;
     }
 
     function deposit(
