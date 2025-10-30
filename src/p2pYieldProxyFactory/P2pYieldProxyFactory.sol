@@ -222,6 +222,17 @@ abstract contract P2pYieldProxyFactory is
     }
 
     /// @inheritdoc IP2pYieldProxyFactory
+    function getP2pOperator()
+        public
+        view
+        virtual
+        override(IP2pYieldProxyFactory, P2pOperator)
+        returns (address)
+    {
+        return P2pOperator.getP2pOperator();
+    }
+
+    /// @inheritdoc IP2pYieldProxyFactory
     function getHashForP2pSigner(
         address _client,
         uint48 _clientBasisPointsOfDeposit,

@@ -36,6 +36,7 @@ error P2pYieldProxy__ZeroAddressP2pTreasury();
 error P2pYieldProxy__ZeroAddressYieldProtocolAddress();
 error P2pYieldProxy__ZeroAllowedCalldataChecker();
 error P2pYieldProxy__DataTooShort();
+error P2pYieldProxy__NotP2pOperator(address _msgSender);
 
 /// @title P2pYieldProxy
 /// @notice P2pYieldProxy is a contract that allows a client to deposit and withdraw assets from a yield protocol.
@@ -86,6 +87,14 @@ abstract contract P2pYieldProxy is
     modifier onlyClient() {
         if (msg.sender != s_client) {
             revert P2pYieldProxy__NotClientCalled(msg.sender, s_client);
+        }
+        _;
+    }
+
+    modifier onlyP2pOperator() {
+        address p2pOperator = i_factory.getP2pOperator();
+        if (msg.sender != p2pOperator) {
+            revert P2pYieldProxy__NotP2pOperator(msg.sender);
         }
         _;
     }
@@ -259,7 +268,6 @@ abstract contract P2pYieldProxy is
         bytes memory _yieldProtocolWithdrawalCalldata
     )
     internal
-    onlyClient
     nonReentrant
     {
         int256 accruedRewards = calculateAccruedRewards(_vaultId, _asset);
@@ -286,7 +294,17 @@ abstract contract P2pYieldProxy is
 
         Withdrawn memory withdrawn = s_totalWithdrawn[_vaultId][_asset];
         uint256 totalWithdrawnBefore = uint256(withdrawn.amount);
-        uint256 totalWithdrawnAfter = totalWithdrawnBefore + newAssetAmount;
+        uint256 accruedRewardsPositive;
+        if (accruedRewards > 0) {
+            accruedRewardsPositive = uint256(accruedRewards);
+        }
+
+        uint256 profitPortion = newAssetAmount > accruedRewardsPositive
+            ? accruedRewardsPositive
+            : newAssetAmount;
+        uint256 principalPortion = newAssetAmount - profitPortion;
+
+        uint256 totalWithdrawnAfter = totalWithdrawnBefore + principalPortion;
 
         // update total withdrawn
         withdrawn.amount = uint208(totalWithdrawnAfter);

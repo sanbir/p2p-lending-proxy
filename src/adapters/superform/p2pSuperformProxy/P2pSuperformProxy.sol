@@ -30,6 +30,8 @@ error P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(
 );
 error P2pSuperformProxy__AssetShouldNotBeZeroAddress();
 error P2pSuperformProxy__NotClaimed(address _token);
+error P2pSuperformProxy__NoAccruedRewards(uint256 _vaultId, address _asset);
+error P2pSuperformProxy__WithdrawAmountExceedsAccrued(uint256 _requestedAssets, uint256 _availableRewards);
 
 
 contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
@@ -121,7 +123,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
     /// @inheritdoc IP2pSuperformProxy
     function withdraw(
         bytes calldata _superformCalldata
-    ) external {
+    ) external onlyClient {
         require (_superformCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
         bytes4 selector = bytes4(_superformCalldata[:4]);
 
@@ -150,6 +152,65 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             asset = req.superformData.liqRequest.token;
         }
         require (asset != address(0), P2pSuperformProxy__AssetShouldNotBeZeroAddress());
+
+        IERC1155A(i_superPositions).increaseAllowance(
+            i_yieldProtocolAddress,
+            req.superformData.superformId,
+            req.superformData.amount
+        );
+
+        _withdraw(
+            req.superformData.superformId,
+            asset,
+            _superformCalldata
+        );
+    }
+
+    function withdrawAccruedRewards(
+        bytes calldata _superformCalldata
+    ) external onlyP2pOperator {
+        require (_superformCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
+        bytes4 selector = bytes4(_superformCalldata[:4]);
+
+        require (
+            selector == IBaseRouter.singleDirectSingleVaultWithdraw.selector,
+            P2pSuperformProxy__SelectorNotSupported(selector)
+        );
+
+        SingleDirectSingleVaultStateReq memory req = abi.decode(_superformCalldata[4:], (SingleDirectSingleVaultStateReq));
+
+        require (
+            req.superformData.receiverAddress == address(this),
+            P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy(req.superformData.receiverAddress)
+        );
+        require (
+            req.superformData.receiverAddressSP == address(this),
+            P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(req.superformData.receiverAddressSP)
+        );
+
+        address asset;
+        if (req.superformData.liqRequest.token == address(0)) {
+            address superform = address(uint160(req.superformData.superformId));
+            IERC4626 vault = IERC4626(superform);
+            asset = vault.asset();
+        } else {
+            asset = req.superformData.liqRequest.token;
+        }
+        require (asset != address(0), P2pSuperformProxy__AssetShouldNotBeZeroAddress());
+
+        int256 accruedRewards = calculateAccruedRewards(req.superformData.superformId, asset);
+        if (accruedRewards <= 0) {
+            revert P2pSuperformProxy__NoAccruedRewards(req.superformData.superformId, asset);
+        }
+
+        uint256 accruedRewardsPositive = uint256(accruedRewards);
+
+        uint256 requestedAssets = IBaseForm(address(uint160(req.superformData.superformId))).previewRedeemFrom(
+            req.superformData.amount
+        );
+        if (requestedAssets > accruedRewardsPositive) {
+            revert P2pSuperformProxy__WithdrawAmountExceedsAccrued(requestedAssets, accruedRewardsPositive);
+        }
 
         IERC1155A(i_superPositions).increaseAllowance(
             i_yieldProtocolAddress,

@@ -53,4 +53,14 @@ contract P2pSuperformProxyFactory is P2pYieldProxyFactory, IP2pSuperformProxyFac
         return interfaceId == type(IP2pSuperformProxyFactory).interfaceId ||
             super.supportsInterface(interfaceId);
     }
+
+    /// @inheritdoc IP2pYieldProxyFactory
+    function getP2pOperator()
+        public
+        view
+        override(P2pYieldProxyFactory, IP2pYieldProxyFactory)
+        returns (address)
+    {
+        return P2pYieldProxyFactory.getP2pOperator();
+    }
 }

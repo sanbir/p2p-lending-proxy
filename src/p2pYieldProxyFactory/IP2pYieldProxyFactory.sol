@@ -93,6 +93,10 @@ interface IP2pYieldProxyFactory is IERC165 {
     /// @return The P2pSigner address
     function getP2pSigner() external view returns (address);
 
+    /// @notice Gets the current P2pOperator address
+    /// @return The P2pOperator address
+    function getP2pOperator() external view returns (address);
+
     /// @dev Gets all proxies
     /// @return The proxy addresses
     function getAllProxies() external view returns (address[] memory);
