@@ -166,6 +166,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         );
     }
 
+    /// @inheritdoc IP2pSuperformProxy
     function withdrawAccruedRewards(
         bytes calldata _superformCalldata
     ) external onlyP2pOperator {
@@ -225,6 +226,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         );
     }
 
+    /// @inheritdoc IP2pSuperformProxy
     function batchClaim(
         uint256[] calldata _periodIds,
         address[][] calldata _rewardTokens,
@@ -331,7 +333,13 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
         return bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"));
     }
 
-    function calculateAccruedRewards(uint256 _vaultId, address _asset) public view override returns(int256) {
+    /// @inheritdoc IP2pYieldProxy
+    function calculateAccruedRewards(uint256 _vaultId, address _asset)
+        public
+        view
+        override(IP2pYieldProxy, P2pYieldProxy)
+        returns(int256)
+    {
         uint256 shares = IERC1155A(i_superPositions).balanceOf(
             address(this),
             _vaultId

@@ -431,6 +431,7 @@ abstract contract P2pYieldProxy is
         return s_totalWithdrawn[_vaultId][_asset].amount;
     }
 
+    /// @inheritdoc IP2pYieldProxy
     function getUserPrincipal(uint256 _vaultId, address _asset) public view returns(uint256) {
         uint256 totalDeposited = s_totalDeposited[_vaultId][_asset];
         uint256 totalWithdrawn = s_totalWithdrawn[_vaultId][_asset].amount;
@@ -440,12 +441,15 @@ abstract contract P2pYieldProxy is
         return 0;
     }
 
+    /// @inheritdoc IP2pYieldProxy
     function calculateAccruedRewards(uint256 _vaultId, address _asset) public view virtual returns(int256);
 
+    /// @inheritdoc IP2pYieldProxy
     function getLastFeeCollectionTime(uint256 _vaultId, address _asset) public view returns(uint48) {
         return s_totalWithdrawn[_vaultId][_asset].lastFeeCollectionTime;
     }
 
+    /// @inheritdoc IP2pYieldProxy
     function calculateMinAmountToApproveForDeposit(uint256 _amountToDeposit) public view returns(uint256) {
         return (_amountToDeposit * 10_000 + s_clientBasisPointsOfDeposit - 1) / s_clientBasisPointsOfDeposit;
     }

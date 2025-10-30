@@ -89,6 +89,35 @@ abstract contract P2pYieldProxyFactory is
     }
 
     /// @inheritdoc IP2pYieldProxyFactory
+    function transferP2pOperator(address _newP2pOperator)
+        public
+        virtual
+        override(P2pOperator2Step, IP2pYieldProxyFactory)
+    {
+        P2pOperator2Step.transferP2pOperator(_newP2pOperator);
+    }
+
+    /// @inheritdoc IP2pYieldProxyFactory
+    function acceptP2pOperator()
+        public
+        virtual
+        override(P2pOperator2Step, IP2pYieldProxyFactory)
+    {
+        P2pOperator2Step.acceptP2pOperator();
+    }
+
+    /// @inheritdoc IP2pYieldProxyFactory
+    function getPendingP2pOperator()
+        public
+        view
+        virtual
+        override(P2pOperator2Step, IP2pYieldProxyFactory)
+        returns (address)
+    {
+        return P2pOperator2Step.getPendingP2pOperator();
+    }
+
+    /// @inheritdoc IP2pYieldProxyFactory
     function deposit(
         bytes calldata _yieldProtocolCalldata,
         uint48 _clientBasisPointsOfDeposit,

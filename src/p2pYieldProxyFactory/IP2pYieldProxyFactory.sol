@@ -29,13 +29,13 @@ interface IP2pYieldProxyFactory is IERC165 {
         uint48 _clientBasisPointsOfProfit
     );
 
-    /// @dev Deposits the yield protocol
-    /// @param _yieldProtocolCalldata Yield protocol calldata
-    /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
-    /// @param _clientBasisPointsOfProfit The client basis points (share) of profit
-    /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
-    /// @param _p2pSignerSignature The P2pSigner signature
-    /// @return p2pYieldProxyAddress The client's P2pYieldProxy instance address
+    /// @notice Initiates a deposit through a client specific P2pYieldProxy instance
+    /// @param _yieldProtocolCalldata Calldata that executes the deposit on the underlying yield protocol
+    /// @param _clientBasisPointsOfDeposit Client share of the deposited principal in basis points (max 10_000)
+    /// @param _clientBasisPointsOfProfit Client share of the generated profit in basis points (max 10_000)
+    /// @param _p2pSignerSigDeadline Expiration timestamp for the P2pSigner signature
+    /// @param _p2pSignerSignature Signature issued by the P2pSigner authorising the deposit parameters
+    /// @return p2pYieldProxyAddress The address of the client specific P2pYieldProxy used for the deposit
     function deposit(
         bytes calldata _yieldProtocolCalldata,
         uint48 _clientBasisPointsOfDeposit,
@@ -47,34 +47,44 @@ interface IP2pYieldProxyFactory is IERC165 {
     payable
     returns (address p2pYieldProxyAddress);
 
-    /// @dev Computes the address of a P2pYieldProxy created by `_getOrCreateP2pYieldProxy` function
-    /// @dev P2pYieldProxy instances are guaranteed to have the same address if _feeDistributorInstance is the same
-    /// @param _client The address of client
-    /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
-    /// @param _clientBasisPointsOfProfit The client basis points (share) of profit
-    /// @return address The address of the P2pYieldProxy instance
+    /// @notice Computes the deterministic address of a P2pYieldProxy for a client and fee configuration
+    /// @param _client Client wallet address
+    /// @param _clientBasisPointsOfDeposit Client share of the deposited principal in basis points (max 10_000)
+    /// @param _clientBasisPointsOfProfit Client share of the generated profit in basis points (max 10_000)
+    /// @return Address of the P2pYieldProxy instance that would be deployed for the provided parameters
     function predictP2pYieldProxyAddress(
         address _client,
         uint48 _clientBasisPointsOfDeposit,
         uint48 _clientBasisPointsOfProfit
     ) external view returns (address);
 
-    /// @dev Transfers the P2pSigner
-    /// @param _newP2pSigner The new P2pSigner address
+    /// @notice Updates the P2pSigner account that authorises deposits
+    /// @param _newP2pSigner Address of the new P2pSigner
     function transferP2pSigner(
         address _newP2pSigner
     ) external;
 
-    /// @dev Returns a template set by P2P to be used for new P2pYieldProxy instances
-    /// @return a template set by P2P to be used for new P2pYieldProxy instances
+    /// @notice Transfers P2pOperator role control to a new account using the two step flow
+    /// @param _newP2pOperator Address that will become the new P2pOperator upon acceptance
+    function transferP2pOperator(address _newP2pOperator) external;
+
+    /// @notice Finalises a pending two step P2pOperator transfer
+    function acceptP2pOperator() external;
+
+    /// @notice Returns the address that is set to become the next P2pOperator
+    /// @return pendingP2pOperator Address of the pending P2pOperator
+    function getPendingP2pOperator() external view returns (address pendingP2pOperator);
+
+    /// @notice Returns the reference implementation used for cloning new P2pYieldProxy instances
+    /// @return Address of the reference P2pYieldProxy implementation
     function getReferenceP2pYieldProxy() external view returns (address);
 
-    /// @dev Gets the hash for the P2pSigner
-    /// @param _client The address of client
-    /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
-    /// @param _clientBasisPointsOfProfit The client basis points (share) of profit
-    /// @param _p2pSignerSigDeadline The P2pSigner signature deadline
-    /// @return The hash for the P2pSigner
+    /// @notice Computes the message hash that must be signed by the P2pSigner for a deposit authorisation
+    /// @param _client Client wallet initiating the deposit
+    /// @param _clientBasisPointsOfDeposit Client share of the deposited principal in basis points (max 10_000)
+    /// @param _clientBasisPointsOfProfit Client share of the generated profit in basis points (max 10_000)
+    /// @param _p2pSignerSigDeadline Expiration timestamp for the signature
+    /// @return hash Message hash to be signed by the P2pSigner
     function getHashForP2pSigner(
         address _client,
         uint48 _clientBasisPointsOfDeposit,
@@ -82,16 +92,15 @@ interface IP2pYieldProxyFactory is IERC165 {
         uint256 _p2pSignerSigDeadline
     ) external view returns (bytes32);
 
-
-    /// @dev Gets the P2pSigner
-    /// @return The P2pSigner address
+    /// @notice Returns the current P2pSigner address authorised to validate deposits
+    /// @return Address of the P2pSigner
     function getP2pSigner() external view returns (address);
 
-    /// @notice Gets the current P2pOperator address
-    /// @return The P2pOperator address
+    /// @notice Returns the current P2pOperator address responsible for administrative actions
+    /// @return Address of the P2pOperator
     function getP2pOperator() external view returns (address);
 
-    /// @dev Gets all proxies
-    /// @return The proxy addresses
+    /// @notice Returns the list of all P2pYieldProxy instances created by the factory
+    /// @return Array of deployed P2pYieldProxy addresses
     function getAllProxies() external view returns (address[] memory);
 }

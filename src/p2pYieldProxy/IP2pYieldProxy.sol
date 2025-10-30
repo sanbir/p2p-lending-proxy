@@ -124,6 +124,29 @@ interface IP2pYieldProxy is IERC165 {
     /// @notice Gets the total withdrawn for an asset
     /// @param _vaultId vault ID
     /// @param _asset The asset address
-    /// @return The total withdrawn
+    /// @return The total withdrawn amount
     function getTotalWithdrawn(uint256 _vaultId, address _asset) external view returns (uint256);
+
+    /// @notice Calculates the outstanding user principal for a vault and asset
+    /// @param _vaultId vault ID
+    /// @param _asset The asset address
+    /// @return The remaining principal balance for the user
+    function getUserPrincipal(uint256 _vaultId, address _asset) external view returns (uint256);
+
+    /// @notice Calculates the net rewards accrued for a vault and asset
+    /// @param _vaultId vault ID
+    /// @param _asset The asset address
+    /// @return The accrued rewards as a signed integer (negative values indicate a loss)
+    function calculateAccruedRewards(uint256 _vaultId, address _asset) external view returns (int256);
+
+    /// @notice Returns the timestamp of the last fee collection for a vault and asset
+    /// @param _vaultId vault ID
+    /// @param _asset The asset address
+    /// @return lastFeeCollectionTime Timestamp of the most recent fee collection
+    function getLastFeeCollectionTime(uint256 _vaultId, address _asset) external view returns (uint48 lastFeeCollectionTime);
+
+    /// @notice Calculates the minimum amount of tokens that must be approved for a deposit
+    /// @param _amountToDeposit The desired amount of tokens to be deposited into the yield protocol
+    /// @return The token amount that needs to be approved for transfer to cover the deposit and fee
+    function calculateMinAmountToApproveForDeposit(uint256 _amountToDeposit) external view returns (uint256);
 }
