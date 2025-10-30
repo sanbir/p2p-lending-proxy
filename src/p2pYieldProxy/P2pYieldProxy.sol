@@ -169,8 +169,6 @@ abstract contract P2pYieldProxy is
     }
 
     function deposit(
-        address _asset,
-        uint256 _amount,
         bytes calldata _yieldProtocolDepositCalldata
     ) external virtual payable;
 

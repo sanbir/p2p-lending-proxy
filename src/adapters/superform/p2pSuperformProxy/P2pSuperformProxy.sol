@@ -61,8 +61,6 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
 
     /// @inheritdoc IP2pYieldProxy
     function deposit(
-        address _asset,
-        uint256 _amount,
         bytes calldata _yieldProtocolDepositCalldata
     ) external override(P2pYieldProxy, IP2pYieldProxy) payable {
         require (_yieldProtocolDepositCalldata.length > 4, P2pSuperformProxy__SuperformCalldataTooShort());
@@ -77,7 +75,16 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
 
         uint256 nativeAmountToDepositAfterFee = msg.value * s_clientBasisPointsOfDeposit / 10_000;
 
-        bool isNative = req.superformData.liqRequest.token == NATIVE;
+        address asset;
+        if (req.superformData.liqRequest.token == address(0)) {
+            address superform = address(uint160(req.superformData.superformId));
+            IERC4626 vault = IERC4626(superform);
+            asset = vault.asset();
+        } else {
+            asset = req.superformData.liqRequest.token;
+        }
+
+        bool isNative = asset == NATIVE;
         if (isNative) {
             require (
                 nativeAmountToDepositAfterFee >= req.superformData.liqRequest.nativeAmount,
@@ -87,6 +94,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
                 )
             );
         } else {
+            require (asset != address(0), P2pSuperformProxy__AssetShouldNotBeZeroAddress());
             // ETH can still be used to pay for bridging, swaps, etc., so msg.value can be > 0
         }
         require (!req.superformData.retain4626, P2pSuperformProxy__ShouldNotRetain4626());
@@ -99,11 +107,13 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy(req.superformData.receiverAddressSP)
         );
 
-        uint256 amount = calculateMinAmountToApproveForDeposit(req.superformData.amount);
+        uint256 amount = isNative
+            ? 0
+            : calculateMinAmountToApproveForDeposit(req.superformData.amount);
 
         _deposit(
             req.superformData.superformId,
-            req.superformData.liqRequest.token,
+            asset,
             amount,
             _yieldProtocolDepositCalldata,
             isNative

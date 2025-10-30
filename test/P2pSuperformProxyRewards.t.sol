@@ -101,8 +101,6 @@ contract MockFactory is IP2pYieldProxyFactory {
     }
 
     function deposit(
-        address,
-        uint256,
         bytes calldata,
         uint48,
         uint48,

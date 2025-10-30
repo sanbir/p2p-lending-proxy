@@ -189,8 +189,6 @@ contract BaseMorphoUSDCDepositFee is Test {
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
 
         factory.deposit(
-            USDC,
-            DepositAmountWithFee,
             superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,

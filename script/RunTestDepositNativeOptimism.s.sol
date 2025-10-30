@@ -47,8 +47,6 @@ contract RunTestDepositNativeOptimism is Script {
 
         vm.startBroadcast(deployerKey);
         factory.deposit{value: (12340000000000000) * 113 / 100}(
-            0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,
-            0, // amount is 0 for native deposits
             superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,

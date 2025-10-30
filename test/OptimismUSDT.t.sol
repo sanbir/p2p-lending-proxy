@@ -139,8 +139,6 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.startPrank(clientAddress);
         vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
         factory.deposit(
-            USDT,
-            DepositAmountWithFee,
             superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
@@ -186,8 +184,6 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.startPrank(clientAddress);
         vm.expectRevert(P2pSuperformProxy__SuperformCalldataTooShort.selector);
         factory.deposit(
-            USDT,
-            DepositAmountWithFee,
             superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
@@ -212,8 +208,6 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.startPrank(clientAddress);
         vm.expectRevert(abi.encodeWithSelector(P2pSuperformProxy__SelectorNotSupported.selector, unsupportedSelector));
         factory.deposit(
-            USDT,
-            DepositAmountWithFee,
             superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
@@ -433,8 +427,6 @@ contract OptimismUSDT is Test, MerkleReader {
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
 
         factory.deposit(
-            USDT,
-            DepositAmountWithFee,
             superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
