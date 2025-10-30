@@ -4,7 +4,6 @@
 pragma solidity 0.8.27;
 
 import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
 
 /// @dev External interface of P2pYieldProxyFactory
 interface IP2pYieldProxyFactory is IERC165 {
@@ -31,8 +30,6 @@ interface IP2pYieldProxyFactory is IERC165 {
     );
 
     /// @dev Deposits the yield protocol
-    /// @param _permitSingleForP2pYieldProxy The permit single for P2pYieldProxy
-    /// @param _permit2SignatureForP2pYieldProxy The permit2 signature for P2pYieldProxy
     /// @param _yieldProtocolCalldata Yield protocol calldata
     /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
     /// @param _clientBasisPointsOfProfit The client basis points (share) of profit
@@ -40,11 +37,7 @@ interface IP2pYieldProxyFactory is IERC165 {
     /// @param _p2pSignerSignature The P2pSigner signature
     /// @return p2pYieldProxyAddress The client's P2pYieldProxy instance address
     function deposit(
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pYieldProxy,
-        bytes calldata _permit2SignatureForP2pYieldProxy,
-
         bytes calldata _yieldProtocolCalldata,
-
         uint48 _clientBasisPointsOfDeposit,
         uint48 _clientBasisPointsOfProfit,
         uint256 _p2pSignerSigDeadline,
@@ -89,24 +82,14 @@ interface IP2pYieldProxyFactory is IERC165 {
         uint256 _p2pSignerSigDeadline
     ) external view returns (bytes32);
 
-    /// @dev Gets the permit2 hash typed data
-    /// @param _permitSingle The permit single
-    /// @return The permit2 hash typed data
-    function getPermit2HashTypedData(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32);
-
-    /// @dev Gets the permit2 hash typed data
-    /// @param _permitHash The permit hash
-    /// @return The permit2 hash typed data
-    function getPermit2HashTypedData(bytes32 _permitHash) external view returns (bytes32);
-
-    /// @dev Gets the permit hash
-    /// @param _permitSingle The permit single
-    /// @return The permit hash
-    function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32);
 
     /// @dev Gets the P2pSigner
     /// @return The P2pSigner address
     function getP2pSigner() external view returns (address);
+
+    /// @notice Gets the current P2pOperator address
+    /// @return The P2pOperator address
+    function getP2pOperator() external view returns (address);
 
     /// @dev Gets all proxies
     /// @return The proxy addresses

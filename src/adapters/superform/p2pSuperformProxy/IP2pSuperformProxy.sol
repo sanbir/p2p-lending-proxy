@@ -19,6 +19,12 @@ interface IP2pSuperformProxy is IP2pYieldProxy, IERC1155Receiver {
         bytes calldata _superformCalldata
     ) external;
 
+    /// @notice Withdraw only accrued rewards from Superform protocol
+    /// @param _superformCalldata calldata for withdraw function of Superform protocol
+    function withdrawAccruedRewards(
+        bytes calldata _superformCalldata
+    ) external;
+
     function batchClaim(
         uint256[] calldata _periodIds,
         address[][] calldata _rewardTokens,

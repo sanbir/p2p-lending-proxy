@@ -133,8 +133,6 @@ contract OptimismNative is Test, MerkleReader {
     }
 
     function test_P2pSuperformProxy__NativeAmountToDepositAfterFeeLessThanliqRequestNativeAmount() public {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
-        bytes memory permit2SignatureForP2pYieldProxy;
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPointsOfDeposit,
@@ -178,11 +176,7 @@ contract OptimismNative is Test, MerkleReader {
             DepositAmount
         ));
         factory.deposit{value: actual}(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
-
             superformCalldata,
-
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
             SigDeadline,
@@ -308,8 +302,6 @@ contract OptimismNative is Test, MerkleReader {
     }
 
     function testP2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy() public {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
-        bytes memory permit2SignatureForP2pYieldProxy;
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPointsOfDeposit,
@@ -348,8 +340,6 @@ contract OptimismNative is Test, MerkleReader {
 
         vm.expectRevert(abi.encodeWithSelector(P2pSuperformProxy__ReceiverAddressShouldBeP2pSuperformProxy.selector, address(0x123)));
         factory.deposit{value: DepositAmount}(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
             superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
@@ -360,8 +350,6 @@ contract OptimismNative is Test, MerkleReader {
     }
 
     function testP2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy() public {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
-        bytes memory permit2SignatureForP2pYieldProxy;
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPointsOfDeposit,
@@ -400,8 +388,6 @@ contract OptimismNative is Test, MerkleReader {
 
         vm.expectRevert(abi.encodeWithSelector(P2pSuperformProxy__ReceiverAddressSPShouldBeP2pSuperformProxy.selector, address(0x123)));
         factory.deposit{value: DepositAmount}(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
             superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
@@ -412,8 +398,6 @@ contract OptimismNative is Test, MerkleReader {
     }
 
     function testP2pSuperformProxy__ShouldNotRetain4626() public {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
-        bytes memory permit2SignatureForP2pYieldProxy;
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPointsOfDeposit,
@@ -452,8 +436,6 @@ contract OptimismNative is Test, MerkleReader {
 
         vm.expectRevert(P2pSuperformProxy__ShouldNotRetain4626.selector);
         factory.deposit{value: DepositAmount}(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
             superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
@@ -487,8 +469,6 @@ contract OptimismNative is Test, MerkleReader {
     }
 
     function _doDeposit() private {
-        IAllowanceTransfer.PermitSingle memory permitSingleForP2pYieldProxy;
-        bytes memory permit2SignatureForP2pYieldProxy;
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPointsOfDeposit,
@@ -526,11 +506,7 @@ contract OptimismNative is Test, MerkleReader {
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
 
         factory.deposit{value: DepositAmount * 113 / 100}(
-            permitSingleForP2pYieldProxy,
-            permit2SignatureForP2pYieldProxy,
-
-        superformCalldata,
-
+            superformCalldata,
             ClientBasisPointsOfDeposit,
             ClientBasisPointsOfProfit,
             SigDeadline,

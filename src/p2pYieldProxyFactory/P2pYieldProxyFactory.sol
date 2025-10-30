@@ -7,8 +7,6 @@ import "../@openzeppelin/contracts/proxy/Clones.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import "../@permit2/interfaces/IAllowanceTransfer.sol";
-import "../@permit2/libraries/PermitHash.sol";
 import "../access/P2pOperator2Step.sol";
 import "../p2pYieldProxy/P2pYieldProxy.sol";
 import "./IP2pYieldProxyFactory.sol";
@@ -32,7 +30,6 @@ abstract contract P2pYieldProxyFactory is
     ERC165,
     IP2pYieldProxyFactory {
 
-    using SafeCast160 for uint256;
     using SignatureChecker for address;
     using ECDSA for bytes32;
 
@@ -93,11 +90,7 @@ abstract contract P2pYieldProxyFactory is
 
     /// @inheritdoc IP2pYieldProxyFactory
     function deposit(
-        IAllowanceTransfer.PermitSingle memory _permitSingleForP2pYieldProxy,
-        bytes calldata _permit2SignatureForP2pYieldProxy,
-
         bytes calldata _yieldProtocolCalldata,
-
         uint48 _clientBasisPointsOfDeposit,
         uint48 _clientBasisPointsOfProfit,
         uint256 _p2pSignerSigDeadline,
@@ -117,8 +110,6 @@ abstract contract P2pYieldProxyFactory is
 
         // deposit via proxy
         p2pYieldProxy.deposit{value: msg.value}(
-            _permitSingleForP2pYieldProxy,
-            _permit2SignatureForP2pYieldProxy,
             _yieldProtocolCalldata
         );
 
@@ -225,6 +216,17 @@ abstract contract P2pYieldProxyFactory is
     }
 
     /// @inheritdoc IP2pYieldProxyFactory
+    function getP2pOperator()
+        public
+        view
+        virtual
+        override(IP2pYieldProxyFactory, P2pOperator)
+        returns (address)
+    {
+        return P2pOperator.getP2pOperator();
+    }
+
+    /// @inheritdoc IP2pYieldProxyFactory
     function getHashForP2pSigner(
         address _client,
         uint48 _clientBasisPointsOfDeposit,
@@ -239,21 +241,6 @@ abstract contract P2pYieldProxyFactory is
             address(this),
             block.chainid
         ));
-    }
-
-    /// @inheritdoc IP2pYieldProxyFactory
-    function getPermit2HashTypedData(IAllowanceTransfer.PermitSingle calldata _permitSingle) external view returns (bytes32) {
-        return getPermit2HashTypedData(getPermitHash(_permitSingle));
-    }
-
-    /// @inheritdoc IP2pYieldProxyFactory
-    function getPermit2HashTypedData(bytes32 _dataHash) public view returns (bytes32) {
-        return keccak256(abi.encodePacked("\x19\x01", Permit2Lib.PERMIT2.DOMAIN_SEPARATOR(), _dataHash));
-    }
-
-    /// @inheritdoc IP2pYieldProxyFactory
-    function getPermitHash(IAllowanceTransfer.PermitSingle calldata _permitSingle) public pure returns (bytes32) {
-        return PermitHash.hash(_permitSingle);
     }
 
     /// @inheritdoc IP2pYieldProxyFactory
