@@ -380,6 +380,28 @@ contract P2pSuperformProxyRewardsTest is Test {
         proxy.withdrawAccruedRewards(withdrawCalldata);
     }
 
+    function test_doubleFeeCollectionBug_SuperformFlow() public {
+        bytes memory rewardsWithdrawCalldata = _buildWithdrawCalldata(SHARES_FOR_REWARDS);
+
+        vm.prank(OPERATOR);
+        proxy.withdrawAccruedRewards(rewardsWithdrawCalldata);
+
+        uint256 treasuryAfterRewards = assetToken.balanceOf(TREASURY);
+        uint256 clientAfterRewards = assetToken.balanceOf(CLIENT);
+
+        uint256 remainingShares = INITIAL_SHARES - SHARES_FOR_REWARDS;
+        bytes memory clientWithdrawCalldata = _buildWithdrawCalldata(remainingShares);
+
+        vm.prank(CLIENT);
+        proxy.withdraw(clientWithdrawCalldata);
+
+        uint256 clientPrincipalReceived = assetToken.balanceOf(CLIENT) - clientAfterRewards;
+        uint256 treasuryGainOnPrincipal = assetToken.balanceOf(TREASURY) - treasuryAfterRewards;
+
+        assertEq(clientPrincipalReceived, DEPOSIT_AMOUNT, "client principal received");
+        assertEq(treasuryGainOnPrincipal, 0, "treasury should not earn twice");
+    }
+
     function _buildWithdrawCalldata(uint256 sharesToWithdraw) internal view returns (bytes memory) {
         LiqRequest memory liqRequest = LiqRequest({
             txData: "",
