@@ -179,6 +179,37 @@ contract USRIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_DoubleFeeCollectionBug_OperatorThenClientWithdraw_USR() public {
+        deal(USR, clientAddress, 100e18);
+        _doDeposit();
+
+        _forward(1_000_000);
+
+        uint256 simulatedYield = 5e18;
+        deal(USR, stUSR, IERC20(USR).balanceOf(stUSR) + simulatedYield);
+
+        vm.startPrank(p2pOperatorAddress);
+        uint256 treasuryBeforeRewards = IERC20(USR).balanceOf(P2pTreasury);
+        P2pResolvProxy(proxyAddress).withdrawUSRAccruedRewards();
+        vm.stopPrank();
+
+        uint256 clientAfterRewards = IERC20(USR).balanceOf(clientAddress);
+        uint256 treasuryAfterRewards = IERC20(USR).balanceOf(P2pTreasury);
+
+        vm.startPrank(clientAddress);
+        P2pResolvProxy(proxyAddress).withdrawAllUSR();
+        vm.stopPrank();
+
+        uint256 clientPrincipalReceived = IERC20(USR).balanceOf(clientAddress) - clientAfterRewards;
+        uint256 treasuryPrincipalGain = IERC20(USR).balanceOf(P2pTreasury) - treasuryAfterRewards;
+
+        assertApproxEqAbs(clientPrincipalReceived, DepositAmount, 1, "client principal received");
+        assertLe(treasuryPrincipalGain, 1, "treasury gained extra");
+
+        // Ensure operator withdrawal actually moved some yield
+        assertGt(treasuryAfterRewards - treasuryBeforeRewards, 0, "treasury did not collect yield");
+    }
+
     function test_withdrawUSRAccruedRewards_revertsForNonOperator_Mainnet() public {
         // First deploy and initialize the proxy by doing a deposit
         deal(USR, clientAddress, 100e18);

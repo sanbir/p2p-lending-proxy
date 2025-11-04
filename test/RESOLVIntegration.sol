@@ -120,7 +120,6 @@ contract RESOLVIntegration is Test {
         deal(RESOLV, clientAddress, 100e18);
         _doDeposit();
 
-        // Simulate time passing to accrue rewards
         _forward(10000000);
 
         // Simulate protocol yield by increasing stRESOLV vault's underlying balance
@@ -196,6 +195,47 @@ contract RESOLVIntegration is Test {
         assertGt(p2pBalanceChange, 0, "P2P treasury expected to receive share of profit");
 
         assertGt(clientBalanceChange, p2pBalanceChange, "Client should receive larger share than treasury");
+    }
+
+    function test_DoubleFeeCollectionBug_OperatorThenClientWithdraw_RESOLV() public {
+        deal(RESOLV, clientAddress, 100e18);
+        _doDeposit();
+
+        _forward(1_000_000);
+
+        uint256 simulatedYield = 5e18;
+        deal(RESOLV, stRESOLV, IERC20(RESOLV).balanceOf(stRESOLV) + simulatedYield);
+        vm.prank(proxyAddress);
+        IResolvStaking(stRESOLV).updateCheckpoint(proxyAddress);
+
+        vm.startPrank(p2pOperatorAddress);
+        uint256 treasuryBeforeRewards = IERC20(RESOLV).balanceOf(P2pTreasury);
+        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLVAccruedRewards();
+        _forward(14 days);
+        P2pResolvProxy(proxyAddress).withdrawRESOLV();
+        vm.stopPrank();
+
+        uint256 clientAfterRewards = IERC20(RESOLV).balanceOf(clientAddress);
+        uint256 treasuryAfterRewards = IERC20(RESOLV).balanceOf(P2pTreasury);
+
+        vm.startPrank(clientAddress);
+        uint256 sharesBalance = IERC20(stRESOLV).balanceOf(proxyAddress);
+        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(sharesBalance);
+        vm.stopPrank();
+
+        _forward(14 days);
+
+        vm.startPrank(clientAddress);
+        P2pResolvProxy(proxyAddress).withdrawRESOLV();
+        vm.stopPrank();
+
+        uint256 clientPrincipalReceived = IERC20(RESOLV).balanceOf(clientAddress) - clientAfterRewards;
+        uint256 treasuryPrincipalGain = IERC20(RESOLV).balanceOf(P2pTreasury) - treasuryAfterRewards;
+
+        assertGt(clientPrincipalReceived, 0, "client did not receive principal");
+        assertLe(treasuryPrincipalGain, 1, "treasury gained extra");
+        assertEq(P2pResolvProxy(proxyAddress).getUserPrincipalRESOLV(), 0, "principal should be fully withdrawn");
+        assertGt(treasuryAfterRewards - treasuryBeforeRewards, 0, "treasury did not collect yield");
     }
 
     function test_transferP2pSigner_Mainnet_RESOLV() public {
