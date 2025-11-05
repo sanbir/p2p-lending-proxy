@@ -402,6 +402,37 @@ contract P2pSuperformProxyRewardsTest is Test {
         assertEq(treasuryGainOnPrincipal, 0, "treasury should not earn twice");
     }
 
+    function test_PartialWithdraw() public {
+        uint256 partialShares = 10 ether;
+        bytes memory withdrawCalldata = _buildWithdrawCalldata(partialShares);
+
+        uint256 treasuryBefore = assetToken.balanceOf(TREASURY);
+        uint256 clientBefore = assetToken.balanceOf(CLIENT);
+
+        vm.prank(OPERATOR);
+        proxy.withdrawAccruedRewards(withdrawCalldata);
+
+        uint256 actualWithdrawn = baseForm.previewRedeemFrom(partialShares);
+        uint256 treasuryReceived = assetToken.balanceOf(TREASURY) -
+            treasuryBefore;
+        uint256 clientReceived = assetToken.balanceOf(CLIENT) - clientBefore;
+
+        uint256 profitBps = proxy.getClientBasisPointsOfProfit();
+        uint256 expectedFee = (actualWithdrawn * (10_000 - profitBps) + 9_999) /
+            10_000;
+        uint256 expectedClient = actualWithdrawn - expectedFee;
+
+        uint256 treasuryDelta = treasuryReceived > expectedFee
+            ? treasuryReceived - expectedFee
+            : expectedFee - treasuryReceived;
+        uint256 clientDelta = clientReceived > expectedClient
+            ? clientReceived - expectedClient
+            : expectedClient - clientReceived;
+
+        assertLe(treasuryDelta, 1, "Treasury fee overcharged");
+        assertLe(clientDelta, 1, "Client lost funds");
+    }
+
     function _buildWithdrawCalldata(uint256 sharesToWithdraw) internal view returns (bytes memory) {
         LiqRequest memory liqRequest = LiqRequest({
             txData: "",
