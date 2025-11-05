@@ -311,7 +311,7 @@ abstract contract P2pYieldProxy is
         uint256 p2pAmount;
         if (accruedRewards > 0) {
             // That extra 9999 ensures that any nonzero remainder will push the result up by 1 (ceiling division).
-            p2pAmount = (uint256(accruedRewards) * (10_000 - s_clientBasisPointsOfProfit) + 9999) / 10_000;
+            p2pAmount = (profitPortion * (10_000 - s_clientBasisPointsOfProfit) + 9999) / 10_000;
         }
         uint256 clientAmount = newAssetAmount - p2pAmount;
 
