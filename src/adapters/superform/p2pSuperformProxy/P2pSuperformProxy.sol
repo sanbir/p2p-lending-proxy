@@ -295,7 +295,7 @@ contract P2pSuperformProxy is P2pYieldProxy, IP2pSuperformProxy {
             uint256 newAssetAmount = assetAmountAfter - assetAmountsBefore[i];
             require (newAssetAmount > 0, P2pSuperformProxy__NotClaimed(token));
 
-            uint256 p2pAmount = (newAssetAmount * (10_000 - s_clientBasisPointsOfProfit)) / 10_000;
+            uint256 p2pAmount = calculateP2pFeeAmount(newAssetAmount);
             uint256 clientAmount = newAssetAmount - p2pAmount;
 
             if (p2pAmount > 0) {
