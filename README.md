@@ -23,6 +23,7 @@ Set the following environment variables (override the defaults only when a netwo
 
 - `PRIVATE_KEY` – broadcaster key (also becomes the default `P2P_SIGNER`)
 - `P2P_SIGNER` – optional override for the signer account
+- `P2P_OPERATOR` – optional override for the operator account (defaults to `P2P_SIGNER`)
 - `SUPERFORM_ROUTER`
 - `SUPER_POSITIONS`
 - `P2P_TREASURY`

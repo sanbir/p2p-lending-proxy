@@ -19,6 +19,7 @@ contract Deploy is Script {
         address p2pTreasury;
         address rewardsDistributor;
         address p2pSigner;
+        address p2pOperator;
     }
 
     struct DeploymentResult {
@@ -29,12 +30,12 @@ contract Deploy is Script {
         P2pSuperformProxy referenceProxy;
     }
 
-    bytes32 private constant SALT_PROXY_ADMIN = keccak256("p2p.superform.proxy_admin.v1");
+    bytes32 private constant SALT_PROXY_ADMIN = keccak256("p2p.superform.proxy_admin.v2");
     bytes32 private constant SALT_ALLOWED_CALLDATA_CHECKER_IMPL =
-        keccak256("p2p.superform.allowed_calldata_checker.impl.v1");
+        keccak256("p2p.superform.allowed_calldata_checker.impl.v2");
     bytes32 private constant SALT_ALLOWED_CALLDATA_CHECKER_PROXY =
-        keccak256("p2p.superform.allowed_calldata_checker.proxy.v1");
-    bytes32 private constant SALT_FACTORY = keccak256("p2p.superform.proxy_factory.v1");
+        keccak256("p2p.superform.allowed_calldata_checker.proxy.v2");
+    bytes32 private constant SALT_FACTORY = keccak256("p2p.superform.proxy_factory.v2");
 
     address private constant DEFAULT_SUPERFORM_ROUTER = 0xa195608C2306A26f727d5199D5A382a4508308DA;
     address private constant DEFAULT_SUPER_POSITIONS = 0x01dF6fb6a28a89d6bFa53b2b3F20644AbF417678;
@@ -46,8 +47,10 @@ contract Deploy is Script {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
         config.p2pSigner = vm.envOr("P2P_SIGNER", deployer);
+        config.p2pOperator = vm.envOr("P2P_OPERATOR", config.p2pSigner);
 
         console2.log("Deploying with signer:", config.p2pSigner);
+        console2.log("Using operator:", config.p2pOperator);
         console2.log("Broadcast sender:", deployer);
         console2.log("Target chain ID:", block.chainid);
 
@@ -144,6 +147,7 @@ contract Deploy is Script {
             type(P2pSuperformProxyFactory).creationCode,
             abi.encode(
                 config.p2pSigner,
+                config.p2pOperator,
                 config.p2pTreasury,
                 config.superformRouter,
                 config.superPositions,
@@ -156,6 +160,7 @@ contract Deploy is Script {
         if (predicted.code.length == 0) {
             factory = new P2pSuperformProxyFactory{salt: SALT_FACTORY}(
                 config.p2pSigner,
+                config.p2pOperator,
                 config.p2pTreasury,
                 config.superformRouter,
                 config.superPositions,

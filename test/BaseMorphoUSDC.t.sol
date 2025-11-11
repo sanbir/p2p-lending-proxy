@@ -64,7 +64,13 @@ contract BaseMorphoUSDC is Test {
         TransparentUpgradeableProxy tup =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
         factory = new P2pSuperformProxyFactory(
-            p2pSignerAddress, P2pTreasury, SuperformRouter, SuperPositions, address(tup), RewardsDistributor
+            p2pSignerAddress,
+            p2pOperatorAddress,
+            P2pTreasury,
+            SuperformRouter,
+            SuperPositions,
+            address(tup),
+            RewardsDistributor
         );
 
         vm.stopPrank();

@@ -27,7 +27,7 @@ contract DeployBase is Script {
         TransparentUpgradeableProxy tup =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
         factory = new P2pSuperformProxyFactory(
-            wallet.addr, P2pTreasury, SuperformRouter, SuperPositions, address(tup), RewardsDistributor
+            wallet.addr, wallet.addr, P2pTreasury, SuperformRouter, SuperPositions, address(tup), RewardsDistributor
         );
 
         vm.stopBroadcast();

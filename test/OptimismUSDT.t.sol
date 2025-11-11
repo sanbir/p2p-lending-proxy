@@ -76,7 +76,13 @@ contract OptimismUSDT is Test, MerkleReader {
         TransparentUpgradeableProxy tup =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
         factory = new P2pSuperformProxyFactory(
-            p2pSignerAddress, P2pTreasury, SuperformRouter, SuperPositions, address(tup), RewardsDistributorInstance
+            p2pSignerAddress,
+            p2pOperatorAddress,
+            P2pTreasury,
+            SuperformRouter,
+            SuperPositions,
+            address(tup),
+            RewardsDistributorInstance
         );
         vm.stopPrank();
 

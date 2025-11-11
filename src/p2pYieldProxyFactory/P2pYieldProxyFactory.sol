@@ -66,7 +66,8 @@ abstract contract P2pYieldProxyFactory is P2pOperator2Step, ERC165, IP2pYieldPro
 
     /// @notice Constructor for P2pYieldProxyFactory
     /// @param _p2pSigner The P2pSigner address
-    constructor(address _p2pSigner) P2pOperator(msg.sender) {
+    /// @param _p2pOperator The P2pOperator address
+    constructor(address _p2pSigner, address _p2pOperator) P2pOperator(_p2pOperator) {
         _transferP2pSigner(_p2pSigner);
     }
 

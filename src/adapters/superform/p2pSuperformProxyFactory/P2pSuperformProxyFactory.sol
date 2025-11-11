@@ -12,6 +12,7 @@ import {IERC4626} from "../../../@openzeppelin/contracts/interfaces/IERC4626.sol
 contract P2pSuperformProxyFactory is P2pYieldProxyFactory, IP2pSuperformProxyFactory {
     /// @notice Constructor for P2pSuperformProxyFactory
     /// @param _p2pSigner The P2pSigner address
+    /// @param _p2pOperator The P2pOperator address
     /// @param _p2pTreasury The P2pTreasury address
     /// @param _superformRouter SuperformRouter address
     /// @param _superPositions SuperPositions address
@@ -19,12 +20,13 @@ contract P2pSuperformProxyFactory is P2pYieldProxyFactory, IP2pSuperformProxyFac
     /// @param _rewardsDistributor RewardsDistributor
     constructor(
         address _p2pSigner,
+        address _p2pOperator,
         address _p2pTreasury,
         address _superformRouter,
         address _superPositions,
         address _allowedCalldataChecker,
         address _rewardsDistributor
-    ) P2pYieldProxyFactory(_p2pSigner) {
+    ) P2pYieldProxyFactory(_p2pSigner, _p2pOperator) {
         i_referenceP2pYieldProxy = new P2pSuperformProxy(
             address(this), _p2pTreasury, _superformRouter, _superPositions, _allowedCalldataChecker, _rewardsDistributor
         );
