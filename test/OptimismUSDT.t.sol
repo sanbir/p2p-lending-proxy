@@ -20,7 +20,6 @@ import "forge-std/Vm.sol";
 import "forge-std/console.sol";
 import "forge-std/console2.sol";
 
-
 contract OptimismUSDT is Test, MerkleReader {
     using SafeERC20 for IERC20;
 
@@ -74,26 +73,15 @@ contract OptimismUSDT is Test, MerkleReader {
         AllowedCalldataChecker implementation = new AllowedCalldataChecker();
         ProxyAdmin admin = new ProxyAdmin();
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
-        TransparentUpgradeableProxy tup = new TransparentUpgradeableProxy(
-            address(implementation),
-            address(admin),
-            initData
-        );
+        TransparentUpgradeableProxy tup =
+            new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
         factory = new P2pSuperformProxyFactory(
-            p2pSignerAddress,
-            P2pTreasury,
-            SuperformRouter,
-            SuperPositions,
-            address(tup),
-            RewardsDistributorInstance
+            p2pSignerAddress, P2pTreasury, SuperformRouter, SuperPositions, address(tup), RewardsDistributorInstance
         );
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(
-            clientAddress,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit
-        );
+        proxyAddress =
+            factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit);
 
         deal(USDT, clientAddress, 10000e18);
 
@@ -139,68 +127,52 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.startPrank(clientAddress);
         vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
         factory.deposit(
-            superformCalldata,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline,
-            p2pSignerSignature
+            superformCalldata, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit, SigDeadline, p2pSignerSignature
         );
         vm.stopPrank();
     }
 
     function test_P2pYieldProxy__EmergencyTokenWithdraw() public {
         _doDeposit();
-        
+
         // Deal USDT to the proxy
-        uint256 usdtAmount = 1000 * 10**6; // 1000 USDT with 6 decimals
+        uint256 usdtAmount = 1000 * 10 ** 6; // 1000 USDT with 6 decimals
         deal(USDT, proxyAddress, usdtAmount);
-        
+
         // Verify initial balances
         assertEq(IERC20(USDT).balanceOf(proxyAddress), usdtAmount);
         uint256 clientInitialBalance = IERC20(USDT).balanceOf(clientAddress);
 
         vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__NotClientCalled.selector, address(this), clientAddress));
         P2pYieldProxy(payable(proxyAddress)).emergencyTokenWithdraw(USDT);
-        
+
         // Call emergencyTokenWithdraw as client
         vm.startPrank(clientAddress);
         P2pYieldProxy(payable(proxyAddress)).emergencyTokenWithdraw(USDT);
         vm.stopPrank();
-        
+
         // Verify final balances
         assertEq(IERC20(USDT).balanceOf(proxyAddress), 0);
         assertEq(IERC20(USDT).balanceOf(clientAddress) - clientInitialBalance, usdtAmount);
     }
 
     function test_P2pSuperformProxy__SuperformCalldataTooShort() public {
-        bytes memory p2pSignerSignature = _getP2pSignerSignature(
-            clientAddress,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline
-        );
+        bytes memory p2pSignerSignature =
+            _getP2pSignerSignature(clientAddress, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit, SigDeadline);
         bytes memory superformCalldata = new bytes(3); // Less than 4 bytes for function selector
 
         vm.startPrank(clientAddress);
         vm.expectRevert(P2pSuperformProxy__SuperformCalldataTooShort.selector);
         factory.deposit(
-            superformCalldata,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline,
-            p2pSignerSignature
+            superformCalldata, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit, SigDeadline, p2pSignerSignature
         );
         vm.stopPrank();
     }
 
     function test_P2pSuperformProxy__SelectorNotSupported() public {
-        bytes memory p2pSignerSignature = _getP2pSignerSignature(
-            clientAddress,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline
-        );
-        
+        bytes memory p2pSignerSignature =
+            _getP2pSignerSignature(clientAddress, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit, SigDeadline);
+
         // Create calldata with an unsupported selector
         bytes4 unsupportedSelector = bytes4(keccak256("unsupportedFunction()"));
         bytes memory superformCalldata = abi.encodePacked(unsupportedSelector, "42");
@@ -208,11 +180,7 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.startPrank(clientAddress);
         vm.expectRevert(abi.encodeWithSelector(P2pSuperformProxy__SelectorNotSupported.selector, unsupportedSelector));
         factory.deposit(
-            superformCalldata,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline,
-            p2pSignerSignature
+            superformCalldata, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit, SigDeadline, p2pSignerSignature
         );
         vm.stopPrank();
     }
@@ -278,7 +246,7 @@ contract OptimismUSDT is Test, MerkleReader {
         uint256[][] memory amountsToClaim = new uint256[][](2);
         for (uint256 periodId = 0; periodId < 2; periodId++) {
             (,,,, bytes32[] memory proof_, address[] memory tokensToClaim_, uint256[] memory amountsToClaim_) =
-                            _generateMerkleTree(MerkleReader.MerkleArgs(periodId + 23, user, CHAIN_ID));
+                _generateMerkleTree(MerkleReader.MerkleArgs(periodId + 23, user, CHAIN_ID));
 
             proofs[periodId] = proof_;
             tokensToClaim[periodId] = tokensToClaim_;
@@ -286,12 +254,7 @@ contract OptimismUSDT is Test, MerkleReader {
         }
 
         vm.prank(clientAddress);
-        IP2pSuperformProxy(payable(proxyAddress)).batchClaim(
-            periodIds,
-            tokensToClaim,
-            amountsToClaim,
-            proofs
-        );
+        IP2pSuperformProxy(payable(proxyAddress)).batchClaim(periodIds, tokensToClaim, amountsToClaim, proofs);
     }
 
     function test_batchclaim_randomClaimer_claimAndAlreadyClaimed() public {
@@ -312,7 +275,7 @@ contract OptimismUSDT is Test, MerkleReader {
         uint256[][] memory amountsToClaim = new uint256[][](2);
         for (uint256 periodId = 0; periodId < 2; periodId++) {
             (,,,, bytes32[] memory proof_, address[] memory tokensToClaim_, uint256[] memory amountsToClaim_) =
-                            _generateMerkleTree(MerkleReader.MerkleArgs(periodId + 23, user, CHAIN_ID));
+                _generateMerkleTree(MerkleReader.MerkleArgs(periodId + 23, user, CHAIN_ID));
 
             proofs[periodId] = proof_;
             tokensToClaim[periodId] = tokensToClaim_;
@@ -321,11 +284,15 @@ contract OptimismUSDT is Test, MerkleReader {
 
         /// @dev tests a claim initiated by a random user on behalf of user
         vm.prank(address(0x777));
-        IRewardsDistributor(RewardsDistributorInstance).batchClaim(user, periodIds, tokensToClaim, amountsToClaim, proofs);
+        IRewardsDistributor(RewardsDistributorInstance).batchClaim(
+            user, periodIds, tokensToClaim, amountsToClaim, proofs
+        );
 
         vm.expectRevert(IRewardsDistributor.ALREADY_CLAIMED.selector);
         vm.prank(user);
-        IRewardsDistributor(RewardsDistributorInstance).batchClaim(user, periodIds, tokensToClaim, amountsToClaim, proofs);
+        IRewardsDistributor(RewardsDistributorInstance).batchClaim(
+            user, periodIds, tokensToClaim, amountsToClaim, proofs
+        );
     }
 
     function _addRoot() internal {
@@ -333,7 +300,8 @@ contract OptimismUSDT is Test, MerkleReader {
         uint256 usdcToDeposit;
         uint256 daiToDeposit;
         uint256 periodId = 23; // IRewardsDistributor(RewardsDistributorInstance).currentPeriodId();
-        (root,, usdcToDeposit, daiToDeposit,,,) = _generateMerkleTree(MerkleReader.MerkleArgs(periodId, proxyAddress, CHAIN_ID));
+        (root,, usdcToDeposit, daiToDeposit,,,) =
+            _generateMerkleTree(MerkleReader.MerkleArgs(periodId, proxyAddress, CHAIN_ID));
 
         vm.startPrank(RewardsDistributorAdmin);
         IRewardsDistributor(RewardsDistributorInstance).setPeriodicRewards(root);
@@ -349,7 +317,8 @@ contract OptimismUSDT is Test, MerkleReader {
         bytes32 root;
         uint256 usdcToDeposit;
         uint256 daiToDeposit;
-        (root,, usdcToDeposit, daiToDeposit,,,) = _generateMerkleTree(MerkleReader.MerkleArgs(24, proxyAddress, CHAIN_ID));
+        (root,, usdcToDeposit, daiToDeposit,,,) =
+            _generateMerkleTree(MerkleReader.MerkleArgs(24, proxyAddress, CHAIN_ID));
 
         vm.startPrank(RewardsDistributorAdmin);
         IRewardsDistributor(RewardsDistributorInstance).setPeriodicRewards(root);
@@ -361,23 +330,19 @@ contract OptimismUSDT is Test, MerkleReader {
         vm.stopPrank();
     }
 
-    function _getVaultAddress() private pure returns(address) {
+    function _getVaultAddress() private pure returns (address) {
         return address(uint160(SuperformId));
     }
-
 
     function _getP2pSignerSignature(
         address _clientAddress,
         uint48 _clientBasisPointsOfDeposit,
         uint48 _clientBasisPointsOfProfit,
         uint256 _sigDeadline
-    ) private view returns(bytes memory) {
+    ) private view returns (bytes memory) {
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
-            _clientAddress,
-            _clientBasisPointsOfDeposit,
-            _clientBasisPointsOfProfit,
-            _sigDeadline
+            _clientAddress, _clientBasisPointsOfDeposit, _clientBasisPointsOfProfit, _sigDeadline
         );
         bytes32 ethSignedMessageHashForP2pSigner = ECDSA.toEthSignedMessageHash(hashForP2pSigner);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(p2pSignerPrivateKey, ethSignedMessageHashForP2pSigner);
@@ -386,12 +351,8 @@ contract OptimismUSDT is Test, MerkleReader {
     }
 
     function _doDeposit() private {
-        bytes memory p2pSignerSignature = _getP2pSignerSignature(
-            clientAddress,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline
-        );
+        bytes memory p2pSignerSignature =
+            _getP2pSignerSignature(clientAddress, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit, SigDeadline);
 
         vm.startPrank(clientAddress);
         // Approve the proxy to spend USDT tokens
@@ -400,7 +361,7 @@ contract OptimismUSDT is Test, MerkleReader {
         }
 
         LiqRequest memory liqRequest = LiqRequest({
-            txData: hex'4630a0d896ba9cffae8a22aa75ffdc6910e52d52ee9a199ee31eb8893dc693d7c89ed4a800000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000010000000000000000000000000097116661c85c4e1ee35aa10f7fc5fe5e67b83a5b00000000000000000000000000000000000000000000000001a2c000701289810000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000000d7375706572666f726d2e78797a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a30783030303030303030303030303030303030303030303030303030303030303030303030303030303000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000006140b987d6b51fd75b66c3b07733beb5167c42fc0000000000000000000000006140b987d6b51fd75b66c3b07733beb5167c42fc00000000000000000000000094b008aa00579c1307b0ef2c499ad98a8ce58e58000000000000000000000000c40f949f8a4e094d1b49a23ea9241d289b7b2819000000000000000000000000000000000000000000000000000000000001e20800000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001842646478b00000000000000000000000094b008aa00579c1307b0ef2c499ad98a8ce58e58000000000000000000000000000000000000000000000000000000000001e208000000000000000000000000c40f949f8a4e094d1b49a23ea9241d289b7b281900000000000000000000000000000000000000000000000001a2c000701289810000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae00000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000840294b008aa00579c1307b0ef2c499ad98a8ce58e5801ffff01962e23cd3f58f887a5238082a75d223f71890629006140b987d6b51fd75b66c3b07733beb5167c42fc010b2c639c533813f4aa9d7837caf62653d097ff8501ffff018ac2f9dac7a2852d44f3c09634444d533e4c078e011231deb6f5749ef6ce6943a275a1d3e7486f4eae0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+            txData: hex"4630a0d896ba9cffae8a22aa75ffdc6910e52d52ee9a199ee31eb8893dc693d7c89ed4a800000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000010000000000000000000000000097116661c85c4e1ee35aa10f7fc5fe5e67b83a5b00000000000000000000000000000000000000000000000001a2c000701289810000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000000d7375706572666f726d2e78797a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a30783030303030303030303030303030303030303030303030303030303030303030303030303030303000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000006140b987d6b51fd75b66c3b07733beb5167c42fc0000000000000000000000006140b987d6b51fd75b66c3b07733beb5167c42fc00000000000000000000000094b008aa00579c1307b0ef2c499ad98a8ce58e58000000000000000000000000c40f949f8a4e094d1b49a23ea9241d289b7b2819000000000000000000000000000000000000000000000000000000000001e20800000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001842646478b00000000000000000000000094b008aa00579c1307b0ef2c499ad98a8ce58e58000000000000000000000000000000000000000000000000000000000001e208000000000000000000000000c40f949f8a4e094d1b49a23ea9241d289b7b281900000000000000000000000000000000000000000000000001a2c000701289810000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae00000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000840294b008aa00579c1307b0ef2c499ad98a8ce58e5801ffff01962e23cd3f58f887a5238082a75d223f71890629006140b987d6b51fd75b66c3b07733beb5167c42fc010b2c639c533813f4aa9d7837caf62653d097ff8501ffff018ac2f9dac7a2852d44f3c09634444d533e4c078e011231deb6f5749ef6ce6943a275a1d3e7486f4eae0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
             token: USDT,
             interimToken: address(0),
             bridgeId: 101,
@@ -420,25 +381,19 @@ contract OptimismUSDT is Test, MerkleReader {
             receiverAddressSP: proxyAddress,
             extraFormData: ""
         });
-        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({
-            superformData: superformData
-        });
+        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({superformData: superformData});
 
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
 
         factory.deposit(
-            superformCalldata,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline,
-            p2pSignerSignature
+            superformCalldata, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit, SigDeadline, p2pSignerSignature
         );
         vm.stopPrank();
     }
 
     function _doWithdraw() private {
         LiqRequest memory liqRequest = LiqRequest({
-            txData: hex'4630a0d8db58392a5ec14b23ef56401c814f1ce0bff3fd4f7f74c06e092670b4c587c7a600000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000fd35454f266dc9f672985260029f1686c6b6036c000000000000000000000000000000000000000000000000000000000000181a0000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000000d7375706572666f726d2e78797a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a30783030303030303030303030303030303030303030303030303030303030303030303030303030303000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000006140b987d6b51fd75b66c3b07733beb5167c42fc0000000000000000000000006140b987d6b51fd75b66c3b07733beb5167c42fc000000000000000000000000c40f949f8a4e094d1b49a23ea9241d289b7b281900000000000000000000000094b008aa00579c1307b0ef2c499ad98a8ce58e58000000000000000000000000000000000000000000000000002c14939f0666fb00000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001442646478b000000000000000000000000c40f949f8a4e094d1b49a23ea9241d289b7b2819000000000000000000000000000000000000000000000000002c14939f0666fb00000000000000000000000094b008aa00579c1307b0ef2c499ad98a8ce58e58000000000000000000000000000000000000000000000000000000000000181a0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae00000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000004202c40f949f8a4e094d1b49a23ea9241d289b7b281901ffff01e8a05463f7a2796e1bf11a25d317f17ed7fce5e7001231deb6f5749ef6ce6943a275a1d3e7486f4eae00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+            txData: hex"4630a0d8db58392a5ec14b23ef56401c814f1ce0bff3fd4f7f74c06e092670b4c587c7a600000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000fd35454f266dc9f672985260029f1686c6b6036c000000000000000000000000000000000000000000000000000000000000181a0000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000000d7375706572666f726d2e78797a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a30783030303030303030303030303030303030303030303030303030303030303030303030303030303000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000006140b987d6b51fd75b66c3b07733beb5167c42fc0000000000000000000000006140b987d6b51fd75b66c3b07733beb5167c42fc000000000000000000000000c40f949f8a4e094d1b49a23ea9241d289b7b281900000000000000000000000094b008aa00579c1307b0ef2c499ad98a8ce58e58000000000000000000000000000000000000000000000000002c14939f0666fb00000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001442646478b000000000000000000000000c40f949f8a4e094d1b49a23ea9241d289b7b2819000000000000000000000000000000000000000000000000002c14939f0666fb00000000000000000000000094b008aa00579c1307b0ef2c499ad98a8ce58e58000000000000000000000000000000000000000000000000000000000000181a0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae00000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000004202c40f949f8a4e094d1b49a23ea9241d289b7b281901ffff01e8a05463f7a2796e1bf11a25d317f17ed7fce5e7001231deb6f5749ef6ce6943a275a1d3e7486f4eae00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
             token: USDT,
             interimToken: address(0),
             bridgeId: 101,
@@ -458,9 +413,7 @@ contract OptimismUSDT is Test, MerkleReader {
             receiverAddressSP: proxyAddress,
             extraFormData: ""
         });
-        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({
-            superformData: superformData
-        });
+        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({superformData: superformData});
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultWithdraw, (req));
 
         vm.startPrank(clientAddress);

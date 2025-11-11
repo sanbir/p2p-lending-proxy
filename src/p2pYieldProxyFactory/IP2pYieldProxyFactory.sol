@@ -7,26 +7,17 @@ import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /// @dev External interface of P2pYieldProxyFactory
 interface IP2pYieldProxyFactory is IERC165 {
-
     /// @dev Emitted when the P2pSigner is transferred
-    event P2pYieldProxyFactory__P2pSignerTransferred(
-        address indexed _previousP2pSigner,
-        address indexed _newP2pSigner
-    );
+    event P2pYieldProxyFactory__P2pSignerTransferred(address indexed _previousP2pSigner, address indexed _newP2pSigner);
 
     /// @dev Emitted when the deposit is made
     event P2pYieldProxyFactory__Deposited(
-        address indexed _client,
-        uint48 indexed _clientBasisPointsOfDeposit,
-        uint48 indexed _clientBasisPointsOfProfit
+        address indexed _client, uint48 indexed _clientBasisPointsOfDeposit, uint48 indexed _clientBasisPointsOfProfit
     );
 
     /// @dev Emitted when the a new proxy is created
     event P2pYieldProxyFactory__ProxyCreated(
-        address _proxy,
-        address _client,
-        uint48 _clientBasisPointsOfDeposit,
-        uint48 _clientBasisPointsOfProfit
+        address _proxy, address _client, uint48 _clientBasisPointsOfDeposit, uint48 _clientBasisPointsOfProfit
     );
 
     /// @notice Initiates a deposit through a client specific P2pYieldProxy instance
@@ -42,10 +33,7 @@ interface IP2pYieldProxyFactory is IERC165 {
         uint48 _clientBasisPointsOfProfit,
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
-    )
-    external
-    payable
-    returns (address p2pYieldProxyAddress);
+    ) external payable returns (address p2pYieldProxyAddress);
 
     /// @notice Computes the deterministic address of a P2pYieldProxy for a client and fee configuration
     /// @param _client Client wallet address
@@ -60,9 +48,7 @@ interface IP2pYieldProxyFactory is IERC165 {
 
     /// @notice Updates the P2pSigner account that authorises deposits
     /// @param _newP2pSigner Address of the new P2pSigner
-    function transferP2pSigner(
-        address _newP2pSigner
-    ) external;
+    function transferP2pSigner(address _newP2pSigner) external;
 
     /// @notice Transfers P2pOperator role control to a new account using the two step flow
     /// @param _newP2pOperator Address that will become the new P2pOperator upon acceptance

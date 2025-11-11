@@ -80,13 +80,9 @@ contract MockAllowedCalldataChecker is IAllowedCalldataChecker {
 }
 
 contract MockRewardsDistributor {
-    function batchClaim(
-        address,
-        uint256[] calldata,
-        address[][] calldata,
-        uint256[][] calldata,
-        bytes32[][] calldata
-    ) external {}
+    function batchClaim(address, uint256[] calldata, address[][] calldata, uint256[][] calldata, bytes32[][] calldata)
+        external
+    {}
 }
 
 contract MockFactory is IP2pYieldProxyFactory {
@@ -114,21 +110,16 @@ contract MockFactory is IP2pYieldProxyFactory {
         return s_pendingOperator;
     }
 
-    function deposit(
-        bytes calldata,
-        uint48,
-        uint48,
-        uint256,
-        bytes calldata
-    ) external payable override returns (address) {
+    function deposit(bytes calldata, uint48, uint48, uint256, bytes calldata)
+        external
+        payable
+        override
+        returns (address)
+    {
         revert("MockFactory:deposit");
     }
 
-    function predictP2pYieldProxyAddress(
-        address,
-        uint48,
-        uint48
-    ) external view override returns (address) {
+    function predictP2pYieldProxyAddress(address, uint48, uint48) external view override returns (address) {
         return address(0);
     }
 
@@ -138,12 +129,7 @@ contract MockFactory is IP2pYieldProxyFactory {
         return address(0);
     }
 
-    function getHashForP2pSigner(
-        address,
-        uint48,
-        uint48,
-        uint256
-    ) external view override returns (bytes32) {
+    function getHashForP2pSigner(address, uint48, uint48, uint256) external view override returns (bytes32) {
         return bytes32(0);
     }
 
@@ -224,7 +210,9 @@ contract MockYieldProtocol {
     }
 
     function singleDirectSingleVaultWithdraw(SingleDirectSingleVaultStateReq memory req_) external {
-        i_superPositions.useAllowance(msg.sender, address(this), req_.superformData.superformId, req_.superformData.amount);
+        i_superPositions.useAllowance(
+            msg.sender, address(this), req_.superformData.superformId, req_.superformData.amount
+        );
         uint256 assetsToSend = i_baseForm.previewRedeemFrom(req_.superformData.amount);
         require(i_asset.transfer(req_.superformData.receiverAddress, assetsToSend), "transfer failed");
     }
@@ -240,24 +228,16 @@ contract TestableP2pSuperformProxy is P2pSuperformProxy {
         address rewardsDistributor_
     ) P2pSuperformProxy(factory_, treasury_, router_, superPositions_, allowedCalldataChecker_, rewardsDistributor_) {}
 
-    function testSetup(
-        address client_,
-        uint48 depositBps_,
-        uint48 profitBps_
-    ) external {
+    function testSetup(address client_, uint48 depositBps_, uint48 profitBps_) external {
         s_client = payable(client_);
         s_clientBasisPointsOfDeposit = depositBps_;
         s_clientBasisPointsOfProfit = profitBps_;
     }
 
-    function setTotals(
-        uint256 vaultId,
-        address asset,
-        uint256 deposited,
-        uint256 withdrawn
-    ) external {
+    function setTotals(uint256 vaultId, address asset, uint256 deposited, uint256 withdrawn) external {
         s_totalDeposited[vaultId][asset] = deposited;
-        s_totalWithdrawn[vaultId][asset] = Withdrawn({amount: uint208(withdrawn), lastFeeCollectionTime: uint48(block.timestamp)});
+        s_totalWithdrawn[vaultId][asset] =
+            Withdrawn({amount: uint208(withdrawn), lastFeeCollectionTime: uint48(block.timestamp)});
     }
 }
 
@@ -332,9 +312,7 @@ contract P2pSuperformProxyRewardsTest is Test {
         assertEq(rewardsAfter, int256(0), "accrued rewards should reset");
 
         assertEq(
-            superPositions.balanceOf(address(proxy), vaultId),
-            INITIAL_SHARES - SHARES_FOR_REWARDS,
-            "share balance"
+            superPositions.balanceOf(address(proxy), vaultId), INITIAL_SHARES - SHARES_FOR_REWARDS, "share balance"
         );
     }
 
@@ -346,9 +324,7 @@ contract P2pSuperformProxyRewardsTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                P2pSuperformProxy__WithdrawAmountExceedsAccrued.selector,
-                requestedAssets,
-                ACCRUED_REWARDS
+                P2pSuperformProxy__WithdrawAmountExceedsAccrued.selector, requestedAssets, ACCRUED_REWARDS
             )
         );
         vm.prank(OPERATOR);
@@ -361,11 +337,7 @@ contract P2pSuperformProxyRewardsTest is Test {
         bytes memory withdrawCalldata = _buildWithdrawCalldata(SHARES_FOR_REWARDS);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                P2pSuperformProxy__NoAccruedRewards.selector,
-                vaultId,
-                address(assetToken)
-            )
+            abi.encodeWithSelector(P2pSuperformProxy__NoAccruedRewards.selector, vaultId, address(assetToken))
         );
         vm.prank(OPERATOR);
         proxy.withdrawAccruedRewards(withdrawCalldata);
@@ -413,21 +385,17 @@ contract P2pSuperformProxyRewardsTest is Test {
         proxy.withdrawAccruedRewards(withdrawCalldata);
 
         uint256 actualWithdrawn = baseForm.previewRedeemFrom(partialShares);
-        uint256 treasuryReceived = assetToken.balanceOf(TREASURY) -
-            treasuryBefore;
+        uint256 treasuryReceived = assetToken.balanceOf(TREASURY) - treasuryBefore;
         uint256 clientReceived = assetToken.balanceOf(CLIENT) - clientBefore;
 
         uint256 profitBps = proxy.getClientBasisPointsOfProfit();
-        uint256 expectedFee = (actualWithdrawn * (10_000 - profitBps) + 9_999) /
-            10_000;
+        uint256 expectedFee = (actualWithdrawn * (10_000 - profitBps) + 9_999) / 10_000;
         uint256 expectedClient = actualWithdrawn - expectedFee;
 
-        uint256 treasuryDelta = treasuryReceived > expectedFee
-            ? treasuryReceived - expectedFee
-            : expectedFee - treasuryReceived;
-        uint256 clientDelta = clientReceived > expectedClient
-            ? clientReceived - expectedClient
-            : expectedClient - clientReceived;
+        uint256 treasuryDelta =
+            treasuryReceived > expectedFee ? treasuryReceived - expectedFee : expectedFee - treasuryReceived;
+        uint256 clientDelta =
+            clientReceived > expectedClient ? clientReceived - expectedClient : expectedClient - clientReceived;
 
         assertLe(treasuryDelta, 1, "Treasury fee overcharged");
         assertLe(clientDelta, 1, "Client lost funds");
@@ -457,11 +425,8 @@ contract P2pSuperformProxyRewardsTest is Test {
             extraFormData: ""
         });
 
-        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({
-            superformData: superformData
-        });
+        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({superformData: superformData});
 
         return abi.encodeCall(IBaseRouter.singleDirectSingleVaultWithdraw, (req));
     }
 }
-
