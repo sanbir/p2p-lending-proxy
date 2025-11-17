@@ -20,6 +20,7 @@ contract RESOLVIntegration is Test {
     using SafeERC20 for IERC20;
 
     event P2pResolvProxy__StakedTokenDistributorUpdated(address indexed previousStakedTokenDistributor, address indexed newStakedTokenDistributor);
+    event P2pResolvProxy__RewardTokenSwept(address indexed token, uint256 amount);
 
     address constant USR = 0x66a1E37c9b0eAddca17d3662D6c05F4DECf3e110;
     address constant stUSR = 0x6c8984bc7DBBeDAf4F6b2FD766f16eBB7d10AAb4;
@@ -282,6 +283,128 @@ contract RESOLVIntegration is Test {
         );
 
         vm.clearMockedCalls();
+    }
+
+    function test_sweepRewardToken_byClient_Mainnet_RESOLV() public {
+        deal(RESOLV, clientAddress, 1000e18);
+        _doDeposit();
+
+        // Simulate receiving a reward token that's not RESOLV
+        address rewardToken = makeAddr("rewardToken");
+        uint256 rewardAmount = 100e18;
+
+        // Mock the reward token as an ERC20
+        vm.mockCall(
+            rewardToken,
+            abi.encodeWithSelector(IERC20.balanceOf.selector, proxyAddress),
+            abi.encode(rewardAmount)
+        );
+        vm.mockCall(
+            rewardToken,
+            abi.encodeWithSelector(IERC20.transfer.selector, clientAddress, rewardAmount),
+            abi.encode(true)
+        );
+
+        // Expect the transfer and event
+        vm.expectCall(
+            rewardToken,
+            abi.encodeWithSelector(IERC20.transfer.selector, clientAddress, rewardAmount)
+        );
+        vm.expectEmit(true, false, false, true, proxyAddress);
+        emit P2pResolvProxy__RewardTokenSwept(rewardToken, rewardAmount);
+
+        vm.startPrank(clientAddress);
+        P2pResolvProxy(proxyAddress).sweepRewardToken(rewardToken);
+        vm.stopPrank();
+
+        vm.clearMockedCalls();
+    }
+
+    function test_sweepRewardToken_byP2pOperator_Mainnet_RESOLV() public {
+        deal(RESOLV, clientAddress, 1000e18);
+        _doDeposit();
+
+        // Simulate receiving a reward token
+        address rewardToken = makeAddr("rewardToken");
+        uint256 rewardAmount = 50e18;
+
+        vm.mockCall(
+            rewardToken,
+            abi.encodeWithSelector(IERC20.balanceOf.selector, proxyAddress),
+            abi.encode(rewardAmount)
+        );
+        vm.mockCall(
+            rewardToken,
+            abi.encodeWithSelector(IERC20.transfer.selector, clientAddress, rewardAmount),
+            abi.encode(true)
+        );
+
+        vm.expectEmit(true, false, false, true, proxyAddress);
+        emit P2pResolvProxy__RewardTokenSwept(rewardToken, rewardAmount);
+
+        vm.startPrank(p2pOperatorAddress);
+        P2pResolvProxy(proxyAddress).sweepRewardToken(rewardToken);
+        vm.stopPrank();
+
+        vm.clearMockedCalls();
+    }
+
+    function test_sweepRewardToken_cannotSweepProtectedTokens_Mainnet_RESOLV() public {
+        deal(RESOLV, clientAddress, 1000e18);
+        _doDeposit();
+
+        vm.startPrank(clientAddress);
+
+        // Cannot sweep RESOLV
+        vm.expectRevert(abi.encodeWithSelector(P2pResolvProxy__CannotSweepProtectedToken.selector, RESOLV));
+        P2pResolvProxy(proxyAddress).sweepRewardToken(RESOLV);
+
+        // Cannot sweep USR
+        vm.expectRevert(abi.encodeWithSelector(P2pResolvProxy__CannotSweepProtectedToken.selector, USR));
+        P2pResolvProxy(proxyAddress).sweepRewardToken(USR);
+
+        // Cannot sweep stRESOLV
+        vm.expectRevert(abi.encodeWithSelector(P2pResolvProxy__CannotSweepProtectedToken.selector, stRESOLV));
+        P2pResolvProxy(proxyAddress).sweepRewardToken(stRESOLV);
+
+        // Cannot sweep stUSR
+        vm.expectRevert(abi.encodeWithSelector(P2pResolvProxy__CannotSweepProtectedToken.selector, stUSR));
+        P2pResolvProxy(proxyAddress).sweepRewardToken(stUSR);
+
+        vm.stopPrank();
+    }
+
+    function test_sweepRewardToken_zeroBalance_Mainnet_RESOLV() public {
+        deal(RESOLV, clientAddress, 1000e18);
+        _doDeposit();
+
+        address rewardToken = makeAddr("rewardToken");
+
+        // Mock zero balance
+        vm.mockCall(
+            rewardToken,
+            abi.encodeWithSelector(IERC20.balanceOf.selector, proxyAddress),
+            abi.encode(0)
+        );
+
+        // Should not emit event or make transfer call
+        vm.startPrank(clientAddress);
+        P2pResolvProxy(proxyAddress).sweepRewardToken(rewardToken);
+        vm.stopPrank();
+
+        vm.clearMockedCalls();
+    }
+
+    function test_sweepRewardToken_onlyClientOrOperator_Mainnet_RESOLV() public {
+        deal(RESOLV, clientAddress, 1000e18);
+        _doDeposit();
+
+        address rewardToken = makeAddr("rewardToken");
+
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pResolvProxy__CallerNeitherClientNorP2pOperator.selector, nobody));
+        P2pResolvProxy(proxyAddress).sweepRewardToken(rewardToken);
+        vm.stopPrank();
     }
 
     function test_transferP2pSigner_Mainnet_RESOLV() public {

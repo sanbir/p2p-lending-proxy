@@ -16,6 +16,7 @@ error P2pResolvProxy__CallerNeitherClientNorP2pOperator(address _caller);
 error P2pResolvProxy__ZeroAccruedRewards();
 error P2pResolvProxy__UnsupportedAsset(address _asset);
 error P2pResolvProxy__ZeroAddressStakedTokenDistributor();
+error P2pResolvProxy__CannotSweepProtectedToken(address _token);
 
 contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     using SafeERC20 for IERC20;
@@ -245,6 +246,20 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         }
 
         revert P2pResolvProxy__UnsupportedAsset(_asset);
+    }
+
+    /// @inheritdoc IP2pResolvProxy
+    function sweepRewardToken(address _token) external onlyClientOrP2pOperator {
+        // Prevent sweeping of protected assets that are handled by existing accounting
+        if (_token == i_USR || _token == i_RESOLV || _token == i_stUSR || _token == i_stRESOLV) {
+            revert P2pResolvProxy__CannotSweepProtectedToken(_token);
+        }
+
+        uint256 balance = IERC20(_token).balanceOf(address(this));
+        if (balance > 0) {
+            IERC20(_token).safeTransfer(s_client, balance);
+            emit P2pResolvProxy__RewardTokenSwept(_token, balance);
+        }
     }
 
     /// @inheritdoc ERC165
