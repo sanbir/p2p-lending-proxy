@@ -208,7 +208,8 @@ abstract contract P2pYieldProxy is
     internal
     nonReentrant
     {
-        int256 accruedRewards = calculateAccruedRewards(_yieldProtocolAddress, _asset);
+        int256 accruedRewardsBefore = calculateAccruedRewards(_yieldProtocolAddress, _asset);
+        uint256 userPrincipal = getUserPrincipal(_asset);
 
         uint256 assetAmountBefore = IERC20(_asset).balanceOf(address(this));
 
@@ -219,15 +220,22 @@ abstract contract P2pYieldProxy is
 
         uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
 
-        uint256 positiveAccruedRewards;
-        if (accruedRewards > 0) {
-            positiveAccruedRewards = uint256(accruedRewards);
-        }
+        uint256 positiveAccruedRewards = accruedRewardsBefore > 0
+            ? uint256(accruedRewardsBefore)
+            : 0;
 
-        uint256 profitPortion = newAssetAmount > positiveAccruedRewards
+        uint256 profitFromAccrued = newAssetAmount > positiveAccruedRewards
             ? positiveAccruedRewards
             : newAssetAmount;
-        uint256 principalPortion = newAssetAmount - profitPortion;
+
+        uint256 remainingAfterAccrued = newAssetAmount - profitFromAccrued;
+
+        uint256 principalPortion = remainingAfterAccrued > userPrincipal
+            ? userPrincipal
+            : remainingAfterAccrued;
+
+        uint256 extraProfit = remainingAfterAccrued - principalPortion;
+        uint256 profitPortion = profitFromAccrued + extraProfit;
 
         Withdrawn memory withdrawn = s_totalWithdrawn[_asset];
         uint256 totalWithdrawnBefore = uint256(withdrawn.amount);
@@ -257,7 +265,7 @@ abstract contract P2pYieldProxy is
             _asset,
             newAssetAmount,
             totalWithdrawnAfter,
-            accruedRewards,
+            int256(profitPortion),
             p2pAmount,
             clientAmount
         );
