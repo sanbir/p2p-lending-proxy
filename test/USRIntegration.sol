@@ -68,8 +68,7 @@ contract USRIntegration is Test {
             USR,
             stRESOLV,
             RESOLV,
-            address(tup),
-            StakedTokenDistributor
+            address(tup)
         );
         vm.stopPrank();
 

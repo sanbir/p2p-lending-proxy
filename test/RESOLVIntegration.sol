@@ -19,6 +19,8 @@ import "forge-std/console2.sol";
 contract RESOLVIntegration is Test {
     using SafeERC20 for IERC20;
 
+    event P2pResolvProxy__StakedTokenDistributorUpdated(address indexed previousStakedTokenDistributor, address indexed newStakedTokenDistributor);
+
     address constant USR = 0x66a1E37c9b0eAddca17d3662D6c05F4DECf3e110;
     address constant stUSR = 0x6c8984bc7DBBeDAf4F6b2FD766f16eBB7d10AAb4;
     address constant RESOLV = 0x259338656198eC7A76c729514D3CB45Dfbf768A1;
@@ -69,8 +71,7 @@ contract RESOLVIntegration is Test {
             USR,
             stRESOLV,
             RESOLV,
-            address(tup),
-            StakedTokenDistributor
+            address(tup)
         );
         vm.stopPrank();
 
@@ -421,6 +422,45 @@ contract RESOLVIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_setStakedTokenDistributor_onlyP2pOperator_Mainnet_RESOLV() public {
+        deal(RESOLV, clientAddress, DepositAmount);
+        _doDeposit();
+
+        P2pResolvProxy proxy = P2pResolvProxy(proxyAddress);
+        address newDistributor = makeAddr("newDistributor");
+
+        vm.startPrank(nobody);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pResolvProxy__NotP2pOperator.selector,
+                nobody
+            )
+        );
+        proxy.setStakedTokenDistributor(newDistributor);
+        vm.stopPrank();
+
+        vm.startPrank(p2pOperatorAddress);
+        vm.expectEmit(true, true, false, true, proxyAddress);
+        emit P2pResolvProxy__StakedTokenDistributorUpdated(
+            address(0),
+            newDistributor
+        );
+        proxy.setStakedTokenDistributor(newDistributor);
+        vm.stopPrank();
+
+        assertEq(proxy.getStakedTokenDistributor(), newDistributor);
+    }
+
+    function test_setStakedTokenDistributor_zeroAddressReverts_Mainnet_RESOLV() public {
+        deal(RESOLV, clientAddress, DepositAmount);
+        _doDeposit();
+
+        vm.startPrank(p2pOperatorAddress);
+        vm.expectRevert(P2pResolvProxy__ZeroAddressStakedTokenDistributor.selector);
+        P2pResolvProxy(proxyAddress).setStakedTokenDistributor(address(0));
+        vm.stopPrank();
+    }
+
     function test_getP2pLendingProxyFactory__ZeroP2pSignerAddress_Mainnet_RESOLV() public {
         vm.startPrank(p2pOperatorAddress);
         vm.expectRevert(P2pYieldProxyFactory__ZeroP2pSignerAddress.selector);
@@ -554,6 +594,7 @@ contract RESOLVIntegration is Test {
         assertEq(proxy.getClient(), clientAddress);
         assertEq(proxy.getClientBasisPoints(), ClientBasisPoints);
         assertEq(proxy.getTotalDeposited(RESOLV), DepositAmount);
+        assertEq(proxy.getStakedTokenDistributor(), address(0));
         assertEq(factory.getP2pSigner(), p2pSignerAddress);
         assertEq(factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints), proxyAddress);
     }
@@ -621,10 +662,16 @@ contract RESOLVIntegration is Test {
         deal(RESOLV, clientAddress, 10000e18);
         _doDeposit();
 
+        vm.prank(p2pOperatorAddress);
+        P2pResolvProxy(proxyAddress).setStakedTokenDistributor(StakedTokenDistributor);
+
         bytes memory deployedCode = proxyAddress.code;
         address target = 0xa02A67966Ef2BFf32A225374EC71fDF7B2a6f9Ae;
         vm.etch(target, deployedCode);
         P2pResolvProxy instance = P2pResolvProxy(target);
+
+        vm.prank(p2pOperatorAddress);
+        instance.setStakedTokenDistributor(StakedTokenDistributor);
 
         bytes32[] memory proof = new bytes32[](16);
         proof[0]  = 0x4ede751b1890af45c32c8d933e09d283734f3d5b81fb3eeb32dd95dea4e84aff;

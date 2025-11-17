@@ -15,6 +15,7 @@ error P2pResolvProxy__NotP2pOperator(address _caller);
 error P2pResolvProxy__CallerNeitherClientNorP2pOperator(address _caller);
 error P2pResolvProxy__ZeroAccruedRewards();
 error P2pResolvProxy__UnsupportedAsset(address _asset);
+error P2pResolvProxy__ZeroAddressStakedTokenDistributor();
 
 contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     using SafeERC20 for IERC20;
@@ -31,7 +32,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     /// @dev stRESOLV address
     address internal immutable i_stRESOLV;
 
-    IStakedTokenDistributor private immutable i_stakedTokenDistributor;
+    IStakedTokenDistributor private s_stakedTokenDistributor;
 
     /// @dev Throws if called by any account other than the P2pOperator.
     modifier onlyP2pOperator() {
@@ -57,7 +58,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     /// @param _USR USR address
     /// @param _stRESOLV stRESOLV address
     /// @param _RESOLV RESOLV address
-    /// @param _stakedTokenDistributor StakedTokenDistributor
     constructor(
         address _factory,
         address _p2pTreasury,
@@ -65,8 +65,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         address _stUSR,
         address _USR,
         address _stRESOLV,
-        address _RESOLV,
-        address _stakedTokenDistributor
+        address _RESOLV
     ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker) {
         require(_USR != address(0), P2pResolvProxy__ZeroAddress_USR());
         i_USR = _USR;
@@ -76,8 +75,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         i_RESOLV = _RESOLV;
 
         i_stRESOLV = _stRESOLV;
-
-        i_stakedTokenDistributor = IStakedTokenDistributor(_stakedTokenDistributor);
     }
 
     /// @inheritdoc IP2pYieldProxy
@@ -190,9 +187,22 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         }
 
         // claim _reward token from StakedTokenDistributor
-        i_stakedTokenDistributor.claim(_index, _amount, _merkleProof);
+        address stakedTokenDistributor = address(s_stakedTokenDistributor);
+        require(
+            stakedTokenDistributor != address(0),
+            P2pResolvProxy__ZeroAddressStakedTokenDistributor()
+        );
+        IStakedTokenDistributor(stakedTokenDistributor).claim(_index, _amount, _merkleProof);
 
         emit P2pResolvProxy__Claimed(_amount);
+    }
+
+    function setStakedTokenDistributor(address _stakedTokenDistributor) external override onlyP2pOperator {
+        _setStakedTokenDistributor(_stakedTokenDistributor);
+    }
+
+    function getStakedTokenDistributor() public view override returns(address) {
+        return address(s_stakedTokenDistributor);
     }
 
     function getUserPrincipalUSR() public view returns(uint256) {
@@ -236,5 +246,16 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     function supportsInterface(bytes4 interfaceId) public view virtual override(P2pYieldProxy) returns (bool) {
         return interfaceId == type(IP2pResolvProxy).interfaceId ||
             super.supportsInterface(interfaceId);
+    }
+
+    function _setStakedTokenDistributor(address _stakedTokenDistributor) private {
+        require(_stakedTokenDistributor != address(0), P2pResolvProxy__ZeroAddressStakedTokenDistributor());
+        address previousStakedTokenDistributor = address(s_stakedTokenDistributor);
+        s_stakedTokenDistributor = IStakedTokenDistributor(_stakedTokenDistributor);
+
+        emit P2pResolvProxy__StakedTokenDistributorUpdated(
+            previousStakedTokenDistributor,
+            _stakedTokenDistributor
+        );
     }
 }

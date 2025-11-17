@@ -31,7 +31,19 @@ interface IP2pResolvProxy {
     )
     external;
 
+    function setStakedTokenDistributor(address _stakedTokenDistributor) external;
+
+    function getStakedTokenDistributor() external view returns (address);
+
     /// @notice Emitted when rewards are claimed from the distributor.
     /// @param _amount Amount of rewards paid out for the claim.
     event P2pResolvProxy__Claimed(uint256 _amount);
+
+    /// @notice Emitted when the staked token distributor address is updated.
+    /// @param previousStakedTokenDistributor The previous distributor address.
+    /// @param newStakedTokenDistributor The new distributor address.
+    event P2pResolvProxy__StakedTokenDistributorUpdated(
+        address indexed previousStakedTokenDistributor,
+        address indexed newStakedTokenDistributor
+    );
 }
