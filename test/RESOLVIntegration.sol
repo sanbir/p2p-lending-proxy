@@ -239,6 +239,103 @@ contract RESOLVIntegration is Test {
         assertGt(treasuryAfterRewards - treasuryBeforeRewards, 0, "treasury did not collect yield");
     }
 
+    function test_withdrawRESOLV_NoDoubleFeeWhenClaimDisabled_Mainnet_RESOLV() public {
+        deal(RESOLV, clientAddress, 1000e18);
+        _doDeposit();
+
+        uint256 rewardAmount = 2e18;
+        deal(RESOLV, stRESOLV, IERC20(RESOLV).balanceOf(stRESOLV) + rewardAmount);
+        vm.prank(proxyAddress);
+        IResolvStaking(stRESOLV).updateCheckpoint(proxyAddress);
+
+        uint256 treasuryBalanceBefore = IERC20(RESOLV).balanceOf(P2pTreasury);
+
+        // Simulate claim disabled so withdrawals return principal only.
+        vm.mockCall(
+            stRESOLV,
+            abi.encodeWithSelector(IResolvStaking.claimEnabled.selector),
+            abi.encode(false)
+        );
+
+        vm.startPrank(clientAddress);
+        uint256 sharesBalance = IERC20(stRESOLV).balanceOf(proxyAddress);
+        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(sharesBalance);
+        vm.stopPrank();
+
+        _forward(10_000 * 14);
+
+        vm.startPrank(clientAddress);
+        P2pResolvProxy(proxyAddress).withdrawRESOLV();
+        vm.stopPrank();
+
+        uint256 treasuryAfterPrincipalOnlyWithdrawal = IERC20(RESOLV).balanceOf(P2pTreasury);
+        assertEq(
+            treasuryAfterPrincipalOnlyWithdrawal,
+            treasuryBalanceBefore,
+            "treasury should not collect fees while rewards remain locked"
+        );
+
+        vm.clearMockedCalls();
+        vm.mockCall(
+            stRESOLV,
+            abi.encodeWithSelector(IResolvStaking.claimEnabled.selector),
+            abi.encode(true)
+        );
+
+        // Re-deposit so another withdrawal can claim the previously locked rewards.
+        deal(
+            RESOLV,
+            clientAddress,
+            IERC20(RESOLV).balanceOf(clientAddress) + DepositAmount
+        );
+        uint256 newDeadline = block.timestamp + 365 days;
+        bytes memory newDepositSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            newDeadline
+        );
+        vm.startPrank(clientAddress);
+        if (IERC20(RESOLV).allowance(clientAddress, proxyAddress) == 0) {
+            IERC20(RESOLV).safeApprove(proxyAddress, type(uint256).max);
+        }
+        factory.deposit(
+            RESOLV,
+            DepositAmount,
+            ClientBasisPoints,
+            newDeadline,
+            newDepositSignature
+        );
+        vm.stopPrank();
+
+        vm.startPrank(clientAddress);
+        sharesBalance = IERC20(stRESOLV).balanceOf(proxyAddress);
+        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(sharesBalance);
+        vm.stopPrank();
+
+        deal(
+            RESOLV,
+            stRESOLV,
+            IERC20(RESOLV).balanceOf(stRESOLV) + rewardAmount
+        );
+        vm.prank(proxyAddress);
+        IResolvStaking(stRESOLV).updateCheckpoint(proxyAddress);
+
+        _forward(10_000 * 14);
+
+        vm.startPrank(clientAddress);
+        P2pResolvProxy(proxyAddress).withdrawRESOLV();
+        vm.stopPrank();
+
+        vm.clearMockedCalls();
+
+        uint256 treasuryAfterRewardWithdrawal = IERC20(RESOLV).balanceOf(P2pTreasury);
+        assertGe(
+            treasuryAfterRewardWithdrawal,
+            treasuryAfterPrincipalOnlyWithdrawal,
+            "treasury should not lose funds when rewards are eventually withdrawn"
+        );
+    }
+
     function test_transferP2pSigner_Mainnet_RESOLV() public {
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
