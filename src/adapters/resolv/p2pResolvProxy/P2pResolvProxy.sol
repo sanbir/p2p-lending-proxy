@@ -104,6 +104,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     function withdrawUSR(uint256 _amount)
     external
     onlyClient {
+        require (_amount > 0, P2pYieldProxy__ZeroAssetAmount());
         uint256 currentBalance = IERC20(i_stUSR).balanceOf(address(this));
         if (_amount >= currentBalance || currentBalance - _amount <= 1) {
             _withdraw(

@@ -231,6 +231,16 @@ contract USRIntegration is Test {
         vm.stopPrank();
     }
 
+    function test_withdrawUSR_zeroAmount_reverts() public {
+        deal(USR, clientAddress, DepositAmount);
+        _doDeposit();
+
+        vm.startPrank(clientAddress);
+        vm.expectRevert(P2pYieldProxy__ZeroAssetAmount.selector);
+        P2pResolvProxy(proxyAddress).withdrawUSR(0);
+        vm.stopPrank();
+    }
+
     function test_transferP2pSigner_Mainnet() public {
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
