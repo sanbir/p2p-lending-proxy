@@ -34,7 +34,9 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     address internal immutable i_stRESOLV;
 
     IStakedTokenDistributor private s_stakedTokenDistributor;
-    mapping(address => uint256) private s_forcedProfit;
+
+    // Tracks pre-accounted rewards per asset to treat upcoming withdrawals as profit (used for Resolv operator reward flows).
+    mapping(address => uint256) private s_pendingProfitCredit;
 
     /// @dev Throws if called by any account other than the P2pOperator.
     modifier onlyP2pOperator() {
@@ -160,7 +162,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         uint256 stResolvBalance = IERC20(i_stRESOLV).balanceOf(address(this));
         uint256 withdrawAmount = uint256(amount) > stResolvBalance ? stResolvBalance : uint256(amount);
         uint256 claimable = IResolvStaking(i_stRESOLV).getUserClaimableAmounts(address(this), i_RESOLV);
-        s_forcedProfit[i_RESOLV] = claimable;
+        s_pendingProfitCredit[i_RESOLV] = claimable;
         return IResolvStaking(i_stRESOLV).initiateWithdrawal(withdrawAmount);
     }
 
@@ -250,10 +252,10 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         revert P2pResolvProxy__UnsupportedAsset(_asset);
     }
 
-    function _getForcedProfit(address _asset) internal override returns (uint256) {
-        uint256 profit = s_forcedProfit[_asset];
+    function _getPendingProfitCredit(address _asset) internal override returns (uint256) {
+        uint256 profit = s_pendingProfitCredit[_asset];
         if (profit > 0) {
-            s_forcedProfit[_asset] = 0;
+            s_pendingProfitCredit[_asset] = 0;
         }
         return profit;
     }

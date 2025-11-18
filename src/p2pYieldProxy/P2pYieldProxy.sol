@@ -242,7 +242,7 @@ abstract contract P2pYieldProxy is
             : 0;
         bool isClosingWithdrawal = isClient && withdrawn.amount + newAssetAmount >= s_totalDeposited[_asset];
 
-        uint256 forcedProfit = _getForcedProfit(_asset);
+        uint256 creditedProfit = _getPendingProfitCredit(_asset);
 
         uint256 positiveAccruedRewards = accruedRewardsBefore > 0
             ? uint256(accruedRewardsBefore)
@@ -258,8 +258,8 @@ abstract contract P2pYieldProxy is
         uint256 profitPortion;
 
         if (_rewardsOnly) {
-            profitPortion = forcedProfit > 0
-                ? (forcedProfit > newAssetAmount ? newAssetAmount : forcedProfit)
+            profitPortion = creditedProfit > 0
+                ? (creditedProfit > newAssetAmount ? newAssetAmount : creditedProfit)
                 : profitFromAccrued;
             uint256 remainingAfterProfit = newAssetAmount - profitPortion;
             principalPortion = remainingAfterProfit > remainingPrincipal
@@ -386,10 +386,10 @@ abstract contract P2pYieldProxy is
         return int256(currentAmount) - int256(userPrincipal);
     }
 
-    /// @dev Optional hook for adapters to force a profit portion when rewards were pre-accounted
+    /// @dev Optional hook for adapters to surface pre-accounted rewards for next withdrawal
     /// @param _asset asset address
-    /// @return forcedProfit amount to treat as profit
-    function _getForcedProfit(address _asset) internal virtual returns (uint256) {
+    /// @return pendingProfit amount to treat as profit
+    function _getPendingProfitCredit(address _asset) internal virtual returns (uint256) {
         // default implementation returns zero
         return 0;
     }
