@@ -267,6 +267,81 @@ contract RESOLVIntegration is Test {
         assertEq(P2pResolvProxy(proxyAddress).getUserPrincipalRESOLV(), 0, "principal accounting should ignore rewards");
     }
 
+    function test_airdropped_stRESOLV_treated_as_rewards() public {
+        AllowedCalldataChecker checker = new AllowedCalldataChecker();
+        checker.initialize();
+
+        MockERC20 mockResolv = new MockERC20("RESOLV", "RESOLV");
+        MockERC20 mockUsr = new MockERC20("USR", "USR");
+        MockStUSR mockStUsr = new MockStUSR(mockUsr);
+        MockResolvStaking mockStResolv = new MockResolvStaking(mockResolv);
+
+        vm.startPrank(p2pOperatorAddress);
+        factory = new P2pResolvProxyFactory(
+            p2pSignerAddress,
+            P2pTreasury,
+            address(mockStUsr),
+            address(mockUsr),
+            address(mockStResolv),
+            address(mockResolv),
+            address(checker)
+        );
+        vm.stopPrank();
+
+        proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
+
+        uint256 depositAmount = 10 ether;
+        uint256 extraStaked = 2 ether;
+
+        mockResolv.mint(clientAddress, depositAmount);
+
+        bytes memory p2pSignerSignature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        vm.startPrank(clientAddress);
+        mockResolv.approve(proxyAddress, depositAmount);
+        factory.deposit(
+            address(mockResolv),
+            depositAmount,
+            ClientBasisPoints,
+            SigDeadline,
+            p2pSignerSignature
+        );
+        vm.stopPrank();
+
+        // Fund staking contract and mint additional stRESOLV to the proxy to simulate airdropped staked tokens
+        mockResolv.mint(address(mockStResolv), extraStaked);
+        mockStResolv.mint(proxyAddress, extraStaked);
+
+        deal(address(mockResolv), P2pTreasury, 0);
+
+        vm.startPrank(clientAddress);
+        uint256 totalShares = mockStResolv.balanceOf(proxyAddress);
+        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(totalShares);
+        P2pResolvProxy(proxyAddress).withdrawRESOLV();
+        vm.stopPrank();
+
+        uint256 expectedP2pFee = (extraStaked * (10_000 - ClientBasisPoints) + 9999) / 10_000;
+        assertEq(
+            P2pResolvProxy(proxyAddress).getTotalWithdrawn(address(mockResolv)),
+            depositAmount,
+            "withdrawn principal should not exceed deposited amount"
+        );
+        assertEq(
+            IERC20(address(mockResolv)).balanceOf(P2pTreasury),
+            expectedP2pFee,
+            "treasury should collect fee on airdropped stRESOLV"
+        );
+        assertEq(
+            IERC20(address(mockResolv)).balanceOf(clientAddress),
+            depositAmount + extraStaked - expectedP2pFee,
+            "client should receive principal plus net rewards"
+        );
+    }
+
     function test_DoubleFeeCollectionBug_OperatorThenClientWithdraw_RESOLV() public {
         deal(RESOLV, clientAddress, 100e18);
         _doDeposit();

@@ -206,10 +206,25 @@ abstract contract P2pYieldProxy is
         bytes memory _yieldProtocolWithdrawalCalldata
     )
     internal
+    {
+        _withdraw(_yieldProtocolAddress, _asset, _yieldProtocolWithdrawalCalldata, false);
+    }
+
+    /// @notice Withdraw assets from yield protocol
+    /// @param _yieldProtocolAddress yield protocol address
+    /// @param _asset ERC-20 asset address
+    /// @param _yieldProtocolWithdrawalCalldata calldata for withdraw function of yield protocol
+    /// @param _rewardsOnly if true, treat the entire withdrawal as profit (do not reduce principal)
+    function _withdraw(
+        address _yieldProtocolAddress,
+        address _asset,
+        bytes memory _yieldProtocolWithdrawalCalldata,
+        bool _rewardsOnly
+    )
+    internal
     nonReentrant
     {
         int256 accruedRewardsBefore = calculateAccruedRewards(_yieldProtocolAddress, _asset);
-        uint256 userPrincipal = getUserPrincipal(_asset);
 
         uint256 assetAmountBefore = IERC20(_asset).balanceOf(address(this));
 
@@ -219,6 +234,15 @@ abstract contract P2pYieldProxy is
         uint256 assetAmountAfter = IERC20(_asset).balanceOf(address(this));
 
         uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
+
+        Withdrawn memory withdrawn = s_totalWithdrawn[_asset];
+        bool isClient = msg.sender == s_client;
+        uint256 remainingPrincipal = s_totalDeposited[_asset] > withdrawn.amount
+            ? s_totalDeposited[_asset] - withdrawn.amount
+            : 0;
+        bool isClosingWithdrawal = isClient && withdrawn.amount + newAssetAmount >= s_totalDeposited[_asset];
+
+        uint256 forcedProfit = _getForcedProfit(_asset);
 
         uint256 positiveAccruedRewards = accruedRewardsBefore > 0
             ? uint256(accruedRewardsBefore)
@@ -230,14 +254,36 @@ abstract contract P2pYieldProxy is
 
         uint256 remainingAfterAccrued = newAssetAmount - profitFromAccrued;
 
-        uint256 principalPortion = remainingAfterAccrued > userPrincipal
-            ? userPrincipal
-            : remainingAfterAccrued;
+        uint256 principalPortion;
+        uint256 profitPortion;
 
-        uint256 extraProfit = remainingAfterAccrued - principalPortion;
-        uint256 profitPortion = profitFromAccrued + extraProfit;
+        if (_rewardsOnly) {
+            profitPortion = forcedProfit > 0
+                ? (forcedProfit > newAssetAmount ? newAssetAmount : forcedProfit)
+                : profitFromAccrued;
+            uint256 remainingAfterProfit = newAssetAmount - profitPortion;
+            principalPortion = remainingAfterProfit > remainingPrincipal
+                ? remainingPrincipal
+                : remainingAfterProfit;
+        } else {
+            if (isClosingWithdrawal) {
+                if (newAssetAmount > remainingPrincipal) {
+                    principalPortion = remainingPrincipal;
+                    profitPortion = newAssetAmount - remainingPrincipal;
+                } else {
+                    principalPortion = newAssetAmount;
+                    profitPortion = 0;
+                }
+            } else {
+            principalPortion = remainingAfterAccrued > remainingPrincipal
+                ? remainingPrincipal
+                : remainingAfterAccrued;
 
-        Withdrawn memory withdrawn = s_totalWithdrawn[_asset];
+            uint256 extraProfit = remainingAfterAccrued - principalPortion;
+            profitPortion = profitFromAccrued + extraProfit;
+            }
+        }
+
         uint256 totalWithdrawnBefore = uint256(withdrawn.amount);
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + principalPortion;
 
@@ -338,6 +384,14 @@ abstract contract P2pYieldProxy is
         uint256 currentAmount = _getCurrentAssetAmount(_yieldProtocolAddress, _asset);
         uint256 userPrincipal = getUserPrincipal(_asset);
         return int256(currentAmount) - int256(userPrincipal);
+    }
+
+    /// @dev Optional hook for adapters to force a profit portion when rewards were pre-accounted
+    /// @param _asset asset address
+    /// @return forcedProfit amount to treat as profit
+    function _getForcedProfit(address _asset) internal virtual returns (uint256) {
+        // default implementation returns zero
+        return 0;
     }
 
     function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view virtual returns (uint256);

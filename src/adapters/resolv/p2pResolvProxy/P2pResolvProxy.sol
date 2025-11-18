@@ -34,6 +34,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     address internal immutable i_stRESOLV;
 
     IStakedTokenDistributor private s_stakedTokenDistributor;
+    mapping(address => uint256) private s_forcedProfit;
 
     /// @dev Throws if called by any account other than the P2pOperator.
     modifier onlyP2pOperator() {
@@ -127,7 +128,8 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         _withdraw(
             i_stUSR,
             i_USR,
-            abi.encodeWithSelector(IStUSR.withdraw.selector, amount)
+            abi.encodeWithSelector(IStUSR.withdraw.selector, amount),
+            true
         );
     }
 
@@ -154,7 +156,11 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     onlyP2pOperator {
         int256 amount = calculateAccruedRewardsRESOLV();
         require (amount > 0, P2pResolvProxy__ZeroAccruedRewards());
-        return IResolvStaking(i_stRESOLV).initiateWithdrawal(uint256(amount));
+        uint256 stResolvBalance = IERC20(i_stRESOLV).balanceOf(address(this));
+        uint256 withdrawAmount = uint256(amount) > stResolvBalance ? stResolvBalance : uint256(amount);
+        uint256 claimable = IResolvStaking(i_stRESOLV).getUserClaimableAmounts(address(this), i_RESOLV);
+        s_forcedProfit[i_RESOLV] = claimable;
+        return IResolvStaking(i_stRESOLV).initiateWithdrawal(withdrawAmount);
     }
 
     /// @inheritdoc IP2pResolvProxy
@@ -162,11 +168,13 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     external
     onlyClientOrP2pOperator {
         bool isEnabled = IResolvStaking(i_stRESOLV).claimEnabled();
+        bool isP2pOperator = msg.sender != s_client;
 
         _withdraw(
             i_stRESOLV,
             i_RESOLV,
-            abi.encodeWithSelector(IResolvStaking.withdraw.selector, isEnabled, address(this))
+            abi.encodeWithSelector(IResolvStaking.withdraw.selector, isEnabled, address(this)),
+            isP2pOperator
         );
     }
 
@@ -232,13 +240,13 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
 
     function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view override returns (uint256) {
         if (_asset == i_RESOLV) {
-            uint256 principal = getUserPrincipal(_asset);
+            uint256 effectiveBalance = IResolvStaking(_yieldProtocolAddress).getUserEffectiveBalance(address(this));
             bool isClaimEnabled = IResolvStaking(_yieldProtocolAddress).claimEnabled();
             if (!isClaimEnabled) {
-                return principal;
+                return effectiveBalance;
             }
             uint256 pendingClaimable = IResolvStaking(_yieldProtocolAddress).getUserClaimableAmounts(address(this), i_RESOLV);
-            return principal + pendingClaimable;
+            return effectiveBalance + pendingClaimable;
         }
 
         if (_asset == i_USR) {
@@ -246,6 +254,14 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         }
 
         revert P2pResolvProxy__UnsupportedAsset(_asset);
+    }
+
+    function _getForcedProfit(address _asset) internal override returns (uint256) {
+        uint256 profit = s_forcedProfit[_asset];
+        if (profit > 0) {
+            s_forcedProfit[_asset] = 0;
+        }
+        return profit;
     }
 
     /// @inheritdoc IP2pResolvProxy
