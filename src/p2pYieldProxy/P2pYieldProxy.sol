@@ -214,7 +214,7 @@ abstract contract P2pYieldProxy is
     /// @param _yieldProtocolAddress yield protocol address
     /// @param _asset ERC-20 asset address
     /// @param _yieldProtocolWithdrawalCalldata calldata for withdraw function of yield protocol
-    /// @param _rewardsOnly if true, treat the entire withdrawal as profit (do not reduce principal)
+    /// @param _rewardsOnly if true, prioritize treating the withdrawal as profit (used by operator reward flows)
     function _withdraw(
         address _yieldProtocolAddress,
         address _asset,

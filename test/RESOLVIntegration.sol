@@ -428,6 +428,23 @@ contract RESOLVIntegration is Test {
         vm.clearMockedCalls();
     }
 
+    function test_withdrawRESOLV_byOperator_without_pendingRewards_reverts() public {
+        deal(RESOLV, clientAddress, 100e18);
+        _doDeposit();
+
+        vm.startPrank(clientAddress);
+        uint256 sharesBalance = IERC20(stRESOLV).balanceOf(proxyAddress);
+        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(sharesBalance);
+        vm.stopPrank();
+
+        _forward(14 days);
+
+        vm.startPrank(p2pOperatorAddress);
+        vm.expectRevert(P2pResolvProxy__OperatorRewardsOnly.selector);
+        P2pResolvProxy(proxyAddress).withdrawRESOLV();
+        vm.stopPrank();
+    }
+
     function test_sweepRewardToken_byClient_Mainnet_RESOLV() public {
         deal(RESOLV, clientAddress, 1000e18);
         _doDeposit();

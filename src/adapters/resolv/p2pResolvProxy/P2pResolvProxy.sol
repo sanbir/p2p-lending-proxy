@@ -18,6 +18,7 @@ error P2pResolvProxy__ZeroAccruedRewards();
 error P2pResolvProxy__UnsupportedAsset(address _asset);
 error P2pResolvProxy__ZeroAddressStakedTokenDistributor();
 error P2pResolvProxy__CannotSweepProtectedToken(address _token);
+error P2pResolvProxy__OperatorRewardsOnly();
 
 contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     using SafeERC20 for IERC20;
@@ -173,6 +174,10 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     onlyClientOrP2pOperator {
         bool isEnabled = IResolvStaking(i_stRESOLV).claimEnabled();
         bool isP2pOperator = msg.sender != s_client;
+
+        if (isP2pOperator && s_pendingProfitCredit[i_RESOLV] == 0) {
+            revert P2pResolvProxy__OperatorRewardsOnly();
+        }
 
         _withdraw(
             i_stRESOLV,
