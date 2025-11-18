@@ -389,21 +389,12 @@ abstract contract P2pYieldProxy is
     /// @dev Optional hook for adapters to surface pre-accounted rewards for next withdrawal
     /// @param _asset asset address
     /// @return pendingProfit amount to treat as profit
-    function _getPendingProfitCredit(address _asset) internal virtual returns (uint256) {
-        // default implementation returns zero
-        return 0;
-    }
+    function _getPendingProfitCredit(address _asset) internal virtual returns (uint256);
 
     function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view virtual returns (uint256);
 
     function getLastFeeCollectionTime(address _asset) public view returns(uint48) {
         return s_totalWithdrawn[_asset].lastFeeCollectionTime;
-    }
-
-    /// @inheritdoc ERC165
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(IP2pYieldProxy).interfaceId ||
-            super.supportsInterface(interfaceId);
     }
 
     /// @notice Calculates P2P treasury fee amount using ceiling division
@@ -412,5 +403,11 @@ abstract contract P2pYieldProxy is
     function calculateP2pFeeAmount(uint256 _amount) internal view returns (uint256 p2pFeeAmount) {
         if (_amount == 0) return 0;
         p2pFeeAmount = (_amount * (10_000 - s_clientBasisPoints) + 9999) / 10_000;
+    }
+
+    /// @inheritdoc ERC165
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(IP2pYieldProxy).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 }

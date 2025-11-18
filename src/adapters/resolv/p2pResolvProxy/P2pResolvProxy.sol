@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.8.30;
+
 import "../../../@resolv/IResolvStaking.sol";
 import "../../../@resolv/IStUSR.sol";
 import "../../../@resolv/IStakedTokenDistributor.sol";
@@ -202,8 +203,29 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         emit P2pResolvProxy__Claimed(_amount);
     }
 
+    /// @inheritdoc IP2pResolvProxy
+    function sweepRewardToken(address _token) external onlyClientOrP2pOperator {
+        // Prevent sweeping of protected assets that are handled by existing accounting
+        if (_token == i_USR || _token == i_RESOLV || _token == i_stUSR || _token == i_stRESOLV) {
+            revert P2pResolvProxy__CannotSweepProtectedToken(_token);
+        }
+
+        uint256 balance = IERC20(_token).balanceOf(address(this));
+        if (balance > 0) {
+            IERC20(_token).safeTransfer(s_client, balance);
+            emit P2pResolvProxy__RewardTokenSwept(_token, balance);
+        }
+    }
+
     function setStakedTokenDistributor(address _stakedTokenDistributor) external override onlyP2pOperator {
-        _setStakedTokenDistributor(_stakedTokenDistributor);
+        require(_stakedTokenDistributor != address(0), P2pResolvProxy__ZeroAddressStakedTokenDistributor());
+        address previousStakedTokenDistributor = address(s_stakedTokenDistributor);
+        s_stakedTokenDistributor = IStakedTokenDistributor(_stakedTokenDistributor);
+
+        emit P2pResolvProxy__StakedTokenDistributorUpdated(
+            previousStakedTokenDistributor,
+            _stakedTokenDistributor
+        );
     }
 
     function getStakedTokenDistributor() public view override returns(address) {
@@ -260,34 +282,9 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         return profit;
     }
 
-    /// @inheritdoc IP2pResolvProxy
-    function sweepRewardToken(address _token) external onlyClientOrP2pOperator {
-        // Prevent sweeping of protected assets that are handled by existing accounting
-        if (_token == i_USR || _token == i_RESOLV || _token == i_stUSR || _token == i_stRESOLV) {
-            revert P2pResolvProxy__CannotSweepProtectedToken(_token);
-        }
-
-        uint256 balance = IERC20(_token).balanceOf(address(this));
-        if (balance > 0) {
-            IERC20(_token).safeTransfer(s_client, balance);
-            emit P2pResolvProxy__RewardTokenSwept(_token, balance);
-        }
-    }
-
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId) public view virtual override(P2pYieldProxy) returns (bool) {
         return interfaceId == type(IP2pResolvProxy).interfaceId ||
             super.supportsInterface(interfaceId);
-    }
-
-    function _setStakedTokenDistributor(address _stakedTokenDistributor) private {
-        require(_stakedTokenDistributor != address(0), P2pResolvProxy__ZeroAddressStakedTokenDistributor());
-        address previousStakedTokenDistributor = address(s_stakedTokenDistributor);
-        s_stakedTokenDistributor = IStakedTokenDistributor(_stakedTokenDistributor);
-
-        emit P2pResolvProxy__StakedTokenDistributorUpdated(
-            previousStakedTokenDistributor,
-            _stakedTokenDistributor
-        );
     }
 }
