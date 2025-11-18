@@ -206,9 +206,25 @@ abstract contract P2pYieldProxy is
         bytes memory _yieldProtocolWithdrawalCalldata
     )
     internal
+    {
+        _withdraw(_yieldProtocolAddress, _asset, _yieldProtocolWithdrawalCalldata, false);
+    }
+
+    /// @notice Withdraw assets from yield protocol
+    /// @param _yieldProtocolAddress yield protocol address
+    /// @param _asset ERC-20 asset address
+    /// @param _yieldProtocolWithdrawalCalldata calldata for withdraw function of yield protocol
+    /// @param _rewardsOnly if true, prioritize treating the withdrawal as profit (used by operator reward flows)
+    function _withdraw(
+        address _yieldProtocolAddress,
+        address _asset,
+        bytes memory _yieldProtocolWithdrawalCalldata,
+        bool _rewardsOnly
+    )
+    internal
     nonReentrant
     {
-        int256 accruedRewards = calculateAccruedRewards(_yieldProtocolAddress, _asset);
+        int256 accruedRewardsBefore = calculateAccruedRewards(_yieldProtocolAddress, _asset);
 
         uint256 assetAmountBefore = IERC20(_asset).balanceOf(address(this));
 
@@ -219,17 +235,55 @@ abstract contract P2pYieldProxy is
 
         uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
 
-        uint256 positiveAccruedRewards;
-        if (accruedRewards > 0) {
-            positiveAccruedRewards = uint256(accruedRewards);
-        }
+        Withdrawn memory withdrawn = s_totalWithdrawn[_asset];
+        bool isClient = msg.sender == s_client;
+        uint256 remainingPrincipal = s_totalDeposited[_asset] > withdrawn.amount
+            ? s_totalDeposited[_asset] - withdrawn.amount
+            : 0;
+        bool isClosingWithdrawal = isClient && withdrawn.amount + newAssetAmount >= s_totalDeposited[_asset];
 
-        uint256 profitPortion = newAssetAmount > positiveAccruedRewards
+        uint256 creditedProfit = _getPendingProfitCredit(_asset);
+
+        uint256 positiveAccruedRewards = accruedRewardsBefore > 0
+            ? uint256(accruedRewardsBefore)
+            : 0;
+
+        uint256 profitFromAccrued = newAssetAmount > positiveAccruedRewards
             ? positiveAccruedRewards
             : newAssetAmount;
-        uint256 principalPortion = newAssetAmount - profitPortion;
 
-        Withdrawn memory withdrawn = s_totalWithdrawn[_asset];
+        uint256 remainingAfterAccrued = newAssetAmount - profitFromAccrued;
+
+        uint256 principalPortion;
+        uint256 profitPortion;
+
+        if (_rewardsOnly) {
+            profitPortion = creditedProfit > 0
+                ? (creditedProfit > newAssetAmount ? newAssetAmount : creditedProfit)
+                : profitFromAccrued;
+            uint256 remainingAfterProfit = newAssetAmount - profitPortion;
+            principalPortion = remainingAfterProfit > remainingPrincipal
+                ? remainingPrincipal
+                : remainingAfterProfit;
+        } else {
+            if (isClosingWithdrawal) {
+                if (newAssetAmount > remainingPrincipal) {
+                    principalPortion = remainingPrincipal;
+                    profitPortion = newAssetAmount - remainingPrincipal;
+                } else {
+                    principalPortion = newAssetAmount;
+                    profitPortion = 0;
+                }
+            } else {
+            principalPortion = remainingAfterAccrued > remainingPrincipal
+                ? remainingPrincipal
+                : remainingAfterAccrued;
+
+            uint256 extraProfit = remainingAfterAccrued - principalPortion;
+            profitPortion = profitFromAccrued + extraProfit;
+            }
+        }
+
         uint256 totalWithdrawnBefore = uint256(withdrawn.amount);
         uint256 totalWithdrawnAfter = totalWithdrawnBefore + principalPortion;
 
@@ -257,7 +311,7 @@ abstract contract P2pYieldProxy is
             _asset,
             newAssetAmount,
             totalWithdrawnAfter,
-            accruedRewards,
+            int256(profitPortion),
             p2pAmount,
             clientAmount
         );
@@ -332,16 +386,15 @@ abstract contract P2pYieldProxy is
         return int256(currentAmount) - int256(userPrincipal);
     }
 
+    /// @dev Optional hook for adapters to surface pre-accounted rewards for next withdrawal
+    /// @param _asset asset address
+    /// @return pendingProfit amount to treat as profit
+    function _getPendingProfitCredit(address _asset) internal virtual returns (uint256);
+
     function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view virtual returns (uint256);
 
     function getLastFeeCollectionTime(address _asset) public view returns(uint48) {
         return s_totalWithdrawn[_asset].lastFeeCollectionTime;
-    }
-
-    /// @inheritdoc ERC165
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(IP2pYieldProxy).interfaceId ||
-            super.supportsInterface(interfaceId);
     }
 
     /// @notice Calculates P2P treasury fee amount using ceiling division
@@ -350,5 +403,11 @@ abstract contract P2pYieldProxy is
     function calculateP2pFeeAmount(uint256 _amount) internal view returns (uint256 p2pFeeAmount) {
         if (_amount == 0) return 0;
         p2pFeeAmount = (_amount * (10_000 - s_clientBasisPoints) + 9999) / 10_000;
+    }
+
+    /// @inheritdoc ERC165
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(IP2pYieldProxy).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 }

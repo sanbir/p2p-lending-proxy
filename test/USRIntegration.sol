@@ -68,8 +68,7 @@ contract USRIntegration is Test {
             USR,
             stRESOLV,
             RESOLV,
-            address(tup),
-            StakedTokenDistributor
+            address(tup)
         );
         vm.stopPrank();
 
@@ -229,6 +228,16 @@ contract USRIntegration is Test {
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pResolvProxy__NotP2pOperator.selector, nobody));
         P2pResolvProxy(proxyAddress).withdrawUSRAccruedRewards();
+        vm.stopPrank();
+    }
+
+    function test_withdrawUSR_zeroAmount_reverts() public {
+        deal(USR, clientAddress, DepositAmount);
+        _doDeposit();
+
+        vm.startPrank(clientAddress);
+        vm.expectRevert(P2pYieldProxy__ZeroAssetAmount.selector);
+        P2pResolvProxy(proxyAddress).withdrawUSR(0);
         vm.stopPrank();
     }
 

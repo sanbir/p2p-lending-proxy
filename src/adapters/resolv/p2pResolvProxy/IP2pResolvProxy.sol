@@ -31,7 +31,28 @@ interface IP2pResolvProxy {
     )
     external;
 
+    function setStakedTokenDistributor(address _stakedTokenDistributor) external;
+
+    function getStakedTokenDistributor() external view returns (address);
+
     /// @notice Emitted when rewards are claimed from the distributor.
     /// @param _amount Amount of rewards paid out for the claim.
     event P2pResolvProxy__Claimed(uint256 _amount);
+
+    /// @notice Sweeps accumulated reward tokens from the proxy to the client.
+    /// @param _token Address of the ERC-20 token to sweep.
+    function sweepRewardToken(address _token) external;
+
+    /// @notice Emitted when the staked token distributor address is updated.
+    /// @param previousStakedTokenDistributor The previous distributor address.
+    /// @param newStakedTokenDistributor The new distributor address.
+    event P2pResolvProxy__StakedTokenDistributorUpdated(
+        address indexed previousStakedTokenDistributor,
+        address indexed newStakedTokenDistributor
+    );
+
+    /// @notice Emitted when reward tokens are swept to the client.
+    /// @param token The token address that was swept.
+    /// @param amount The amount swept to the client.
+    event P2pResolvProxy__RewardTokenSwept(address indexed token, uint256 amount);
 }

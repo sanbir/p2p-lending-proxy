@@ -17,7 +17,6 @@ contract P2pResolvProxyFactory is P2pYieldProxyFactory {
     /// @param _stRESOLV stRESOLV
     /// @param _RESOLV RESOLV
     /// @param _allowedCalldataChecker AllowedCalldataChecker
-    /// @param _stakedTokenDistributor StakedTokenDistributor
     constructor(
         address _p2pSigner,
         address _p2pTreasury,
@@ -25,8 +24,7 @@ contract P2pResolvProxyFactory is P2pYieldProxyFactory {
         address _USR,
         address _stRESOLV,
         address _RESOLV,
-        address _allowedCalldataChecker,
-        address _stakedTokenDistributor
+        address _allowedCalldataChecker
     ) P2pYieldProxyFactory(_p2pSigner) {
         i_referenceP2pYieldProxy = new P2pResolvProxy(
             address(this),
@@ -35,8 +33,7 @@ contract P2pResolvProxyFactory is P2pYieldProxyFactory {
             _stUSR,
             _USR,
             _stRESOLV,
-            _RESOLV,
-            _stakedTokenDistributor
+            _RESOLV
         );
     }
 }
