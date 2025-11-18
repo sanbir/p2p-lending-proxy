@@ -186,15 +186,8 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     )
     external
     nonReentrant
+    onlyClientOrP2pOperator
     {
-        if (msg.sender != s_client) {
-            address p2pOperator = i_factory.getP2pOperator();
-            require(
-                msg.sender == p2pOperator,
-                P2pResolvProxy__UnauthorizedAccount(msg.sender)
-            );
-        }
-
         // claim _reward token from StakedTokenDistributor
         address stakedTokenDistributor = address(s_stakedTokenDistributor);
         require(
