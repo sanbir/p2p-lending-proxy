@@ -13,7 +13,7 @@ contract Deploy is Script {
     address constant stUSR = 0x6c8984bc7DBBeDAf4F6b2FD766f16eBB7d10AAb4;
     address constant RESOLV = 0x259338656198eC7A76c729514D3CB45Dfbf768A1;
     address constant stRESOLV = 0xFE4BCE4b3949c35fB17691D8b03c3caDBE2E5E23;
-    address constant P2pTreasury = 0xfeef177E6168F9b7fd59e6C5b6c2d87FF398c6FD;
+    address constant P2pTreasury = 0x582d37737e870bffab8360F638148B26FD1BD86b;
 
     function run()
         external
