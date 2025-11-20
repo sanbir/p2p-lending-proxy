@@ -4,6 +4,8 @@
 pragma solidity 0.8.27;
 import {Initializable} from "../proxy/utils/Initializable.sol";
 
+import {Initializable} from "../proxy/utils/Initializable.sol";
+
 /**
  * @dev Contract module that helps prevent reentrant calls to a function.
  *

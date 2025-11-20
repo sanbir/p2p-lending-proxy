@@ -88,8 +88,7 @@ interface IRewardsDistributor {
         address[] calldata rewardTokens_,
         uint256[] calldata amountsClaimed_,
         bytes32[] calldata proof_
-    )
-        external;
+    ) external;
 
     /// @notice is a batching version of claim()
     function batchClaim(
@@ -98,8 +97,7 @@ interface IRewardsDistributor {
         address[][] calldata rewardTokens_,
         uint256[][] calldata amountsClaimed_,
         bytes32[][] calldata proofs_
-    )
-        external;
+    ) external;
 
     /// @notice allows the owner to rescue any ERC20 tokens sent to the contract
     /// @param rewardTokens_ are the address of the rewards token to claim on the specific period
@@ -127,10 +125,7 @@ interface IRewardsDistributor {
         address[] calldata rewardTokens_,
         uint256[] calldata amountsClaimed_,
         bytes32[] calldata proof_
-    )
-        external
-        view
-        returns (bool valid);
+    ) external view returns (bool valid);
 
-    function currentPeriodId() external returns(uint256);
+    function currentPeriodId() external returns (uint256);
 }

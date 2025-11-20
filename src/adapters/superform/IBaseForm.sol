@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.27;
+
 import "../../@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../../@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "./DataTypes.sol";
-
 
 /// @title IBaseForm
 /// @dev Interface for BaseForm
 /// @author ZeroPoint Labs
 interface IBaseForm is IERC165 {
-    
     //////////////////////////////////////////////////////////////
     //                          EVENTS                           //
     //////////////////////////////////////////////////////////////
@@ -103,10 +102,7 @@ interface IBaseForm is IERC165 {
     /// @param singleVaultData_  A bytes representation containing all the data required to make a form action
     /// @param srcSender_ The address of the sender of the transaction
     /// @return shares  The amount of vault shares received
-    function directDepositIntoVault(
-        InitSingleVaultData memory singleVaultData_,
-        address srcSender_
-    )
+    function directDepositIntoVault(InitSingleVaultData memory singleVaultData_, address srcSender_)
         external
         payable
         returns (uint256 shares);
@@ -117,11 +113,7 @@ interface IBaseForm is IERC165 {
     /// @param srcChainId_ The chain id of the source chain
     /// @return shares  The amount of vault shares received
     /// @dev is shares is `0` then no further action/acknowledgement needs to be sent
-    function xChainDepositIntoVault(
-        InitSingleVaultData memory singleVaultData_,
-        address srcSender_,
-        uint64 srcChainId_
-    )
+    function xChainDepositIntoVault(InitSingleVaultData memory singleVaultData_, address srcSender_, uint64 srcChainId_)
         external
         returns (uint256 shares);
 
@@ -129,10 +121,7 @@ interface IBaseForm is IERC165 {
     /// @param singleVaultData_  A bytes representation containing all the data required to make a form action
     /// @param srcSender_ The address of the sender of the transaction
     /// @return assets  The amount of assets received
-    function directWithdrawFromVault(
-        InitSingleVaultData memory singleVaultData_,
-        address srcSender_
-    )
+    function directWithdrawFromVault(InitSingleVaultData memory singleVaultData_, address srcSender_)
         external
         returns (uint256 assets);
 
@@ -145,9 +134,7 @@ interface IBaseForm is IERC165 {
         InitSingleVaultData memory singleVaultData_,
         address srcSender_,
         uint64 srcChainId_
-    )
-        external
-        returns (uint256 assets);
+    ) external returns (uint256 assets);
 
     /// @dev process withdrawal of shares if form is paused
     /// @param receiverAddress_ The address to refund the shares to

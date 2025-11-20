@@ -15,10 +15,7 @@ contract DeployOptimism is Script {
     address constant P2pTreasury = 0x641ca805C75cC5D1ffa78C0181Aba1F77BD17904;
     address constant RewardsDistributor = 0xce23bD7205bF2B543F6B4eeC00Add0C111FEFc3B;
 
-    function run()
-    external
-    returns (P2pSuperformProxyFactory factory, P2pSuperformProxy proxy)
-    {
+    function run() external returns (P2pSuperformProxyFactory factory, P2pSuperformProxy proxy) {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         Vm.Wallet memory wallet = vm.createWallet(deployerKey);
 
@@ -27,18 +24,10 @@ contract DeployOptimism is Script {
         AllowedCalldataChecker implementation = new AllowedCalldataChecker();
         ProxyAdmin admin = new ProxyAdmin();
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
-        TransparentUpgradeableProxy tup = new TransparentUpgradeableProxy(
-            address(implementation),
-            address(admin),
-            initData
-        );
+        TransparentUpgradeableProxy tup =
+            new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
         factory = new P2pSuperformProxyFactory(
-            wallet.addr,
-            P2pTreasury,
-            SuperformRouter,
-            SuperPositions,
-            address(tup),
-            RewardsDistributor
+            wallet.addr, wallet.addr, P2pTreasury, SuperformRouter, SuperPositions, address(tup), RewardsDistributor
         );
 
         vm.stopBroadcast();
@@ -48,4 +37,3 @@ contract DeployOptimism is Script {
         return (factory, proxy);
     }
 }
-

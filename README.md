@@ -15,14 +15,24 @@ forge test
 ## Deployment
 
 ```shell
-forge script script/DeployBase.s.sol:Deploy --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast --chain $CHAIN_ID --json --verify --etherscan-api-key $ETHERSCAN_API_KEY -vvvvv
+forge script script/Deploy.s.sol:Deploy --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast --chain $CHAIN_ID --json --verify --etherscan-api-key $ETHERSCAN_API_KEY -vvvvv
 ```
+
+`Deploy.s.sol` deterministically deploys the shared Superform tooling using CREATE2 so that every network produces the same contract addresses.  
+Set the following environment variables (override the defaults only when a network requires different endpoints):
+
+- `PRIVATE_KEY` – broadcaster key (also becomes the default `P2P_SIGNER`)
+- `P2P_SIGNER` – optional override for the signer account
+- `P2P_OPERATOR` – optional override for the operator account (defaults to `P2P_SIGNER`)
+- `SUPERFORM_ROUTER`
+- `SUPER_POSITIONS`
+- `P2P_TREASURY`
+- `REWARDS_DISTRIBUTOR`
 
 This script will:
 
-- deploy and verify on Etherscan the **P2pSuperformProxyFactory** and **P2pSuperformProxy** contracts
-- set the **P2pTreasury** address permanently in the P2pSuperformProxyFactory
-- set the rules for Superform specific deposit and withdrawal functions
+- deploy and verify on Etherscan the **P2pSuperformProxyFactory**, its reference **P2pSuperformProxy**, the **AllowedCalldataChecker** implementation, proxy, and **ProxyAdmin**
+- ensure all CREATE2 salts are reused so the deployed addresses stay identical on Base, Optimism, Mainnet, and any additional chains
 
 ## Basic use case
 
@@ -78,7 +88,7 @@ Look at [function _doDeposit()](test/OptimismUSDT.t.sol#L430) for a reference im
 9. Client-side JS code prompts the user to call the `deposit` function of the P2pSuperformProxyFactory contract:
 
 ```solidity
-    /// @dev Deposits the yield protocol
+    /// @dev Initiates a deposit through a client specific P2pYieldProxy instance
     /// @param _yieldProtocolCalldata Yield protocol calldata
     /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
     /// @param _clientBasisPointsOfProfit The client basis points (share) of profit

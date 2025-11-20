@@ -15,7 +15,6 @@ import "forge-std/Vm.sol";
 import "forge-std/console.sol";
 import "forge-std/console2.sol";
 
-
 contract BaseMorphoUSDCDepositFee is Test {
     using SafeERC20 for IERC20;
 
@@ -62,13 +61,11 @@ contract BaseMorphoUSDCDepositFee is Test {
         AllowedCalldataChecker implementation = new AllowedCalldataChecker();
         ProxyAdmin admin = new ProxyAdmin();
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
-        TransparentUpgradeableProxy tup = new TransparentUpgradeableProxy(
-            address(implementation),
-            address(admin),
-            initData
-        );
+        TransparentUpgradeableProxy tup =
+            new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
         factory = new P2pSuperformProxyFactory(
             p2pSignerAddress,
+            p2pOperatorAddress,
             P2pTreasury,
             SuperformRouter,
             SuperPositions,
@@ -78,13 +75,10 @@ contract BaseMorphoUSDCDepositFee is Test {
 
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(
-            clientAddress,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit
-        );
+        proxyAddress =
+            factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit);
 
-        uint256 numerator   = DepositAmount * 10_000;
+        uint256 numerator = DepositAmount * 10_000;
         uint256 denominator = ClientBasisPointsOfDeposit;
         // this rounds UP instead of down
         DepositAmountWithFee = (numerator + denominator - 1) / denominator;
@@ -99,7 +93,9 @@ contract BaseMorphoUSDCDepositFee is Test {
         _doDeposit();
 
         uint256 P2pTreasuryassetBalanceAfter1Deposit = IERC20(USDC).balanceOf(P2pTreasury);
-        assertEq(P2pTreasuryassetBalanceAfter1Deposit - P2pTreasuryassetBalanceBefore, (DepositAmountWithFee - DepositAmount));
+        assertEq(
+            P2pTreasuryassetBalanceAfter1Deposit - P2pTreasuryassetBalanceBefore, (DepositAmountWithFee - DepositAmount)
+        );
 
         uint256 assetBalanceAfter1 = IERC20(USDC).balanceOf(clientAddress);
         assertEq(assetBalanceBefore - assetBalanceAfter1, DepositAmountWithFee);
@@ -113,7 +109,10 @@ contract BaseMorphoUSDCDepositFee is Test {
         _doDeposit();
 
         uint256 P2pTreasuryassetBalanceAfterAllDeposits = IERC20(USDC).balanceOf(P2pTreasury);
-        assertEq(P2pTreasuryassetBalanceAfterAllDeposits - P2pTreasuryassetBalanceBefore, (DepositAmountWithFee - DepositAmount) * 4);
+        assertEq(
+            P2pTreasuryassetBalanceAfterAllDeposits - P2pTreasuryassetBalanceBefore,
+            (DepositAmountWithFee - DepositAmount) * 4
+        );
 
         _doWithdraw(10);
 
@@ -123,23 +122,19 @@ contract BaseMorphoUSDCDepositFee is Test {
         _doWithdraw(3);
     }
 
-    function _getVaultAddress() private pure returns(address) {
+    function _getVaultAddress() private pure returns (address) {
         return address(uint160(SuperformId));
     }
-
 
     function _getP2pSignerSignature(
         address _clientAddress,
         uint48 _clientBasisPointsOfDeposit,
         uint48 _clientBasisPointsOfProfit,
         uint256 _sigDeadline
-    ) private view returns(bytes memory) {
+    ) private view returns (bytes memory) {
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
-            _clientAddress,
-            _clientBasisPointsOfDeposit,
-        _clientBasisPointsOfProfit,
-            _sigDeadline
+            _clientAddress, _clientBasisPointsOfDeposit, _clientBasisPointsOfProfit, _sigDeadline
         );
         bytes32 ethSignedMessageHashForP2pSigner = ECDSA.toEthSignedMessageHash(hashForP2pSigner);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(p2pSignerPrivateKey, ethSignedMessageHashForP2pSigner);
@@ -148,12 +143,8 @@ contract BaseMorphoUSDCDepositFee is Test {
     }
 
     function _doDeposit() private {
-        bytes memory p2pSignerSignature = _getP2pSignerSignature(
-            clientAddress,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline
-        );
+        bytes memory p2pSignerSignature =
+            _getP2pSignerSignature(clientAddress, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit, SigDeadline);
 
         vm.startPrank(clientAddress);
         // Approve the proxy to spend USDC tokens
@@ -182,18 +173,12 @@ contract BaseMorphoUSDCDepositFee is Test {
             receiverAddressSP: proxyAddress,
             extraFormData: ""
         });
-        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({
-            superformData: superformData
-        });
+        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({superformData: superformData});
 
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
 
         factory.deposit(
-            superformCalldata,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline,
-            p2pSignerSignature
+            superformCalldata, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit, SigDeadline, p2pSignerSignature
         );
         vm.stopPrank();
     }
@@ -224,9 +209,7 @@ contract BaseMorphoUSDCDepositFee is Test {
             receiverAddressSP: proxyAddress,
             extraFormData: ""
         });
-        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({
-            superformData: superformData
-        });
+        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({superformData: superformData});
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultWithdraw, (req));
 
         vm.startPrank(clientAddress);

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.27;
+
 import "../../@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
 /// @title IERC1155A
@@ -125,11 +126,7 @@ interface IERC1155A is IERC1155 {
     /// @param spender address of the contract to approve
     /// @param ids ids of the ERC1155A to approve
     /// @param addedValues amounts of the allowance to increase by
-    function increaseAllowanceForMany(
-        address spender,
-        uint256[] memory ids,
-        uint256[] memory addedValues
-    )
+    function increaseAllowanceForMany(address spender, uint256[] memory ids, uint256[] memory addedValues)
         external
         returns (bool);
 
@@ -138,11 +135,7 @@ interface IERC1155A is IERC1155 {
     /// @param spender address of the contract to approve
     /// @param ids ids of the ERC1155A to approve
     /// @param subtractedValues amounts of the allowance to decrease by
-    function decreaseAllowanceForMany(
-        address spender,
-        uint256[] memory ids,
-        uint256[] memory subtractedValues
-    )
+    function decreaseAllowanceForMany(address spender, uint256[] memory ids, uint256[] memory subtractedValues)
         external
         returns (bool);
 
@@ -168,12 +161,7 @@ interface IERC1155A is IERC1155 {
     /// @param ids ids of the ERC1155A to transmute
     /// @param amounts amounts of the ERC1155A to transmute
     /// @param receiver address of the user to receive the aERC20 tokens
-    function transmuteBatchToERC20(
-        address owner,
-        uint256[] memory ids,
-        uint256[] memory amounts,
-        address receiver
-    )
+    function transmuteBatchToERC20(address owner, uint256[] memory ids, uint256[] memory amounts, address receiver)
         external;
 
     /// @notice Turn aERC20s into ERC1155A ids
@@ -182,12 +170,7 @@ interface IERC1155A is IERC1155 {
     /// @param ids ids of the ERC20 to transmute
     /// @param amounts amounts of the ERC20 to transmute
     /// @param receiver address of the user to receive the ERC1155 token ids
-    function transmuteBatchToERC1155A(
-        address owner,
-        uint256[] memory ids,
-        uint256[] memory amounts,
-        address receiver
-    )
+    function transmuteBatchToERC1155A(address owner, uint256[] memory ids, uint256[] memory amounts, address receiver)
         external;
 
     /// @notice payable to allow any implementing cross-chain protocol to be paid for fees for broadcasting

@@ -15,7 +15,6 @@ import "forge-std/Vm.sol";
 import "forge-std/console.sol";
 import "forge-std/console2.sol";
 
-
 contract BaseMorphoUSDC is Test {
     using SafeERC20 for IERC20;
 
@@ -62,13 +61,11 @@ contract BaseMorphoUSDC is Test {
         AllowedCalldataChecker implementation = new AllowedCalldataChecker();
         ProxyAdmin admin = new ProxyAdmin();
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
-        TransparentUpgradeableProxy tup = new TransparentUpgradeableProxy(
-            address(implementation),
-            address(admin),
-            initData
-        );
+        TransparentUpgradeableProxy tup =
+            new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
         factory = new P2pSuperformProxyFactory(
             p2pSignerAddress,
+            p2pOperatorAddress,
             P2pTreasury,
             SuperformRouter,
             SuperPositions,
@@ -78,11 +75,8 @@ contract BaseMorphoUSDC is Test {
 
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(
-            clientAddress,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit
-        );
+        proxyAddress =
+            factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit);
 
         DepositAmountWithFee = DepositAmount + DepositAmount * (10_000 - ClientBasisPointsOfDeposit) / 10_000;
     }
@@ -111,29 +105,27 @@ contract BaseMorphoUSDC is Test {
 
         uint256 assetBalanceAfterWithdraw1 = IERC20(USDC).balanceOf(clientAddress);
 
-        assertApproxEqAbs(assetBalanceAfterWithdraw1 - assetBalanceAfterAllDeposits, DepositAmountWithFee * 4 / 10, 10000);
+        assertApproxEqAbs(
+            assetBalanceAfterWithdraw1 - assetBalanceAfterAllDeposits, DepositAmountWithFee * 4 / 10, 10000
+        );
 
         _doWithdraw(5);
         _doWithdraw(3);
     }
 
-    function _getVaultAddress() private pure returns(address) {
+    function _getVaultAddress() private pure returns (address) {
         return address(uint160(SuperformId));
     }
-
 
     function _getP2pSignerSignature(
         address _clientAddress,
         uint48 _clientBasisPointsOfDeposit,
         uint48 _clientBasisPointsOfProfit,
         uint256 _sigDeadline
-    ) private view returns(bytes memory) {
+    ) private view returns (bytes memory) {
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
-            _clientAddress,
-            _clientBasisPointsOfDeposit,
-        _clientBasisPointsOfProfit,
-            _sigDeadline
+            _clientAddress, _clientBasisPointsOfDeposit, _clientBasisPointsOfProfit, _sigDeadline
         );
         bytes32 ethSignedMessageHashForP2pSigner = ECDSA.toEthSignedMessageHash(hashForP2pSigner);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(p2pSignerPrivateKey, ethSignedMessageHashForP2pSigner);
@@ -142,12 +134,8 @@ contract BaseMorphoUSDC is Test {
     }
 
     function _doDeposit() private {
-        bytes memory p2pSignerSignature = _getP2pSignerSignature(
-            clientAddress,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline
-        );
+        bytes memory p2pSignerSignature =
+            _getP2pSignerSignature(clientAddress, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit, SigDeadline);
 
         vm.startPrank(clientAddress);
         // Approve the proxy to spend USDC tokens
@@ -176,18 +164,12 @@ contract BaseMorphoUSDC is Test {
             receiverAddressSP: proxyAddress,
             extraFormData: ""
         });
-        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({
-            superformData: superformData
-        });
+        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({superformData: superformData});
 
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultDeposit, (req));
 
         factory.deposit(
-            superformCalldata,
-            ClientBasisPointsOfDeposit,
-            ClientBasisPointsOfProfit,
-            SigDeadline,
-            p2pSignerSignature
+            superformCalldata, ClientBasisPointsOfDeposit, ClientBasisPointsOfProfit, SigDeadline, p2pSignerSignature
         );
         vm.stopPrank();
     }
@@ -220,9 +202,7 @@ contract BaseMorphoUSDC is Test {
             receiverAddressSP: proxyAddress,
             extraFormData: ""
         });
-        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({
-            superformData: superformData
-        });
+        SingleDirectSingleVaultStateReq memory req = SingleDirectSingleVaultStateReq({superformData: superformData});
         bytes memory superformCalldata = abi.encodeCall(IBaseRouter.singleDirectSingleVaultWithdraw, (req));
 
         vm.startPrank(clientAddress);

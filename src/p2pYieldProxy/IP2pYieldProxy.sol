@@ -7,22 +7,15 @@ import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /// @dev External interface of P2pYieldProxy declared to support ERC165 detection.
 interface IP2pYieldProxy is IERC165 {
-
     /// @notice Emitted when the P2pYieldProxy is initialized
     event P2pYieldProxy__Initialized();
 
     /// @notice Emitted when a deposit is made
     event P2pYieldProxy__Deposited(
-        uint256 indexed _vaultId,
-        address indexed _asset,
-        uint256 _amountAfterFee,
-        uint256 _totalDepositedAfter
+        uint256 indexed _vaultId, address indexed _asset, uint256 _amountAfterFee, uint256 _totalDepositedAfter
     );
 
-    event P2pYieldProxy__DepositFee(
-        address indexed _asset,
-        uint256 _amount
-    );
+    event P2pYieldProxy__DepositFee(address indexed _asset, uint256 _amount);
 
     /// @notice Emitted when a withdrawal is made
     event P2pYieldProxy__Withdrawn(
@@ -36,47 +29,29 @@ interface IP2pYieldProxy is IERC165 {
     );
 
     /// @notice Emergency withdrawal queue flow
-    event P2pYieldProxy__EmergencyWithdrawalQueueFlow(
-        uint256 indexed _vaultId,
-        address indexed _asset
-    );
+    event P2pYieldProxy__EmergencyWithdrawalQueueFlow(uint256 indexed _vaultId, address indexed _asset);
 
     /// @notice Direct asset recovery from P2pYieldProxy
-    event P2pYieldProxy__EmergencyWithdrawn(
-        address indexed _asset,
-        uint256 _amount
-    );
+    event P2pYieldProxy__EmergencyWithdrawn(address indexed _asset, uint256 _amount);
 
     /// @notice Emitted when an arbitrary allowed function is called
-    event P2pYieldProxy__CalledAsAnyFunction(
-        address indexed _yieldProtocolAddress
-    );
+    event P2pYieldProxy__CalledAsAnyFunction(address indexed _yieldProtocolAddress);
 
     /// @notice Initializes the P2pYieldProxy
     /// @param _client The client address
     /// @param _clientBasisPointsOfDeposit The client basis points (share) of deposit
     /// @param _clientBasisPointsOfProfit The client basis points (share) of profit
-    function initialize(
-        address _client,
-        uint48 _clientBasisPointsOfDeposit,
-        uint48 _clientBasisPointsOfProfit
-    )
-    external;
+    function initialize(address _client, uint48 _clientBasisPointsOfDeposit, uint48 _clientBasisPointsOfProfit)
+        external;
 
     /// @notice Deposits assets into a specific vault handled by the proxy.
     /// @param _yieldProtocolDepositCalldata Calldata that performs the actual deposit on the yield protocol.
-    function deposit(
-        bytes calldata _yieldProtocolDepositCalldata
-    ) external payable;
+    function deposit(bytes calldata _yieldProtocolDepositCalldata) external payable;
 
     /// @notice Calls an arbitrary allowed function
     /// @param _yieldProtocolAddress The address of the yield protocol
     /// @param _yieldProtocolCalldata The calldata to call the yield protocol
-    function callAnyFunction(
-        address _yieldProtocolAddress,
-        bytes calldata _yieldProtocolCalldata
-    )
-    external;
+    function callAnyFunction(address _yieldProtocolAddress, bytes calldata _yieldProtocolCalldata) external;
 
     /// @notice Withdraw all ERC20 from P2pYieldProxy balance
     /// @dev Only callable by client in case of emergency
@@ -143,7 +118,10 @@ interface IP2pYieldProxy is IERC165 {
     /// @param _vaultId vault ID
     /// @param _asset The asset address
     /// @return lastFeeCollectionTime Timestamp of the most recent fee collection
-    function getLastFeeCollectionTime(uint256 _vaultId, address _asset) external view returns (uint48 lastFeeCollectionTime);
+    function getLastFeeCollectionTime(uint256 _vaultId, address _asset)
+        external
+        view
+        returns (uint48 lastFeeCollectionTime);
 
     /// @notice Calculates the minimum amount of tokens that must be approved for a deposit
     /// @param _amountToDeposit The desired amount of tokens to be deposited into the yield protocol
