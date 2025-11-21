@@ -46,6 +46,10 @@ interface IP2pResolvProxy {
     /// @param amount Amount of RESOLV deposited on behalf of the client.
     event P2pResolvProxy__ResolvDeposited(uint256 amount);
 
+    /// @notice Emitted when a RESOLV withdrawal without rewards is forwarded directly to the client.
+    /// @param caller Address that triggered the withdrawal completion.
+    event P2pResolvProxy__ResolvPrincipalWithdrawal(address indexed caller);
+
     /// @notice Emitted when staking reward tokens are claimed and split.
     /// @param token Reward token address.
     /// @param amount Total reward amount claimed for `token`.

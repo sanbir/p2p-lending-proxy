@@ -242,20 +242,24 @@ contract RESOLVIntegration is Test {
         assertEq(treasuryAfter, treasuryBefore, "no real rewards should mean no fee");
     }
 
-    function test_withdrawRESOLV_onlyClientCanCall() public {
+    function test_withdrawRESOLV_operatorCanCompleteWithdrawal() public {
         deal(RESOLV, clientAddress, 100e18);
         _doDeposit();
 
-        vm.startPrank(p2pOperatorAddress);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                P2pYieldProxy__NotClientCalled.selector,
-                p2pOperatorAddress,
-                clientAddress
-            )
-        );
-        P2pResolvProxy(proxyAddress).withdrawRESOLV();
+        vm.startPrank(clientAddress);
+        uint256 sharesBalance = IERC20(stRESOLV).balanceOf(proxyAddress);
+        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(sharesBalance);
         vm.stopPrank();
+
+        _forward(14 days);
+
+        uint256 clientBalanceBefore = IERC20(RESOLV).balanceOf(clientAddress);
+
+        vm.prank(p2pOperatorAddress);
+        P2pResolvProxy(proxyAddress).withdrawRESOLV();
+
+        uint256 clientBalanceAfter = IERC20(RESOLV).balanceOf(clientAddress);
+        assertGt(clientBalanceAfter, clientBalanceBefore, "operator should be able to finalize withdrawal");
     }
 
     function test_sweepRewardToken_byClient_Mainnet_RESOLV() public {

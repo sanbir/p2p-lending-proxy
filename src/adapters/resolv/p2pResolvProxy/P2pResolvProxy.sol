@@ -154,7 +154,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     /// @inheritdoc IP2pResolvProxy
     function withdrawRESOLV()
     external
-    onlyClient
+    onlyClientOrP2pOperator
     nonReentrant
     {
         IResolvStaking staking = IResolvStaking(i_stRESOLV);
@@ -162,6 +162,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
 
         if (pendingReward == 0) {
             staking.withdraw(false, s_client);
+            emit P2pResolvProxy__ResolvPrincipalWithdrawal(msg.sender);
             return;
         }
 
