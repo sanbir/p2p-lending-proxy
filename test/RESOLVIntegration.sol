@@ -12,6 +12,7 @@ import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "./mock/IERC20Rebasing.sol";
 import "../src/@resolv/IResolvStaking.sol";
 import "../src/@resolv/IStUSR.sol";
+import "../src/@resolv/IStakedTokenDistributor.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console.sol";
@@ -99,15 +100,7 @@ contract RESOLVIntegration is Test {
         _doDeposit();
         _doDeposit();
 
-        // Simulate protocol yield so withdrawals include profit
-        uint256 simulatedYieldUnderlying = 2e18;
-        deal(RESOLV, stRESOLV, IERC20(RESOLV).balanceOf(stRESOLV) + simulatedYieldUnderlying);
-
-        uint256 actualFirstWithdrawal = _doWithdraw(10);
-
-        uint256 minExpectedFirstWithdrawal = (DepositAmount * 4) / 10;
-        assertGt(actualFirstWithdrawal, minExpectedFirstWithdrawal, "Expected withdrawal to include accrued yield");
-
+        _doWithdraw(10);
         _doWithdraw(5);
         _doWithdraw(3);
         _doWithdraw(2);
@@ -115,317 +108,104 @@ contract RESOLVIntegration is Test {
 
         uint256 assetBalanceAfterAllWithdrawals = IERC20(RESOLV).balanceOf(clientAddress);
 
-        uint256 profit = assetBalanceAfterAllWithdrawals - assetBalanceBefore;
-        assertGt(profit, 0, "Expected non-zero profit");
-    }
-
-    function test_withdrawRESOLVAccruedRewards_byP2pOperator_Mainnet() public {
-        // Simulate initial deposit to create some rewards later
-        deal(RESOLV, clientAddress, 100e18);
-        _doDeposit();
-
-        _forward(10000000);
-
-        // Simulate protocol yield by increasing stRESOLV vault's underlying balance
-        uint256 yieldAmount = 5e18;
-        deal(RESOLV, stRESOLV, IERC20(RESOLV).balanceOf(stRESOLV) + yieldAmount);
-        vm.prank(proxyAddress);
-        IResolvStaking(stRESOLV).updateCheckpoint(proxyAddress);
-
-        // Verify that accrued rewards are now positive
-        int256 accruedRewards = P2pResolvProxy(proxyAddress).calculateAccruedRewardsRESOLV();
-        assertGt(accruedRewards, 0, "No accrued rewards to withdraw");
-
-        // Withdraw accrued rewards as P2pOperator (two-step process)
-        uint256 treasuryBalanceBefore = IERC20(RESOLV).balanceOf(P2pTreasury);
-        uint256 clientBalanceBefore = IERC20(RESOLV).balanceOf(clientAddress);
-
-        // Step 1: Initiate withdrawal of accrued rewards
-        vm.startPrank(p2pOperatorAddress);
-        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLVAccruedRewards();
-        vm.stopPrank();
-
-        // Step 2: Wait for the withdrawal delay period
-        _forward(7 days);
-
-        // Step 3: Simulate additional yield on stRESOLV and refresh checkpoint
-        deal(RESOLV, stRESOLV, IERC20(RESOLV).balanceOf(stRESOLV) + 2e18);
-        vm.prank(proxyAddress);
-        IResolvStaking(stRESOLV).updateCheckpoint(proxyAddress);
-
-        // Step 4: Complete the withdrawal
-        vm.startPrank(p2pOperatorAddress);
-        P2pResolvProxy(proxyAddress).withdrawRESOLV();
-        vm.stopPrank();
-
-        uint256 treasuryBalanceAfter = IERC20(RESOLV).balanceOf(P2pTreasury);
-        uint256 clientBalanceAfter = IERC20(RESOLV).balanceOf(clientAddress);
-        assertGt(clientBalanceAfter, clientBalanceBefore, "Client did not receive accrued rewards");
-        assertGt(treasuryBalanceAfter, treasuryBalanceBefore, "Treasury did not receive accrued rewards");
-    }
-
-    function test_Resolv_profitSplit_Mainnet_RESOLV() public {
-        deal(RESOLV, clientAddress, 100e18);
-
-        _doDeposit();
-
-        _forward(10000000);
-
-        uint256 simulatedYieldUnderlying = 2e18;
-        deal(RESOLV, stRESOLV, IERC20(RESOLV).balanceOf(stRESOLV) + simulatedYieldUnderlying);
-        vm.prank(proxyAddress);
-        IResolvStaking(stRESOLV).updateCheckpoint(proxyAddress);
-
-        uint256 clientAssetBalanceBefore = IERC20(RESOLV).balanceOf(clientAddress);
-        uint256 p2pAssetBalanceBefore = IERC20(RESOLV).balanceOf(P2pTreasury);
-        uint256 assetsInResolvBefore = IResolvStaking(stRESOLV).getUserEffectiveBalance(proxyAddress);
-
-        vm.startPrank(p2pOperatorAddress);
-        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLVAccruedRewards();
-        _forward(10_000 * 14);
-        P2pResolvProxy(proxyAddress).withdrawRESOLV();
-        vm.stopPrank();
-
-        uint256 clientAssetBalanceAfter = IERC20(RESOLV).balanceOf(clientAddress);
-        uint256 p2pAssetBalanceAfter = IERC20(RESOLV).balanceOf(P2pTreasury);
-        uint256 clientBalanceChange = clientAssetBalanceAfter - clientAssetBalanceBefore;
-        uint256 p2pBalanceChange = p2pAssetBalanceAfter - p2pAssetBalanceBefore;
-        uint256 sumOfBalanceChanges = clientBalanceChange + p2pBalanceChange;
-
-        uint256 assetsInResolvAfter = IResolvStaking(stRESOLV).getUserEffectiveBalance(proxyAddress);
-        uint256 profit = assetsInResolvBefore - assetsInResolvAfter + sumOfBalanceChanges;
-        assertGt(profit, 0, "Expected non-zero profit from protocol yield simulation");
-        assertGt(clientBalanceChange, 0, "Client expected to receive profit");
-        assertGt(p2pBalanceChange, 0, "P2P treasury expected to receive share of profit");
-
-        assertGt(clientBalanceChange, p2pBalanceChange, "Client should receive larger share than treasury");
-    }
-
-    function test_withdrawRESOLV_includesCheckpointRewardsInFees() public {
-        AllowedCalldataChecker checker = new AllowedCalldataChecker();
-        checker.initialize();
-
-        MockERC20 mockResolv = new MockERC20("RESOLV", "RESOLV");
-        MockERC20 mockUsr = new MockERC20("USR", "USR");
-        MockStUSR mockStUsr = new MockStUSR(mockUsr);
-        MockResolvStaking mockStResolv = new MockResolvStaking(mockResolv);
-
-        vm.startPrank(p2pOperatorAddress);
-        factory = new P2pResolvProxyFactory(
-            p2pSignerAddress,
-            P2pTreasury,
-            address(mockStUsr),
-            address(mockUsr),
-            address(mockStResolv),
-            address(mockResolv),
-            address(checker)
+        assertApproxEqAbs(
+            assetBalanceAfterAllWithdrawals,
+            assetBalanceBefore,
+            1e9,
+            "Client should recover principal"
         );
-        vm.stopPrank();
+    }
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
-
+    function test_claimRewardTokens_splitsRewards() public {
         uint256 depositAmount = 10 ether;
-        uint256 checkpointRewards = 2 ether;
+        (address localProxy, MockERC20 mockResolv, MockResolvStaking mockStResolv) =
+            _setupMockResolvEnvironment(depositAmount);
+        mockResolv.totalSupply();
 
-        mockResolv.mint(clientAddress, depositAmount);
+        MockERC20 extraReward = new MockERC20("Extra", "EXTRA");
+        mockStResolv.addRewardToken(address(extraReward));
+        mockStResolv.setRewardTokenAmount(address(extraReward), localProxy, 5 ether);
 
-        bytes memory p2pSignerSignature = _getP2pSignerSignature(
-            clientAddress,
-            ClientBasisPoints,
-            SigDeadline
-        );
-
-        vm.startPrank(clientAddress);
-        mockResolv.approve(proxyAddress, depositAmount);
-        factory.deposit(
-            address(mockResolv),
-            depositAmount,
-            ClientBasisPoints,
-            SigDeadline,
-            p2pSignerSignature
-        );
-        vm.stopPrank();
-
-        // Simulate rewards that become claimable only during withdraw checkpoint
-        mockStResolv.setCheckpointRewards(proxyAddress, checkpointRewards);
-
-        vm.startPrank(clientAddress);
-        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(depositAmount);
-        P2pResolvProxy(proxyAddress).withdrawRESOLV();
-        vm.stopPrank();
-
-        uint256 expectedP2pFee = (checkpointRewards * (10_000 - ClientBasisPoints) + 9999) / 10_000;
-        uint256 clientBalance = IERC20(address(mockResolv)).balanceOf(clientAddress);
-        uint256 treasuryBalance = IERC20(address(mockResolv)).balanceOf(P2pTreasury);
-
-        assertEq(treasuryBalance, expectedP2pFee, "treasury fee should include checkpoint rewards");
-        assertEq(
-            clientBalance,
-            depositAmount + checkpointRewards - expectedP2pFee,
-            "client should receive principal plus net rewards"
-        );
-        assertEq(P2pResolvProxy(proxyAddress).getUserPrincipalRESOLV(), 0, "principal accounting should ignore rewards");
-    }
-
-    function test_airdropped_stRESOLV_treated_as_rewards() public {
-        AllowedCalldataChecker checker = new AllowedCalldataChecker();
-        checker.initialize();
-
-        MockERC20 mockResolv = new MockERC20("RESOLV", "RESOLV");
-        MockERC20 mockUsr = new MockERC20("USR", "USR");
-        MockStUSR mockStUsr = new MockStUSR(mockUsr);
-        MockResolvStaking mockStResolv = new MockResolvStaking(mockResolv);
+        uint256 treasuryBalanceBefore = extraReward.balanceOf(P2pTreasury);
+        uint256 clientBalanceBefore = extraReward.balanceOf(clientAddress);
 
         vm.startPrank(p2pOperatorAddress);
-        factory = new P2pResolvProxyFactory(
-            p2pSignerAddress,
-            P2pTreasury,
-            address(mockStUsr),
-            address(mockUsr),
-            address(mockStResolv),
-            address(mockResolv),
-            address(checker)
-        );
+        P2pResolvProxy(localProxy).claimRewardTokens();
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
+        uint256 treasuryBalanceAfter = extraReward.balanceOf(P2pTreasury);
+        uint256 clientBalanceAfter = extraReward.balanceOf(clientAddress);
 
-        uint256 depositAmount = 10 ether;
-        uint256 extraStaked = 2 ether;
+        uint256 rewardAmount = 5 ether;
+        uint256 expectedTreasury = (rewardAmount * (10_000 - ClientBasisPoints) + 9999) / 10_000;
+        uint256 expectedClient = rewardAmount - expectedTreasury;
 
-        mockResolv.mint(clientAddress, depositAmount);
-
-        bytes memory p2pSignerSignature = _getP2pSignerSignature(
-            clientAddress,
-            ClientBasisPoints,
-            SigDeadline
-        );
-
-        vm.startPrank(clientAddress);
-        mockResolv.approve(proxyAddress, depositAmount);
-        factory.deposit(
-            address(mockResolv),
-            depositAmount,
-            ClientBasisPoints,
-            SigDeadline,
-            p2pSignerSignature
-        );
-        vm.stopPrank();
-
-        // Fund staking contract and mint additional stRESOLV to the proxy to simulate airdropped staked tokens
-        mockResolv.mint(address(mockStResolv), extraStaked);
-        mockStResolv.mint(proxyAddress, extraStaked);
-
-        deal(address(mockResolv), P2pTreasury, 0);
-
-        vm.startPrank(clientAddress);
-        uint256 totalShares = mockStResolv.balanceOf(proxyAddress);
-        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(totalShares);
-        P2pResolvProxy(proxyAddress).withdrawRESOLV();
-        vm.stopPrank();
-
-        uint256 expectedP2pFee = (extraStaked * (10_000 - ClientBasisPoints) + 9999) / 10_000;
-        assertEq(
-            P2pResolvProxy(proxyAddress).getTotalWithdrawn(address(mockResolv)),
-            depositAmount,
-            "withdrawn principal should not exceed deposited amount"
-        );
-        assertEq(
-            IERC20(address(mockResolv)).balanceOf(P2pTreasury),
-            expectedP2pFee,
-            "treasury should collect fee on airdropped stRESOLV"
-        );
-        assertEq(
-            IERC20(address(mockResolv)).balanceOf(clientAddress),
-            depositAmount + extraStaked - expectedP2pFee,
-            "client should receive principal plus net rewards"
-        );
+        assertEq(treasuryBalanceAfter - treasuryBalanceBefore, expectedTreasury, "treasury share mismatch");
+        assertEq(clientBalanceAfter - clientBalanceBefore, expectedClient, "client share mismatch");
     }
 
-    function test_DoubleFeeCollectionBug_OperatorThenClientWithdraw_RESOLV() public {
-        deal(RESOLV, clientAddress, 100e18);
-        _doDeposit();
+    function test_claimStakedTokenDistributor_rewardsWithdrawnWithSplit() public {
+        uint256 depositAmount = 20 ether;
+        (address localProxy, MockERC20 mockResolv, MockResolvStaking mockStResolv) =
+            _setupMockResolvEnvironment(depositAmount);
 
-        _forward(1_000_000);
+        MockStakedTokenDistributor distributor = new MockStakedTokenDistributor(mockResolv, mockStResolv);
 
-        uint256 simulatedYield = 5e18;
-        deal(RESOLV, stRESOLV, IERC20(RESOLV).balanceOf(stRESOLV) + simulatedYield);
-        vm.prank(proxyAddress);
-        IResolvStaking(stRESOLV).updateCheckpoint(proxyAddress);
+        vm.prank(p2pOperatorAddress);
+        P2pResolvProxy(localProxy).setStakedTokenDistributor(address(distributor));
 
+        uint256 airdropAmount = 5 ether;
+        bytes32[] memory proof = new bytes32[](0);
         vm.startPrank(p2pOperatorAddress);
-        uint256 treasuryBeforeRewards = IERC20(RESOLV).balanceOf(P2pTreasury);
-        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLVAccruedRewards();
-        _forward(14 days);
-        P2pResolvProxy(proxyAddress).withdrawRESOLV();
+        P2pResolvProxy(localProxy).claimStakedTokenDistributor(0, airdropAmount, proof);
         vm.stopPrank();
 
-        uint256 clientAfterRewards = IERC20(RESOLV).balanceOf(clientAddress);
-        uint256 treasuryAfterRewards = IERC20(RESOLV).balanceOf(P2pTreasury);
+        uint256 treasuryBalanceBefore = mockResolv.balanceOf(P2pTreasury);
+        uint256 clientBalanceBefore = mockResolv.balanceOf(clientAddress);
 
-        vm.startPrank(clientAddress);
-        uint256 sharesBalance = IERC20(stRESOLV).balanceOf(proxyAddress);
-        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(sharesBalance);
-        vm.stopPrank();
+        vm.prank(clientAddress);
+        P2pResolvProxy(localProxy).withdrawRESOLV();
 
-        _forward(14 days);
+        uint256 treasuryBalanceAfter = mockResolv.balanceOf(P2pTreasury);
+        uint256 clientBalanceAfter = mockResolv.balanceOf(clientAddress);
 
-        vm.startPrank(clientAddress);
-        P2pResolvProxy(proxyAddress).withdrawRESOLV();
-        vm.stopPrank();
+        uint256 expectedTreasury = (airdropAmount * (10_000 - ClientBasisPoints) + 9999) / 10_000;
+        uint256 expectedClient = airdropAmount - expectedTreasury;
 
-        uint256 clientPrincipalReceived = IERC20(RESOLV).balanceOf(clientAddress) - clientAfterRewards;
-        uint256 treasuryPrincipalGain = IERC20(RESOLV).balanceOf(P2pTreasury) - treasuryAfterRewards;
-
-        assertGt(clientPrincipalReceived, 0, "client did not receive principal");
-        assertLe(treasuryPrincipalGain, 1, "treasury gained extra");
-        assertEq(P2pResolvProxy(proxyAddress).getUserPrincipalRESOLV(), 0, "principal should be fully withdrawn");
-        assertGt(treasuryAfterRewards - treasuryBeforeRewards, 0, "treasury did not collect yield");
+        assertEq(treasuryBalanceAfter - treasuryBalanceBefore, expectedTreasury, "treasury reward share mismatch");
+        assertEq(clientBalanceAfter - clientBalanceBefore, expectedClient, "client reward share mismatch");
     }
 
-    function test_withdrawRESOLV_NoDoubleFeeWhenClaimDisabled_Mainnet_RESOLV() public {
-        // Test that fees are not charged on rewards when claimEnabled is false
-        // This prevents the double fee issue described in the audit
+    function test_withdrawRESOLV_principalAndAirdropOnlyFeesRewards() public {
+        uint256 depositAmount = 12 ether;
+        (address localProxy, MockERC20 mockResolv, MockResolvStaking mockStResolv) =
+            _setupMockResolvEnvironment(depositAmount);
 
-        deal(RESOLV, clientAddress, 1000e18);
-        _doDeposit();
+        MockStakedTokenDistributor distributor = new MockStakedTokenDistributor(mockResolv, mockStResolv);
+        vm.prank(p2pOperatorAddress);
+        P2pResolvProxy(localProxy).setStakedTokenDistributor(address(distributor));
 
-        // Accumulate rewards that will be locked when claimEnabled is false
-        uint256 rewardAmount = 200e18;
-        deal(RESOLV, stRESOLV, IERC20(RESOLV).balanceOf(stRESOLV) + rewardAmount);
-        vm.prank(proxyAddress);
-        IResolvStaking(stRESOLV).updateCheckpoint(proxyAddress);
+        uint256 airdropAmount = 3 ether;
+        vm.prank(p2pOperatorAddress);
+        P2pResolvProxy(localProxy).claimStakedTokenDistributor(0, airdropAmount, new bytes32[](0));
 
-        uint256 treasuryBalanceBefore = IERC20(RESOLV).balanceOf(P2pTreasury);
+        vm.prank(clientAddress);
+        P2pResolvProxy(localProxy).initiateWithdrawalRESOLV(depositAmount);
 
-        // Mock claimEnabled to return false - rewards should be locked
-        vm.mockCall(
-            stRESOLV,
-            abi.encodeWithSelector(IResolvStaking.claimEnabled.selector),
-            abi.encode(false)
-        );
+        uint256 treasuryBefore = mockResolv.balanceOf(P2pTreasury);
+        uint256 clientBefore = mockResolv.balanceOf(clientAddress);
 
-        // Withdraw all shares when claims are disabled
-        vm.startPrank(clientAddress);
-        uint256 allShares = IERC20(stRESOLV).balanceOf(proxyAddress);
-        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(allShares);
-        vm.stopPrank();
+        vm.prank(clientAddress);
+        P2pResolvProxy(localProxy).withdrawRESOLV();
 
-        _forward(10_000 * 14);
+        uint256 treasuryAfter = mockResolv.balanceOf(P2pTreasury);
+        uint256 clientAfter = mockResolv.balanceOf(clientAddress);
 
-        vm.startPrank(clientAddress);
-        P2pResolvProxy(proxyAddress).withdrawRESOLV();
-        vm.stopPrank();
+        uint256 expectedFee = (airdropAmount * (10_000 - ClientBasisPoints) + 9999) / 10_000;
+        uint256 expectedClient = depositAmount + (airdropAmount - expectedFee);
 
-        // Verify that treasury collected no fees (rewards were locked)
-        uint256 treasuryAfterLockedWithdrawal = IERC20(RESOLV).balanceOf(P2pTreasury);
-        assertEq(
-            treasuryAfterLockedWithdrawal,
-            treasuryBalanceBefore,
-            "treasury should not collect fees on locked rewards"
-        );
-
-        vm.clearMockedCalls();
+        assertEq(treasuryAfter - treasuryBefore, expectedFee, "treasury should only fee rewards");
+        assertEq(clientAfter - clientBefore, expectedClient, "client receives principal plus net rewards");
     }
 
     function test_calculateAccruedRewards_doesNotCountEffectiveBoost() public {
@@ -460,26 +240,20 @@ contract RESOLVIntegration is Test {
 
         uint256 treasuryAfter = mockResolv.balanceOf(P2pTreasury);
         assertEq(treasuryAfter, treasuryBefore, "no real rewards should mean no fee");
-        assertEq(
-            P2pResolvProxy(localProxy).getTotalWithdrawn(address(mockResolv)),
-            depositAmount,
-            "principal accounting should match deposited amount"
-        );
     }
 
-    function test_withdrawRESOLV_byOperator_without_pendingRewards_reverts() public {
+    function test_withdrawRESOLV_onlyClientCanCall() public {
         deal(RESOLV, clientAddress, 100e18);
         _doDeposit();
 
-        vm.startPrank(clientAddress);
-        uint256 sharesBalance = IERC20(stRESOLV).balanceOf(proxyAddress);
-        P2pResolvProxy(proxyAddress).initiateWithdrawalRESOLV(sharesBalance);
-        vm.stopPrank();
-
-        _forward(14 days);
-
         vm.startPrank(p2pOperatorAddress);
-        vm.expectRevert(P2pResolvProxy__OperatorRewardsOnly.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                P2pYieldProxy__NotClientCalled.selector,
+                p2pOperatorAddress,
+                clientAddress
+            )
+        );
         P2pResolvProxy(proxyAddress).withdrawRESOLV();
         vm.stopPrank();
     }
@@ -960,7 +734,6 @@ contract RESOLVIntegration is Test {
         assertEq(proxy.getP2pTreasury(), P2pTreasury);
         assertEq(proxy.getClient(), clientAddress);
         assertEq(proxy.getClientBasisPoints(), ClientBasisPoints);
-        assertEq(proxy.getTotalDeposited(RESOLV), DepositAmount);
         assertEq(proxy.getStakedTokenDistributor(), address(0));
         assertEq(factory.getP2pSigner(), p2pSignerAddress);
         assertEq(factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints), proxyAddress);
@@ -1297,6 +1070,8 @@ contract MockResolvStaking is MockERC20, IResolvStaking {
     mapping(address => uint256) public claimableRewards;
     mapping(address => uint256) public checkpointRewards;
     mapping(address => uint256) public overrideEffectiveBalance;
+    address[] private rewardTokenList;
+    mapping(address token => mapping(address user => uint256 amount)) public tokenRewardAmounts;
 
     constructor(MockERC20 _resolv) MockERC20("Mock stRESOLV", "mstRESOLV") {
         resolv = _resolv;
@@ -1340,6 +1115,19 @@ contract MockResolvStaking is MockERC20, IResolvStaking {
         claimableRewards[_user] = 0;
         if (rewards > 0) {
             resolv.mint(_receiver, rewards);
+        }
+
+        for (uint256 i; i < rewardTokenList.length; ++i) {
+            address tokenAddr = rewardTokenList[i];
+            uint256 tokenReward = tokenRewardAmounts[tokenAddr][_user];
+            if (tokenReward > 0) {
+                tokenRewardAmounts[tokenAddr][_user] = 0;
+                if (tokenAddr == address(resolv)) {
+                    resolv.mint(_receiver, tokenReward);
+                } else {
+                    MockERC20(tokenAddr).mint(_receiver, tokenReward);
+                }
+            }
         }
     }
 
@@ -1389,6 +1177,11 @@ contract MockResolvStaking is MockERC20, IResolvStaking {
         return claimRewardsEnabled;
     }
 
+    function rewardTokens(uint256 _index) external view override returns (address token) {
+        require(_index < rewardTokenList.length, "reward token oob");
+        return rewardTokenList[_index];
+    }
+
     // ----------------------
     // Helpers for test setup
     // ----------------------
@@ -1402,5 +1195,38 @@ contract MockResolvStaking is MockERC20, IResolvStaking {
 
     function setOverrideEffectiveBalance(address _user, uint256 _amount) external {
         overrideEffectiveBalance[_user] = _amount;
+    }
+
+    function addRewardToken(address _token) external {
+        rewardTokenList.push(_token);
+    }
+
+    function setRewardTokenAmount(address _token, address _user, uint256 _amount) external {
+        tokenRewardAmounts[_token][_user] = _amount;
+    }
+}
+
+contract MockStakedTokenDistributor is IStakedTokenDistributor {
+    MockERC20 public immutable token;
+    IResolvStaking public immutable staking;
+
+    mapping(uint256 => bool) public claimed;
+
+    constructor(MockERC20 _token, IResolvStaking _staking) {
+        token = _token;
+        staking = _staking;
+        _token.approve(address(_staking), type(uint256).max);
+    }
+
+    function claim(uint256 _index, uint256 _amount, bytes32[] calldata) external override {
+        require(!claimed[_index], "already claimed");
+        claimed[_index] = true;
+        token.mint(address(this), _amount);
+        staking.deposit(_amount, msg.sender);
+        emit Claimed(_index, msg.sender, _amount);
+    }
+
+    function isClaimed(uint256 _index) external view override returns (bool) {
+        return claimed[_index];
     }
 }

@@ -31,6 +31,9 @@ interface IP2pResolvProxy {
     )
     external;
 
+    /// @notice Claims accrued reward tokens directly from ResolvStaking and splits them per the fee schedule.
+    function claimRewardTokens() external;
+
     function setStakedTokenDistributor(address _stakedTokenDistributor) external;
 
     function getStakedTokenDistributor() external view returns (address);
@@ -38,6 +41,30 @@ interface IP2pResolvProxy {
     /// @notice Emitted when rewards are claimed from the distributor.
     /// @param _amount Amount of rewards paid out for the claim.
     event P2pResolvProxy__Claimed(uint256 _amount);
+
+    /// @notice Emitted when staking reward tokens are claimed and split.
+    /// @param token Reward token address.
+    /// @param amount Total reward amount claimed for `token`.
+    /// @param p2pAmount Portion forwarded to the P2P treasury.
+    /// @param clientAmount Portion forwarded to the client.
+    event P2pResolvProxy__RewardTokensClaimed(
+        address indexed token,
+        uint256 amount,
+        uint256 p2pAmount,
+        uint256 clientAmount
+    );
+
+    /// @notice Emitted when a claimed airdrop withdrawal is processed and distributed.
+    /// @param rewardAmount Amount treated as distributor rewards.
+    /// @param p2pAmount Portion of the reward sent to the treasury.
+    /// @param clientAmount Portion of the reward sent to the client.
+    /// @param principalForwarded The principal portion released to the client.
+    event P2pResolvProxy__DistributorRewardsReleased(
+        uint256 rewardAmount,
+        uint256 p2pAmount,
+        uint256 clientAmount,
+        uint256 principalForwarded
+    );
 
     /// @notice Sweeps accumulated reward tokens from the proxy to the client.
     /// @param _token Address of the ERC-20 token to sweep.

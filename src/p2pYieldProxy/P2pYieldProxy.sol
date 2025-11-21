@@ -275,12 +275,12 @@ abstract contract P2pYieldProxy is
                     profitPortion = 0;
                 }
             } else {
-            principalPortion = remainingAfterAccrued > remainingPrincipal
-                ? remainingPrincipal
-                : remainingAfterAccrued;
+                principalPortion = remainingAfterAccrued > remainingPrincipal
+                    ? remainingPrincipal
+                    : remainingAfterAccrued;
 
-            uint256 extraProfit = remainingAfterAccrued - principalPortion;
-            profitPortion = profitFromAccrued + extraProfit;
+                uint256 extraProfit = remainingAfterAccrued - principalPortion;
+                profitPortion = profitFromAccrued + extraProfit;
             }
         }
 
