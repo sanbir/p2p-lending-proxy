@@ -55,12 +55,14 @@ interface IP2pResolvProxy {
     );
 
     /// @notice Emitted when a claimed airdrop withdrawal is processed and distributed.
-    /// @param rewardAmount Amount treated as distributor rewards.
+    /// @param expectedRewardAmount The tracked pending reward amount from the distributor.
+    /// @param actualRewardAmount Actual RESOLV amount received in the withdrawal.
     /// @param p2pAmount Portion of the reward sent to the treasury.
     /// @param clientAmount Portion of the reward sent to the client.
     /// @param principalForwarded The principal portion released to the client.
     event P2pResolvProxy__DistributorRewardsReleased(
-        uint256 rewardAmount,
+        uint256 expectedRewardAmount,
+        uint256 actualRewardAmount,
         uint256 p2pAmount,
         uint256 clientAmount,
         uint256 principalForwarded

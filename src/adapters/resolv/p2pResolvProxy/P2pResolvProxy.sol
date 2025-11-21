@@ -18,7 +18,6 @@ error P2pResolvProxy__ZeroAccruedRewards();
 error P2pResolvProxy__UnsupportedAsset(address _asset);
 error P2pResolvProxy__ZeroAddressStakedTokenDistributor();
 error P2pResolvProxy__CannotSweepProtectedToken(address _token);
-error P2pResolvProxy__DistributorRewardsShortfall(uint256 expected, uint256 actual);
 error P2pResolvProxy__RewardTokenLookupFailed(uint256 index);
 
 contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
@@ -172,14 +171,10 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         uint256 balanceAfter = resolvToken.balanceOf(address(this));
         uint256 delta = balanceAfter - balanceBefore;
 
-        if (delta < pendingReward) {
-            revert P2pResolvProxy__DistributorRewardsShortfall(pendingReward, delta);
-        }
-
         s_pendingResolvRewardFromStakedTokenDistributor = 0;
-
-        uint256 rewardPortion = pendingReward;
-        uint256 principalPortion = delta - rewardPortion;
+        uint256 expectedReward = pendingReward;
+        uint256 principalPortion = delta > expectedReward ? delta - expectedReward : 0;
+        uint256 rewardPortion = delta - principalPortion;
 
         uint256 p2pAmount = calculateP2pFeeAmount(rewardPortion);
         uint256 clientRewardAmount = rewardPortion - p2pAmount;
@@ -197,7 +192,8 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         }
 
         emit P2pResolvProxy__DistributorRewardsReleased(
-            rewardPortion,
+            expectedReward,
+            delta,
             p2pAmount,
             clientRewardAmount,
             principalPortion
