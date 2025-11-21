@@ -428,6 +428,45 @@ contract RESOLVIntegration is Test {
         vm.clearMockedCalls();
     }
 
+    function test_calculateAccruedRewards_doesNotCountEffectiveBoost() public {
+        uint256 depositAmount = 10 ether;
+        (address localProxy, MockERC20 mockResolv, MockResolvStaking mockStResolv) =
+            _setupMockResolvEnvironment(depositAmount);
+        mockResolv.totalSupply(); // touch to silence unused variable warning
+
+        mockStResolv.setOverrideEffectiveBalance(localProxy, depositAmount * 2);
+
+        assertEq(
+            P2pResolvProxy(localProxy).calculateAccruedRewardsRESOLV(),
+            0,
+            "effective balance boost should not be treated as profit"
+        );
+    }
+
+    function test_withdrawRESOLV_noFeesWhenOnlyEffectiveBoost() public {
+        uint256 depositAmount = 8 ether;
+        (address localProxy, MockERC20 mockResolv, MockResolvStaking mockStResolv) =
+            _setupMockResolvEnvironment(depositAmount);
+
+        mockStResolv.setOverrideEffectiveBalance(localProxy, depositAmount * 3);
+
+        uint256 treasuryBefore = mockResolv.balanceOf(P2pTreasury);
+
+        vm.startPrank(clientAddress);
+        uint256 shares = IERC20(address(mockStResolv)).balanceOf(localProxy);
+        P2pResolvProxy(localProxy).initiateWithdrawalRESOLV(shares);
+        P2pResolvProxy(localProxy).withdrawRESOLV();
+        vm.stopPrank();
+
+        uint256 treasuryAfter = mockResolv.balanceOf(P2pTreasury);
+        assertEq(treasuryAfter, treasuryBefore, "no real rewards should mean no fee");
+        assertEq(
+            P2pResolvProxy(localProxy).getTotalWithdrawn(address(mockResolv)),
+            depositAmount,
+            "principal accounting should match deposited amount"
+        );
+    }
+
     function test_withdrawRESOLV_byOperator_without_pendingRewards_reverts() public {
         deal(RESOLV, clientAddress, 100e18);
         _doDeposit();
@@ -1090,6 +1129,51 @@ contract RESOLVIntegration is Test {
         vm.roll(block.number + blocks);
         vm.warp(block.timestamp + blocks * 13);
     }
+
+    function _setupMockResolvEnvironment(uint256 depositAmount)
+    private
+    returns (address proxyAddr, MockERC20 mockResolv, MockResolvStaking mockStResolv)
+    {
+        AllowedCalldataChecker checker = new AllowedCalldataChecker();
+        checker.initialize();
+
+        mockResolv = new MockERC20("RESOLV", "RESOLV");
+        MockERC20 mockUsr = new MockERC20("USR", "USR");
+        MockStUSR mockStUsr = new MockStUSR(mockUsr);
+        mockStResolv = new MockResolvStaking(mockResolv);
+
+        vm.startPrank(p2pOperatorAddress);
+        factory = new P2pResolvProxyFactory(
+            p2pSignerAddress,
+            P2pTreasury,
+            address(mockStUsr),
+            address(mockUsr),
+            address(mockStResolv),
+            address(mockResolv),
+            address(checker)
+        );
+        vm.stopPrank();
+
+        proxyAddr = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
+
+        mockResolv.mint(clientAddress, depositAmount);
+        bytes memory signature = _getP2pSignerSignature(
+            clientAddress,
+            ClientBasisPoints,
+            SigDeadline
+        );
+
+        vm.startPrank(clientAddress);
+        mockResolv.approve(proxyAddr, depositAmount);
+        factory.deposit(
+            address(mockResolv),
+            depositAmount,
+            ClientBasisPoints,
+            SigDeadline,
+            signature
+        );
+        vm.stopPrank();
+    }
 }
 
 contract MockERC20 is IERC20 {
@@ -1212,6 +1296,7 @@ contract MockResolvStaking is MockERC20, IResolvStaking {
     mapping(address => uint256) public pendingWithdrawals;
     mapping(address => uint256) public claimableRewards;
     mapping(address => uint256) public checkpointRewards;
+    mapping(address => uint256) public overrideEffectiveBalance;
 
     constructor(MockERC20 _resolv) MockERC20("Mock stRESOLV", "mstRESOLV") {
         resolv = _resolv;
@@ -1293,6 +1378,10 @@ contract MockResolvStaking is MockERC20, IResolvStaking {
     }
 
     function getUserEffectiveBalance(address _user) external view override returns (uint256 balance) {
+        uint256 custom = overrideEffectiveBalance[_user];
+        if (custom > 0) {
+            return custom;
+        }
         return balanceOf(_user);
     }
 
@@ -1309,5 +1398,9 @@ contract MockResolvStaking is MockERC20, IResolvStaking {
 
     function setClaimableRewards(address _user, uint256 _amount) external {
         claimableRewards[_user] = _amount;
+    }
+
+    function setOverrideEffectiveBalance(address _user, uint256 _amount) external {
+        overrideEffectiveBalance[_user] = _amount;
     }
 }

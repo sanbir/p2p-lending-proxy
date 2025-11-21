@@ -263,13 +263,13 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
 
     function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view override returns (uint256) {
         if (_asset == i_RESOLV) {
-            uint256 effectiveBalance = IResolvStaking(_yieldProtocolAddress).getUserEffectiveBalance(address(this));
+            uint256 stResolvBalance = IERC20(_yieldProtocolAddress).balanceOf(address(this));
             bool isClaimEnabled = IResolvStaking(_yieldProtocolAddress).claimEnabled();
             if (!isClaimEnabled) {
-                return effectiveBalance;
+                return stResolvBalance;
             }
             uint256 pendingClaimable = IResolvStaking(_yieldProtocolAddress).getUserClaimableAmounts(address(this), i_RESOLV);
-            return effectiveBalance + pendingClaimable;
+            return stResolvBalance + pendingClaimable;
         }
 
         if (_asset == i_USR) {
