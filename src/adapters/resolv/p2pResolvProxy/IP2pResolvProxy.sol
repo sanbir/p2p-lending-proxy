@@ -42,6 +42,10 @@ interface IP2pResolvProxy {
     /// @param _amount Amount of rewards paid out for the claim.
     event P2pResolvProxy__Claimed(uint256 _amount);
 
+    /// @notice Emitted when RESOLV is deposited into ResolvStaking via the proxy.
+    /// @param amount Amount of RESOLV deposited on behalf of the client.
+    event P2pResolvProxy__ResolvDeposited(uint256 amount);
+
     /// @notice Emitted when staking reward tokens are claimed and split.
     /// @param token Reward token address.
     /// @param amount Total reward amount claimed for `token`.

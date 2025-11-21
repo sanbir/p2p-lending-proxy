@@ -340,13 +340,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
 
         resolvToken.safeIncreaseAllowance(i_stRESOLV, actualAmount);
         IResolvStaking(i_stRESOLV).deposit(actualAmount, address(this));
-
-        emit P2pYieldProxy__Deposited(
-            i_stRESOLV,
-            i_RESOLV,
-            actualAmount,
-            s_totalDeposited[i_RESOLV]
-        );
+        emit P2pResolvProxy__ResolvDeposited(actualAmount);
     }
 
     function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view override returns (uint256) {
