@@ -184,12 +184,9 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
             resolvToken.safeTransfer(i_p2pTreasury, p2pAmount);
         }
 
-        if (clientRewardAmount > 0) {
-            resolvToken.safeTransfer(s_client, clientRewardAmount);
-        }
-
-        if (principalPortion > 0) {
-            resolvToken.safeTransfer(s_client, principalPortion);
+        uint256 clientAmountToSend = clientRewardAmount + principalPortion;
+        if (clientAmountToSend > 0) {
+            resolvToken.safeTransfer(s_client, clientAmountToSend);
         }
 
         emit P2pResolvProxy__DistributorRewardsReleased(
@@ -224,10 +221,10 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         uint256 claimedShares = stResolv.balanceOf(address(this)) - sharesBefore;
         require(claimedShares > 0, P2pYieldProxy__ZeroAssetAmount());
 
-        IResolvStaking(i_stRESOLV).initiateWithdrawal(claimedShares);
         s_pendingResolvRewardFromStakedTokenDistributor += claimedShares;
-
         emit P2pResolvProxy__Claimed(claimedShares);
+
+        IResolvStaking(i_stRESOLV).initiateWithdrawal(claimedShares);
     }
 
     /// @inheritdoc IP2pResolvProxy
