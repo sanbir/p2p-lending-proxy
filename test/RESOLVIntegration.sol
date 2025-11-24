@@ -217,7 +217,7 @@ contract RESOLVIntegration is Test {
         mockStResolv.setOverrideEffectiveBalance(localProxy, depositAmount * 2);
 
         assertEq(
-            P2pResolvProxy(localProxy).calculateAccruedRewardsRESOLV(),
+            P2pResolvProxy(localProxy).calculateAccruedRewardsRESOLV(RESOLV),
             0,
             "effective balance boost should not be treated as profit"
         );

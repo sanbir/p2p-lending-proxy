@@ -307,9 +307,9 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         return calculateAccruedRewards(i_stUSR,i_USR);
     }
 
-    function calculateAccruedRewardsRESOLV() public view returns(int256) {
+    function calculateAccruedRewardsRESOLV(address _token) public view returns(int256) {
         return int256(
-            IResolvStaking(i_stRESOLV).getUserClaimableAmounts(address(this), i_RESOLV)
+            IResolvStaking(i_stRESOLV).getUserClaimableAmounts(address(this), _token)
         );
     }
 
@@ -340,16 +340,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     }
 
     function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view override returns (uint256) {
-        if (_asset == i_RESOLV) {
-            uint256 stResolvBalance = IERC20(_yieldProtocolAddress).balanceOf(address(this));
-            bool isClaimEnabled = IResolvStaking(_yieldProtocolAddress).claimEnabled();
-            if (!isClaimEnabled) {
-                return stResolvBalance;
-            }
-            uint256 pendingClaimable = IResolvStaking(_yieldProtocolAddress).getUserClaimableAmounts(address(this), i_RESOLV);
-            return stResolvBalance + pendingClaimable;
-        }
-
         if (_asset == i_USR) {
             return IERC20(_yieldProtocolAddress).balanceOf(address(this));
         }
