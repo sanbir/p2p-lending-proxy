@@ -233,14 +233,13 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         uint256 tokenCount = rewardTokens.length;
         uint256[] memory balancesBefore = new uint256[](tokenCount);
 
-        for (uint256 i; i < tokenCount; ) {
+        for (uint256 i; i < tokenCount; ++i) {
             balancesBefore[i] = IERC20(rewardTokens[i]).balanceOf(address(this));
-            unchecked { ++i; }
         }
 
         IResolvStaking(i_stRESOLV).claim(address(this), address(this));
 
-        for (uint256 i; i < tokenCount; ) {
+        for (uint256 i; i < tokenCount; ++i) {
             address tokenAddress = rewardTokens[i];
             IERC20 token = IERC20(tokenAddress);
             uint256 balanceAfter = token.balanceOf(address(this));
@@ -264,7 +263,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
                     clientAmount
                 );
             }
-            unchecked { ++i; }
         }
     }
 
