@@ -262,6 +262,14 @@ contract RESOLVIntegration is Test {
         assertGt(clientBalanceAfter, clientBalanceBefore, "operator should be able to finalize withdrawal");
     }
 
+    function test_rewardTokens_getter_matches_deployed_interface() public {
+        address firstRewardToken = IResolvStaking(stRESOLV).rewardTokens(0);
+        assertEq(firstRewardToken, RESOLV, "unexpected reward token at index 0");
+
+        vm.expectRevert();
+        IResolvStaking(stRESOLV).rewardTokens(1);
+    }
+
     function test_sweepRewardToken_byClient_Mainnet_RESOLV() public {
         deal(RESOLV, clientAddress, 1000e18);
         _doDeposit();
