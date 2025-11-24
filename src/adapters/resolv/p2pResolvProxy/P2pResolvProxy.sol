@@ -304,7 +304,9 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     }
 
     function calculateAccruedRewardsUSR() public view returns(int256) {
-        return calculateAccruedRewards(i_stUSR,i_USR);
+        uint256 currentAmount = IERC20(i_stUSR).balanceOf(address(this));
+        uint256 userPrincipal = getUserPrincipal(i_USR);
+        return int256(currentAmount) - int256(userPrincipal);
     }
 
     function calculateAccruedRewardsRESOLV(address _token) public view returns(int256) {
