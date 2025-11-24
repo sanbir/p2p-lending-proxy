@@ -349,10 +349,6 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         revert P2pResolvProxy__UnsupportedAsset(_asset);
     }
 
-    function _getPendingProfitCredit(address) internal pure override returns (uint256) {
-        return 0;
-    }
-
     function _getRewardTokens() internal view returns (address[] memory tokens) {
         IResolvStaking staking = IResolvStaking(i_stRESOLV);
         tokens = new address[](4); // start small; will expand as needed
