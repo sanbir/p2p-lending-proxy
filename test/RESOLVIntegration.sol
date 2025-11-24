@@ -24,6 +24,12 @@ contract RESOLVIntegration is Test {
 
     event P2pResolvProxy__StakedTokenDistributorUpdated(address indexed previousStakedTokenDistributor, address indexed newStakedTokenDistributor);
     event P2pResolvProxy__RewardTokenSwept(address indexed token, uint256 amount);
+    event P2pResolvProxy__RewardTokensClaimed(
+        address indexed token,
+        uint256 amount,
+        uint256 p2pAmount,
+        uint256 clientAmount
+    );
 
     address constant USR = 0x66a1E37c9b0eAddca17d3662D6c05F4DECf3e110;
     address constant stUSR = 0x6c8984bc7DBBeDAf4F6b2FD766f16eBB7d10AAb4;
@@ -206,6 +212,92 @@ contract RESOLVIntegration is Test {
 
         assertEq(treasuryAfter - treasuryBefore, expectedFee, "treasury should only fee rewards");
         assertEq(clientAfter - clientBefore, expectedClient, "client receives principal plus net rewards");
+    }
+
+    function test_mainnet_claimRewardTokens_for_known_proxy_address() public {
+        address knownProxy = 0x3F888f4E16a08C6B3745dDbaDe98e24569852FA4;
+
+        uint256 beforeBal = IERC20(RESOLV).balanceOf(knownProxy);
+        uint256 claimable = IResolvStaking(stRESOLV).getUserClaimableAmounts(knownProxy, RESOLV);
+
+        vm.prank(knownProxy);
+        IResolvStaking(stRESOLV).claim(knownProxy, knownProxy);
+
+        uint256 afterBal = IERC20(RESOLV).balanceOf(knownProxy);
+
+        assertEq(afterBal - beforeBal, claimable, "claim delta should match claimable");
+        if (claimable > 0) {
+            assertGt(afterBal, beforeBal, "expected RESOLV rewards transferred");
+        }
+    }
+
+    function test_claimRewardTokens_via_proxy() public {
+        deal(RESOLV, clientAddress, DepositAmount);
+        _doDeposit();
+
+        uint256 claimable = IResolvStaking(stRESOLV).getUserClaimableAmounts(proxyAddress, RESOLV);
+        uint256 beforeBal = IERC20(RESOLV).balanceOf(proxyAddress);
+
+        vm.prank(p2pOperatorAddress);
+        P2pResolvProxy(proxyAddress).claimRewardTokens();
+
+        uint256 afterBal = IERC20(RESOLV).balanceOf(proxyAddress);
+
+        assertEq(afterBal - beforeBal, claimable, "proxy RESOLV delta should match claimable");
+        if (claimable > 0) {
+            assertGt(afterBal, beforeBal, "proxy should receive rewards");
+        }
+    }
+
+    function test_claimRewardTokens_via_etched_proxy() public {
+        vm.createSelectFork("mainnet", 23_866_064);
+        // Use the known mainnet stRESOLV and a real proxy address that may have rewards
+        address knownProxy = 0x3F888f4E16a08C6B3745dDbaDe98e24569852FA4;
+
+        // Deploy a fresh proxy to extract runtime code with correct immutables
+        AllowedCalldataChecker checker = new AllowedCalldataChecker();
+        checker.initialize();
+
+        P2pResolvProxy fresh = new P2pResolvProxy(
+            address(this),
+            P2pTreasury,
+            address(checker),
+            stUSR,
+            USR,
+            stRESOLV,
+            RESOLV
+        );
+
+        // Replace code at known proxy address
+        vm.etch(knownProxy, address(fresh).code);
+
+        // Initialize storage so modifiers pass and fee math works
+        vm.prank(address(this));
+        P2pResolvProxy(knownProxy).initialize(clientAddress, ClientBasisPoints);
+
+        vm.prank(knownProxy);
+        IResolvStaking(stRESOLV).updateCheckpoint(knownProxy);
+
+        uint256 claimable = IResolvStaking(stRESOLV).getUserClaimableAmounts(knownProxy, RESOLV);
+        require(claimable > 0, "no claimable rewards at fork block");
+        uint256 clientBefore = IERC20(RESOLV).balanceOf(clientAddress);
+        uint256 treasuryBefore = IERC20(RESOLV).balanceOf(P2pTreasury);
+
+        uint256 expectedP2p = (claimable * (10_000 - ClientBasisPoints) + 9999) / 10_000;
+        uint256 expectedClient = claimable - expectedP2p;
+        vm.expectEmit(true, false, false, true, knownProxy);
+        emit P2pResolvProxy__RewardTokensClaimed(RESOLV, claimable, expectedP2p, expectedClient);
+
+        vm.prank(clientAddress);
+        P2pResolvProxy(knownProxy).claimRewardTokens();
+
+        uint256 clientAfter = IERC20(RESOLV).balanceOf(clientAddress);
+        uint256 treasuryAfter = IERC20(RESOLV).balanceOf(P2pTreasury);
+
+        assertEq(clientAfter + treasuryAfter - clientBefore - treasuryBefore, claimable, "claimed amount mismatch");
+        if (claimable > 0) {
+            assertGt(clientAfter, clientBefore, "client should receive rewards");
+        }
     }
 
     function test_calculateAccruedRewards_doesNotCountEffectiveBoost() public {
