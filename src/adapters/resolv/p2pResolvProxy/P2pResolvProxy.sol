@@ -365,24 +365,27 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
 
     function _getRewardTokens() internal view returns (address[] memory tokens) {
         IResolvStaking staking = IResolvStaking(i_stRESOLV);
+        tokens = new address[](4); // start small; will expand as needed
         uint256 count;
 
         while (true) {
-            try staking.rewardTokens(count) returns (address) {
-                unchecked { ++count; }
+            try staking.rewardTokens(count) returns (address token) {
+                if (count == tokens.length) {
+                    address[] memory expanded = new address[](tokens.length * 2);
+                    for (uint256 j; j < tokens.length; ++j) {
+                        expanded[j] = tokens[j];
+                    }
+                    tokens = expanded;
+                }
+                tokens[count] = token;
+                ++count;
             } catch {
                 break;
             }
         }
 
-        tokens = new address[](count);
-        for (uint256 i; i < count; ) {
-            try staking.rewardTokens(i) returns (address token) {
-                tokens[i] = token;
-            } catch {
-                revert P2pResolvProxy__RewardTokenLookupFailed(i);
-            }
-            unchecked { ++i; }
+        assembly {
+            mstore(tokens, count)
         }
     }
 
