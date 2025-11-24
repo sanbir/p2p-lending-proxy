@@ -18,7 +18,7 @@ error P2pResolvProxy__ZeroAccruedRewards();
 error P2pResolvProxy__UnsupportedAsset(address _asset);
 error P2pResolvProxy__ZeroAddressStakedTokenDistributor();
 error P2pResolvProxy__CannotSweepProtectedToken(address _token);
-error P2pResolvProxy__OperatorRewardsOnly();
+error P2pResolvProxy__RewardTokenLookupFailed(uint256 index);
 
 contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     using SafeERC20 for IERC20;
@@ -37,8 +37,8 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
 
     IStakedTokenDistributor private s_stakedTokenDistributor;
 
-    // Tracks pre-accounted rewards per asset to treat upcoming withdrawals as profit (used for Resolv operator reward flows).
-    mapping(address => uint256) private s_pendingProfitCredit;
+    // Tracks pending RESOLV rewards that arrived via StakedTokenDistributor claims.
+    uint256 private s_pendingResolvRewardFromStakedTokenDistributor;
 
     /// @dev Throws if called by any account other than the P2pOperator.
     modifier onlyP2pOperator() {
@@ -84,7 +84,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function deposit(address _asset, uint256 _amount) external override {
+    function deposit(address _asset, uint256 _amount) external override onlyFactory {
         if (_asset == i_USR) {
             _deposit(
                 i_stUSR,
@@ -93,12 +93,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
                 _amount
             );
         } else if (_asset == i_RESOLV) {
-            _deposit(
-                i_stRESOLV,
-                abi.encodeWithSelector(IResolvStaking.deposit.selector, _amount, address(this)),
-                i_RESOLV,
-                _amount
-            );
+            _depositResolv(_amount);
         } else {
             revert P2pResolvProxy__AssetNotSupported(_asset);
         }
@@ -156,34 +151,50 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         return IResolvStaking(i_stRESOLV).initiateWithdrawal(_amount);
     }
 
-    function initiateWithdrawalRESOLVAccruedRewards()
-    external
-    onlyP2pOperator {
-        int256 amount = calculateAccruedRewardsRESOLV();
-        require (amount > 0, P2pResolvProxy__ZeroAccruedRewards());
-        uint256 stResolvBalance = IERC20(i_stRESOLV).balanceOf(address(this));
-        uint256 withdrawAmount = uint256(amount) > stResolvBalance ? stResolvBalance : uint256(amount);
-        uint256 claimable = IResolvStaking(i_stRESOLV).getUserClaimableAmounts(address(this), i_RESOLV);
-        s_pendingProfitCredit[i_RESOLV] = claimable;
-        return IResolvStaking(i_stRESOLV).initiateWithdrawal(withdrawAmount);
-    }
-
     /// @inheritdoc IP2pResolvProxy
     function withdrawRESOLV()
     external
-    onlyClientOrP2pOperator {
-        bool isEnabled = IResolvStaking(i_stRESOLV).claimEnabled();
-        bool isP2pOperator = msg.sender != s_client;
+    onlyClientOrP2pOperator
+    nonReentrant
+    {
+        IResolvStaking staking = IResolvStaking(i_stRESOLV);
+        uint256 pendingReward = s_pendingResolvRewardFromStakedTokenDistributor;
 
-        if (isP2pOperator && s_pendingProfitCredit[i_RESOLV] == 0) {
-            revert P2pResolvProxy__OperatorRewardsOnly();
+        if (pendingReward == 0) {
+            staking.withdraw(false, s_client);
+            emit P2pResolvProxy__ResolvPrincipalWithdrawal(msg.sender);
+            return;
         }
 
-        _withdraw(
-            i_stRESOLV,
-            i_RESOLV,
-            abi.encodeWithSelector(IResolvStaking.withdraw.selector, isEnabled, address(this)),
-            isP2pOperator
+        IERC20 resolvToken = IERC20(i_RESOLV);
+        uint256 balanceBefore = resolvToken.balanceOf(address(this));
+        staking.withdraw(false, address(this));
+        uint256 balanceAfter = resolvToken.balanceOf(address(this));
+        uint256 delta = balanceAfter - balanceBefore;
+
+        s_pendingResolvRewardFromStakedTokenDistributor = 0;
+        uint256 expectedReward = pendingReward;
+        uint256 principalPortion = delta > expectedReward ? delta - expectedReward : 0;
+        uint256 rewardPortion = delta - principalPortion;
+
+        uint256 p2pAmount = calculateP2pFeeAmount(rewardPortion);
+        uint256 clientRewardAmount = rewardPortion - p2pAmount;
+
+        if (p2pAmount > 0) {
+            resolvToken.safeTransfer(i_p2pTreasury, p2pAmount);
+        }
+
+        uint256 clientAmountToSend = clientRewardAmount + principalPortion;
+        if (clientAmountToSend > 0) {
+            resolvToken.safeTransfer(s_client, clientAmountToSend);
+        }
+
+        emit P2pResolvProxy__DistributorRewardsReleased(
+            expectedReward,
+            delta,
+            p2pAmount,
+            clientRewardAmount,
+            principalPortion
         );
     }
 
@@ -203,9 +214,56 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
             stakedTokenDistributor != address(0),
             P2pResolvProxy__ZeroAddressStakedTokenDistributor()
         );
-        IStakedTokenDistributor(stakedTokenDistributor).claim(_index, _amount, _merkleProof);
 
-        emit P2pResolvProxy__Claimed(_amount);
+        IERC20 stResolv = IERC20(i_stRESOLV);
+        uint256 sharesBefore = stResolv.balanceOf(address(this));
+        IStakedTokenDistributor(stakedTokenDistributor).claim(_index, _amount, _merkleProof);
+        uint256 claimedShares = stResolv.balanceOf(address(this)) - sharesBefore;
+        require(claimedShares > 0, P2pYieldProxy__ZeroAssetAmount());
+
+        s_pendingResolvRewardFromStakedTokenDistributor += claimedShares;
+        emit P2pResolvProxy__Claimed(claimedShares);
+
+        IResolvStaking(i_stRESOLV).initiateWithdrawal(claimedShares);
+    }
+
+    /// @inheritdoc IP2pResolvProxy
+    function claimRewardTokens() external onlyClientOrP2pOperator nonReentrant {
+        address[] memory rewardTokens = _getRewardTokens();
+        uint256 tokenCount = rewardTokens.length;
+        uint256[] memory balancesBefore = new uint256[](tokenCount);
+
+        for (uint256 i; i < tokenCount; ++i) {
+            balancesBefore[i] = IERC20(rewardTokens[i]).balanceOf(address(this));
+        }
+
+        IResolvStaking(i_stRESOLV).claim(address(this), address(this));
+
+        for (uint256 i; i < tokenCount; ++i) {
+            address tokenAddress = rewardTokens[i];
+            IERC20 token = IERC20(tokenAddress);
+            uint256 balanceAfter = token.balanceOf(address(this));
+            uint256 delta = balanceAfter - balancesBefore[i];
+            if (delta > 0) {
+                uint256 p2pAmount = calculateP2pFeeAmount(delta);
+                uint256 clientAmount = delta - p2pAmount;
+
+                if (p2pAmount > 0) {
+                    token.safeTransfer(i_p2pTreasury, p2pAmount);
+                }
+
+                if (clientAmount > 0) {
+                    token.safeTransfer(s_client, clientAmount);
+                }
+
+                emit P2pResolvProxy__RewardTokensClaimed(
+                    tokenAddress,
+                    delta,
+                    p2pAmount,
+                    clientAmount
+                );
+            }
+        }
     }
 
     /// @inheritdoc IP2pResolvProxy
@@ -242,15 +300,19 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     }
 
     function getUserPrincipalRESOLV() public view returns(uint256) {
-        return getUserPrincipal(i_RESOLV);
+        return IERC20(i_stRESOLV).balanceOf(address(this));
     }
 
     function calculateAccruedRewardsUSR() public view returns(int256) {
-        return calculateAccruedRewards(i_stUSR,i_USR);
+        uint256 currentAmount = IERC20(i_stUSR).balanceOf(address(this));
+        uint256 userPrincipal = getUserPrincipal(i_USR);
+        return int256(currentAmount) - int256(userPrincipal);
     }
 
-    function calculateAccruedRewardsRESOLV() public view returns(int256) {
-        return calculateAccruedRewards(i_stRESOLV,i_RESOLV);
+    function calculateAccruedRewardsRESOLV(address _token) public view returns(int256) {
+        return int256(
+            IResolvStaking(i_stRESOLV).getUserClaimableAmounts(address(this), _token)
+        );
     }
 
     function getLastFeeCollectionTimeUSR() public view returns(uint48) {
@@ -261,17 +323,25 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         return getLastFeeCollectionTime(i_RESOLV);
     }
 
-    function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view override returns (uint256) {
-        if (_asset == i_RESOLV) {
-            uint256 stResolvBalance = IERC20(_yieldProtocolAddress).balanceOf(address(this));
-            bool isClaimEnabled = IResolvStaking(_yieldProtocolAddress).claimEnabled();
-            if (!isClaimEnabled) {
-                return stResolvBalance;
-            }
-            uint256 pendingClaimable = IResolvStaking(_yieldProtocolAddress).getUserClaimableAmounts(address(this), i_RESOLV);
-            return stResolvBalance + pendingClaimable;
-        }
+    function _depositResolv(uint256 _amount) internal {
+        require(_amount > 0, P2pYieldProxy__ZeroAssetAmount());
 
+        IERC20 resolvToken = IERC20(i_RESOLV);
+        uint256 balanceBefore = resolvToken.balanceOf(address(this));
+        resolvToken.safeTransferFrom(s_client, address(this), _amount);
+        uint256 actualAmount = resolvToken.balanceOf(address(this)) - balanceBefore;
+
+        require(
+            actualAmount == _amount,
+            P2pYieldProxy__DifferentActuallyDepositedAmount(_amount, actualAmount)
+        );
+
+        resolvToken.safeIncreaseAllowance(i_stRESOLV, actualAmount);
+        IResolvStaking(i_stRESOLV).deposit(actualAmount, address(this));
+        emit P2pResolvProxy__ResolvDeposited(actualAmount);
+    }
+
+    function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view override returns (uint256) {
         if (_asset == i_USR) {
             return IERC20(_yieldProtocolAddress).balanceOf(address(this));
         }
@@ -279,12 +349,30 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         revert P2pResolvProxy__UnsupportedAsset(_asset);
     }
 
-    function _getPendingProfitCredit(address _asset) internal override returns (uint256) {
-        uint256 profit = s_pendingProfitCredit[_asset];
-        if (profit > 0) {
-            s_pendingProfitCredit[_asset] = 0;
+    function _getRewardTokens() internal view returns (address[] memory tokens) {
+        IResolvStaking staking = IResolvStaking(i_stRESOLV);
+        tokens = new address[](4); // start small; will expand as needed
+        uint256 count;
+
+        while (true) {
+            try staking.rewardTokens(count) returns (address token) {
+                if (count == tokens.length) {
+                    address[] memory expanded = new address[](tokens.length * 2);
+                    for (uint256 j; j < tokens.length; ++j) {
+                        expanded[j] = tokens[j];
+                    }
+                    tokens = expanded;
+                }
+                tokens[count] = token;
+                ++count;
+            } catch {
+                break;
+            }
         }
-        return profit;
+
+        assembly {
+            mstore(tokens, count)
+        }
     }
 
     /// @inheritdoc ERC165

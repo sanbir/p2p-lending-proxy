@@ -40,4 +40,6 @@ interface IResolvStaking {
     function getUserEffectiveBalance(address _user) external view returns (uint256 balance);
 
     function claimEnabled() external view returns (bool isEnabled);
+
+    function rewardTokens(uint256 _index) external view returns (address token);
 }

@@ -242,8 +242,6 @@ abstract contract P2pYieldProxy is
             : 0;
         bool isClosingWithdrawal = isClient && withdrawn.amount + newAssetAmount >= s_totalDeposited[_asset];
 
-        uint256 creditedProfit = _getPendingProfitCredit(_asset);
-
         uint256 positiveAccruedRewards = accruedRewardsBefore > 0
             ? uint256(accruedRewardsBefore)
             : 0;
@@ -258,9 +256,7 @@ abstract contract P2pYieldProxy is
         uint256 profitPortion;
 
         if (_rewardsOnly) {
-            profitPortion = creditedProfit > 0
-                ? (creditedProfit > newAssetAmount ? newAssetAmount : creditedProfit)
-                : profitFromAccrued;
+            profitPortion = profitFromAccrued;
             uint256 remainingAfterProfit = newAssetAmount - profitPortion;
             principalPortion = remainingAfterProfit > remainingPrincipal
                 ? remainingPrincipal
@@ -275,12 +271,12 @@ abstract contract P2pYieldProxy is
                     profitPortion = 0;
                 }
             } else {
-            principalPortion = remainingAfterAccrued > remainingPrincipal
-                ? remainingPrincipal
-                : remainingAfterAccrued;
+                principalPortion = remainingAfterAccrued > remainingPrincipal
+                    ? remainingPrincipal
+                    : remainingAfterAccrued;
 
-            uint256 extraProfit = remainingAfterAccrued - principalPortion;
-            profitPortion = profitFromAccrued + extraProfit;
+                uint256 extraProfit = remainingAfterAccrued - principalPortion;
+                profitPortion = profitFromAccrued + extraProfit;
             }
         }
 
@@ -385,11 +381,6 @@ abstract contract P2pYieldProxy is
         uint256 userPrincipal = getUserPrincipal(_asset);
         return int256(currentAmount) - int256(userPrincipal);
     }
-
-    /// @dev Optional hook for adapters to surface pre-accounted rewards for next withdrawal
-    /// @param _asset asset address
-    /// @return pendingProfit amount to treat as profit
-    function _getPendingProfitCredit(address _asset) internal virtual returns (uint256);
 
     function _getCurrentAssetAmount(address _yieldProtocolAddress, address _asset) internal view virtual returns (uint256);
 
