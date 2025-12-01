@@ -374,7 +374,11 @@ abstract contract P2pYieldProxy is Initializable, ReentrancyGuardUpgradeable, ER
 
     /// @inheritdoc IP2pYieldProxy
     function calculateMinAmountToApproveForDeposit(uint256 _amountToDeposit) public view returns (uint256) {
-        return (_amountToDeposit * 10_000 + s_clientBasisPointsOfDeposit - 1) / s_clientBasisPointsOfDeposit;
+        uint48 clientBasisPointsOfDeposit = s_clientBasisPointsOfDeposit;
+        if (clientBasisPointsOfDeposit == 0) {
+            return _amountToDeposit;
+        }
+        return (_amountToDeposit * 10_000 + clientBasisPointsOfDeposit - 1) / clientBasisPointsOfDeposit;
     }
 
     /// @inheritdoc ERC165
@@ -386,7 +390,9 @@ abstract contract P2pYieldProxy is Initializable, ReentrancyGuardUpgradeable, ER
     /// @param _amount amount
     /// @return p2pFeeAmount p2p fee amount
     function calculateP2pFeeAmount(uint256 _amount) internal view returns (uint256 p2pFeeAmount) {
-        if (_amount == 0) return 0;
+        if (_amount == 0) {
+            return 0;
+        }
         p2pFeeAmount = (_amount * (10_000 - s_clientBasisPointsOfProfit) + 9999) / 10_000;
     }
 }
