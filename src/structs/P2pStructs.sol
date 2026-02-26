@@ -4,8 +4,8 @@
 pragma solidity 0.8.30;
 
 /// @dev 256 bit struct
-/// @member Amount
-/// @member lastFeeCollectionTime Last Fee Collection Time
+/// @custom:member amount Accumulated withdrawn amount
+/// @custom:member lastFeeCollectionTime Last fee collection timestamp
 struct Withdrawn {
     uint208 amount;
     uint48 lastFeeCollectionTime;

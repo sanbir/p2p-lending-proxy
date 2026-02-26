@@ -84,4 +84,20 @@ interface IP2pYieldProxy is IERC165 {
     /// @param _asset The asset address
     /// @return The total withdrawn
     function getTotalWithdrawn(address _asset) external view returns (uint256);
+
+    /// @notice Computes the user principal remaining for a given asset
+    /// @param _asset The ERC-20 asset address
+    /// @return The amount of principal that is still outstanding for the client
+    function getUserPrincipal(address _asset) external view returns (uint256);
+
+    /// @notice Calculates accrued rewards for a vault and asset pair
+    /// @param _yieldProtocolAddress The address of the yield-bearing vault token
+    /// @param _asset The ERC-20 asset backing the vault
+    /// @return The signed amount of accrued rewards (positive for profit, negative for loss)
+    function calculateAccruedRewards(address _yieldProtocolAddress, address _asset) external view returns (int256);
+
+    /// @notice Returns the timestamp of the last fee collection for an asset
+    /// @param _asset The ERC-20 asset address
+    /// @return The timestamp of the last fee collection
+    function getLastFeeCollectionTime(address _asset) external view returns (uint48);
 }

@@ -84,7 +84,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function deposit(address _asset, uint256 _amount) external override onlyFactory {
+    function deposit(address _asset, uint256 _amount) external override(IP2pYieldProxy, P2pYieldProxy) onlyFactory {
         if (_asset == i_USR) {
             _deposit(
                 i_stUSR,
@@ -376,7 +376,7 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     }
 
     /// @inheritdoc ERC165
-    function supportsInterface(bytes4 interfaceId) public view virtual override(P2pYieldProxy) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(P2pYieldProxy, IERC165) returns (bool) {
         return interfaceId == type(IP2pResolvProxy).interfaceId ||
             super.supportsInterface(interfaceId);
     }
