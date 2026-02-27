@@ -166,28 +166,19 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
             return;
         }
 
-        IERC20 resolvToken = IERC20(i_RESOLV);
-        uint256 balanceBefore = resolvToken.balanceOf(address(this));
-        staking.withdraw(false, address(this));
-        uint256 balanceAfter = resolvToken.balanceOf(address(this));
-        uint256 delta = balanceAfter - balanceBefore;
+        uint256 delta = _callAndGetDelta(
+            i_RESOLV,
+            i_stRESOLV,
+            abi.encodeCall(IResolvStaking.withdraw, (false, address(this)))
+        );
 
         s_pendingResolvRewardFromStakedTokenDistributor = 0;
         uint256 expectedReward = pendingReward;
         uint256 principalPortion = delta > expectedReward ? delta - expectedReward : 0;
         uint256 rewardPortion = delta - principalPortion;
 
-        uint256 p2pAmount = calculateP2pFeeAmount(rewardPortion);
-        uint256 clientRewardAmount = rewardPortion - p2pAmount;
-
-        if (p2pAmount > 0) {
-            resolvToken.safeTransfer(i_p2pTreasury, p2pAmount);
-        }
-
-        uint256 clientAmountToSend = clientRewardAmount + principalPortion;
-        if (clientAmountToSend > 0) {
-            resolvToken.safeTransfer(s_client, clientAmountToSend);
-        }
+        (uint256 p2pAmount, uint256 clientAmountToSend) = _distributeWithFeeBase(i_RESOLV, delta, rewardPortion);
+        uint256 clientRewardAmount = clientAmountToSend > principalPortion ? clientAmountToSend - principalPortion : 0;
 
         emit P2pResolvProxy__DistributorRewardsReleased(
             expectedReward,
@@ -241,20 +232,9 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
 
         for (uint256 i; i < tokenCount; ++i) {
             address tokenAddress = rewardTokens[i];
-            IERC20 token = IERC20(tokenAddress);
-            uint256 balanceAfter = token.balanceOf(address(this));
-            uint256 delta = balanceAfter - balancesBefore[i];
+            uint256 delta = IERC20(tokenAddress).balanceOf(address(this)) - balancesBefore[i];
             if (delta > 0) {
-                uint256 p2pAmount = calculateP2pFeeAmount(delta);
-                uint256 clientAmount = delta - p2pAmount;
-
-                if (p2pAmount > 0) {
-                    token.safeTransfer(i_p2pTreasury, p2pAmount);
-                }
-
-                if (clientAmount > 0) {
-                    token.safeTransfer(s_client, clientAmount);
-                }
+                (uint256 p2pAmount, uint256 clientAmount) = _distributeWithFeeBase(tokenAddress, delta, delta);
 
                 emit P2pResolvProxy__RewardTokensClaimed(
                     tokenAddress,

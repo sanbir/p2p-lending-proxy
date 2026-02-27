@@ -109,20 +109,14 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
         bytes[] memory dataForMulticall = new bytes[](1);
         dataForMulticall[0] = urdClaimCalldata;
 
-        uint256 assetAmountBefore = IERC20(_reward).balanceOf(address(this));
-        i_morphoBundler.multicall(dataForMulticall);
-        uint256 assetAmountAfter = IERC20(_reward).balanceOf(address(this));
-
-        uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
+        uint256 newAssetAmount = _callAndGetDelta(
+            _reward,
+            address(i_morphoBundler),
+            abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall))
+        );
         require(newAssetAmount > 0, P2pMorphoProxy__NothingClaimed());
 
-        uint256 p2pAmount = calculateP2pFeeAmount(newAssetAmount);
-        uint256 clientAmount = newAssetAmount - p2pAmount;
-
-        if (p2pAmount > 0) {
-            IERC20(_reward).safeTransfer(i_p2pTreasury, p2pAmount);
-        }
-        IERC20(_reward).safeTransfer(s_client, clientAmount);
+        (uint256 p2pAmount, uint256 clientAmount) = _distributeWithFeeBase(_reward, newAssetAmount, newAssetAmount);
 
         emit P2pMorphoProxy__ClaimedMorphoUrd(
             _distributor,
@@ -198,13 +192,11 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
 
             if (claimedAmount > 0) {
                 totalClaimed += claimedAmount;
-                uint256 p2pAmount = calculateP2pFeeAmount(claimedAmount);
-                uint256 clientAmount = claimedAmount - p2pAmount;
-
-                if (p2pAmount > 0) {
-                    IERC20(token).safeTransfer(i_p2pTreasury, p2pAmount);
-                }
-                IERC20(token).safeTransfer(s_client, clientAmount);
+                (uint256 p2pAmount, uint256 clientAmount) = _distributeWithFeeBase(
+                    token,
+                    claimedAmount,
+                    claimedAmount
+                );
 
                 emit P2pMorphoProxy__ClaimedMorphoMerkl(
                     _distributor,

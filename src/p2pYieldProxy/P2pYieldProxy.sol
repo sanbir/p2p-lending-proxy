@@ -279,9 +279,7 @@ abstract contract P2pYieldProxy is
         returns (uint256)
     {
         int256 accruedRewardsBefore = calculateAccruedRewards(_accrualTarget, _asset);
-        uint256 assetAmountBefore = IERC20(_asset).balanceOf(address(this));
-        _callTarget.functionCall(_yieldProtocolWithdrawalCalldata);
-        uint256 newAssetAmount = IERC20(_asset).balanceOf(address(this)) - assetAmountBefore;
+        uint256 newAssetAmount = _callAndGetDelta(_asset, _callTarget, _yieldProtocolWithdrawalCalldata);
 
         Withdrawn memory withdrawn = s_totalWithdrawn[_asset];
         (uint256 principalPortion, uint256 profitPortion) = _splitWithdrawalAmount(
@@ -358,14 +356,7 @@ abstract contract P2pYieldProxy is
         private
         returns (uint256 p2pAmount, uint256 clientAmount)
     {
-        // That extra 9999 ensures that any nonzero remainder will push the result up by 1 (ceiling division).
-        p2pAmount = calculateP2pFeeAmount(_profitPortion);
-        clientAmount = _newAssetAmount - p2pAmount;
-
-        if (p2pAmount > 0) {
-            IERC20(_asset).safeTransfer(i_p2pTreasury, p2pAmount);
-        }
-        IERC20(_asset).safeTransfer(s_client, clientAmount);
+        return _distributeWithFeeBase(_asset, _newAssetAmount, _profitPortion);
     }
 
     function _positivePart(int256 _value) private pure returns (uint256) {
@@ -383,6 +374,34 @@ abstract contract P2pYieldProxy is
     ) internal pure {
         uint256 maxAllowed = _positivePart(_accruedBefore) + _tolerance;
         require(_withdrawn <= maxAllowed, P2pYieldProxy__AmountExceedsAccrued(_withdrawn, maxAllowed));
+    }
+
+    function _callAndGetDelta(
+        address _asset,
+        address _target,
+        bytes memory _callData
+    ) internal returns (uint256 delta) {
+        uint256 beforeBalance = IERC20(_asset).balanceOf(address(this));
+        _target.functionCall(_callData);
+        delta = IERC20(_asset).balanceOf(address(this)) - beforeBalance;
+    }
+
+    function _distributeWithFeeBase(
+        address _asset,
+        uint256 _totalAmount,
+        uint256 _feeBaseAmount
+    ) internal returns (uint256 p2pAmount, uint256 clientAmount) {
+        // That extra 9999 ensures that any nonzero remainder will push the result up by 1 (ceiling division).
+        p2pAmount = calculateP2pFeeAmount(_feeBaseAmount);
+        clientAmount = _totalAmount - p2pAmount;
+
+        if (p2pAmount > 0) {
+            IERC20(_asset).safeTransfer(i_p2pTreasury, p2pAmount);
+        }
+
+        if (clientAmount > 0) {
+            IERC20(_asset).safeTransfer(s_client, clientAmount);
+        }
     }
 
     /// @inheritdoc IP2pYieldProxy
