@@ -5,126 +5,12 @@ pragma solidity 0.8.30;
 
 import "../../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../@openzeppelin/contracts/utils/Address.sol";
-import "../../common/AllowedCalldataChecker.sol";
-import "../../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "../../structs/P2pStructs.sol";
 import "../P2pYieldProxyErrors.sol";
 import "../IP2pYieldProxy.sol";
-import "../storage/P2pYieldProxyStorage.sol";
-
-abstract contract P2pYieldProxyFactoryCallable {
-    function _factoryRef() internal view virtual returns (IP2pYieldProxyFactory);
-
-    modifier onlyFactory() {
-        IP2pYieldProxyFactory factory = _factoryRef();
-        if (msg.sender != address(factory)) {
-            revert P2pYieldProxy__NotFactoryCalled(msg.sender, factory);
-        }
-        _;
-    }
-}
-
-abstract contract P2pYieldProxyClientCallable is P2pYieldProxyClientStorage {
-    modifier onlyClient() {
-        if (msg.sender != s_client) {
-            revert P2pYieldProxy__NotClientCalled(msg.sender, s_client);
-        }
-        _;
-    }
-}
-
-abstract contract P2pYieldProxyCalldataAllowed {
-    function _allowedCalldataCheckerRef() internal view virtual returns (IAllowedCalldataChecker);
-
-    modifier calldataShouldBeAllowed(
-        address _yieldProtocolAddress,
-        bytes calldata _yieldProtocolCalldata
-    ) {
-        bytes4 selector = _getFunctionSelector(_yieldProtocolCalldata);
-        _allowedCalldataCheckerRef().checkCalldata(
-            _yieldProtocolAddress,
-            selector,
-            _yieldProtocolCalldata[4:]
-        );
-        _;
-    }
-
-    function _getFunctionSelector(
-        bytes calldata _data
-    ) private pure returns (bytes4 functionSelector) {
-        require(_data.length >= 4, P2pYieldProxy__DataTooShort());
-        return bytes4(_data[:4]);
-    }
-}
-
-abstract contract P2pYieldProxyFeeMath is P2pYieldProxyClientBasisPointsStorage {
-    function calculateP2pFeeAmount(uint256 _amount) internal view returns (uint256 p2pFeeAmount) {
-        if (_amount == 0) return 0;
-        p2pFeeAmount = (_amount * (10_000 - s_clientBasisPoints) + 9999) / 10_000;
-    }
-}
-
-abstract contract P2pYieldProxyDepositable is
-    P2pYieldProxyFactoryCallable,
-    P2pYieldProxyTotalDepositedStorage,
-    P2pYieldProxyClientStorage
-{
-    using SafeERC20 for IERC20;
-    using Address for address;
-
-    function _deposit(
-        address _yieldProtocolAddress,
-        bytes memory _yieldProtocolDepositCalldata,
-        address _asset,
-        uint256 _amount
-    )
-        internal
-        onlyFactory
-    {
-        _deposit(
-            _yieldProtocolAddress,
-            _yieldProtocolAddress,
-            _yieldProtocolDepositCalldata,
-            _asset,
-            _amount,
-            false
-        );
-    }
-
-    function _deposit(
-        address _vault,
-        address _callTarget,
-        bytes memory _yieldProtocolDepositCalldata,
-        address _asset,
-        uint256 _amount,
-        bool _transferBeforeCall
-    ) internal onlyFactory {
-        require(_asset != address(0), P2pYieldProxy__ZeroAddressAsset());
-        require(_amount > 0, P2pYieldProxy__ZeroAssetAmount());
-
-        address client = s_client;
-        uint256 assetAmountBefore = IERC20(_asset).balanceOf(address(this));
-        IERC20(_asset).safeTransferFrom(client, address(this), _amount);
-        uint256 actualAmount = IERC20(_asset).balanceOf(address(this)) - assetAmountBefore;
-
-        require(
-            actualAmount == _amount,
-            P2pYieldProxy__DifferentActuallyDepositedAmount(_amount, actualAmount)
-        );
-
-        uint256 totalDepositedAfter = s_totalDeposited[_asset] + actualAmount;
-        s_totalDeposited[_asset] = totalDepositedAfter;
-        emit IP2pYieldProxy.P2pYieldProxy__Deposited(_vault, _asset, actualAmount, totalDepositedAfter);
-
-        if (_transferBeforeCall) {
-            IERC20(_asset).safeTransfer(_callTarget, actualAmount);
-        } else {
-            IERC20(_asset).safeIncreaseAllowance(_callTarget, actualAmount);
-        }
-
-        _callTarget.functionCall(_yieldProtocolDepositCalldata);
-    }
-}
+import "./P2pYieldProxyDepositable.sol";
+import "./P2pYieldProxyFeeMath.sol";
+import "../storage/P2pYieldProxyTotalWithdrawnStorage.sol";
 
 abstract contract P2pYieldProxyWithdrawable is
     P2pYieldProxyDepositable,
@@ -316,16 +202,4 @@ abstract contract P2pYieldProxyWithdrawable is
     }
 
     function _p2pTreasuryAddress() internal view virtual returns (address);
-}
-
-abstract contract P2pYieldProxyAnyFunctionExecutor is P2pYieldProxyClientCallable, P2pYieldProxyCalldataAllowed {
-    using Address for address;
-
-    function _callAnyFunction(
-        address _yieldProtocolAddress,
-        bytes calldata _yieldProtocolCalldata
-    ) internal {
-        emit IP2pYieldProxy.P2pYieldProxy__CalledAsAnyFunction(_yieldProtocolAddress);
-        _yieldProtocolAddress.functionCall(_yieldProtocolCalldata);
-    }
 }

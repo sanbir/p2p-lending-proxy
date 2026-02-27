@@ -10,7 +10,12 @@ import "../common/AllowedCalldataChecker.sol";
 import "../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "./IP2pYieldProxy.sol";
 import "./P2pYieldProxyErrors.sol";
-import "./features/P2pYieldProxyFeatures.sol";
+import "./features/P2pYieldProxyWithdrawable.sol";
+import "./features/P2pYieldProxyAnyFunctionExecutor.sol";
+import "./storage/P2pYieldProxyClientStorage.sol";
+import "./storage/P2pYieldProxyClientBasisPointsStorage.sol";
+import "./storage/P2pYieldProxyTotalDepositedStorage.sol";
+import "./storage/P2pYieldProxyTotalWithdrawnStorage.sol";
 
 /// @title P2pYieldProxy
 /// @notice P2pYieldProxy is a contract that allows a client to deposit and withdraw assets from a yield protocol.
