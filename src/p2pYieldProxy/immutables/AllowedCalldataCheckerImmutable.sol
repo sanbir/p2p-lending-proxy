@@ -13,8 +13,4 @@ abstract contract AllowedCalldataCheckerImmutable {
         require(_allowedCalldataChecker != address(0), P2pYieldProxy__ZeroAllowedCalldataChecker());
         i_allowedCalldataChecker = IAllowedCalldataChecker(_allowedCalldataChecker);
     }
-
-    function getAllowedCalldataCheckerImmutable() public view virtual returns (address) {
-        return address(i_allowedCalldataChecker);
-    }
 }

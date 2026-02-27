@@ -7,12 +7,4 @@ import "../../structs/P2pStructs.sol";
 
 abstract contract TotalWithdrawnStorage {
     mapping(address => Withdrawn) internal s_totalWithdrawn;
-
-    function getTotalWithdrawnStorage(address _asset) public view virtual returns (uint256) {
-        return s_totalWithdrawn[_asset].amount;
-    }
-
-    function getLastFeeCollectionTimeStorage(address _asset) public view virtual returns (uint48) {
-        return s_totalWithdrawn[_asset].lastFeeCollectionTime;
-    }
 }

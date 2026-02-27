@@ -107,8 +107,8 @@ abstract contract Withdrawable is
     }
 
     function _getUserPrincipal(address _asset) internal view returns (uint256) {
-        uint256 totalDeposited = getTotalDepositedStorage(_asset);
-        uint256 totalWithdrawn = getTotalWithdrawnStorage(_asset);
+        uint256 totalDeposited = s_totalDeposited[_asset];
+        uint256 totalWithdrawn = s_totalWithdrawn[_asset].amount;
         if (totalDeposited > totalWithdrawn) {
             return totalDeposited - totalWithdrawn;
         }

@@ -72,12 +72,22 @@ abstract contract P2pYieldProxy is
     function deposit(address _asset, uint256 _amount) external virtual;
 
     /// @inheritdoc IP2pYieldProxy
-    function getFactory() public view override returns (address) {
+    function getFactory()
+        public
+        view
+        override
+        returns (address)
+    {
         return address(i_factory);
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getP2pTreasury() public view override returns (address) {
+    function getP2pTreasury()
+        public
+        view
+        override
+        returns (address)
+    {
         return i_p2pTreasury;
     }
 
@@ -88,7 +98,7 @@ abstract contract P2pYieldProxy is
         override
         returns (address)
     {
-        return getClientStorage();
+        return s_client;
     }
 
     /// @inheritdoc IP2pYieldProxy
@@ -98,17 +108,27 @@ abstract contract P2pYieldProxy is
         override
         returns (uint96)
     {
-        return getClientBasisPointsStorage();
+        return s_clientBasisPoints;
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getTotalDeposited(address _asset) external view override returns (uint256) {
-        return getTotalDepositedStorage(_asset);
+    function getTotalDeposited(address _asset)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        return s_totalDeposited[_asset];
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getTotalWithdrawn(address _asset) external view override returns (uint256) {
-        return getTotalWithdrawnStorage(_asset);
+    function getTotalWithdrawn(address _asset)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        return s_totalWithdrawn[_asset].amount;
     }
 
     /// @inheritdoc IP2pYieldProxy
@@ -136,8 +156,13 @@ abstract contract P2pYieldProxy is
     }
 
     /// @inheritdoc IP2pYieldProxy
-    function getLastFeeCollectionTime(address _asset) public view override returns (uint48) {
-        return getLastFeeCollectionTimeStorage(_asset);
+    function getLastFeeCollectionTime(address _asset)
+        public
+        view
+        override
+        returns (uint48)
+    {
+        return s_totalWithdrawn[_asset].lastFeeCollectionTime;
     }
 
     function _getCurrentAssetAmount(address _yieldProtocolAddress, address) internal view virtual returns (uint256) {

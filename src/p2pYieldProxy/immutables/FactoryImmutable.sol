@@ -13,8 +13,4 @@ abstract contract FactoryImmutable {
         require(_factory != address(0), P2pYieldProxy__ZeroAddressFactory());
         i_factory = IP2pYieldProxyFactory(_factory);
     }
-
-    function getFactoryImmutable() public view virtual returns (address) {
-        return address(i_factory);
-    }
 }
