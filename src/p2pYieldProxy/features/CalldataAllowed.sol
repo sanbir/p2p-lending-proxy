@@ -7,14 +7,14 @@ import "../../common/AllowedCalldataChecker.sol";
 import "../P2pYieldProxyErrors.sol";
 
 abstract contract CalldataAllowed {
-    function _allowedCalldataCheckerRef() internal view virtual returns (IAllowedCalldataChecker);
+    function _allowedCalldataChecker() internal view virtual returns (IAllowedCalldataChecker);
 
     modifier calldataShouldBeAllowed(
         address _yieldProtocolAddress,
         bytes calldata _yieldProtocolCalldata
     ) {
         bytes4 selector = _getFunctionSelector(_yieldProtocolCalldata);
-        _allowedCalldataCheckerRef().checkCalldata(
+        _allowedCalldataChecker().checkCalldata(
             _yieldProtocolAddress,
             selector,
             _yieldProtocolCalldata[4:]

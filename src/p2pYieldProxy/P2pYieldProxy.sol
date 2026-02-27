@@ -32,17 +32,17 @@ abstract contract P2pYieldProxy is
     AnyFunctionExecutor
 {
     /// @notice Constructor for P2pYieldProxy
-    /// @param _factory The factory address
-    /// @param _p2pTreasury The P2pTreasury address
-    /// @param _allowedCalldataChecker AllowedCalldataChecker
+    /// @param _factoryAddress The factory address
+    /// @param _p2pTreasuryAddress_ The P2pTreasury address
+    /// @param _allowedCalldataCheckerAddress AllowedCalldataChecker
     constructor(
-        address _factory,
-        address _p2pTreasury,
-        address _allowedCalldataChecker
+        address _factoryAddress,
+        address _p2pTreasuryAddress_,
+        address _allowedCalldataCheckerAddress
     )
-        FactoryImmutable(_factory)
-        TreasuryImmutable(_p2pTreasury)
-        AllowedCalldataCheckerImmutable(_allowedCalldataChecker)
+        FactoryImmutable(_factoryAddress)
+        TreasuryImmutable(_p2pTreasuryAddress_)
+        AllowedCalldataCheckerImmutable(_allowedCalldataCheckerAddress)
     {}
 
     /// @inheritdoc IP2pYieldProxy
@@ -169,11 +169,11 @@ abstract contract P2pYieldProxy is
         return IERC20(_yieldProtocolAddress).balanceOf(address(this));
     }
 
-    function _factoryRef() internal view override returns (IP2pYieldProxyFactory) {
+    function _factory() internal view override returns (IP2pYieldProxyFactory) {
         return i_factory;
     }
 
-    function _allowedCalldataCheckerRef() internal view override returns (IAllowedCalldataChecker) {
+    function _allowedCalldataChecker() internal view override returns (IAllowedCalldataChecker) {
         return i_allowedCalldataChecker;
     }
 
