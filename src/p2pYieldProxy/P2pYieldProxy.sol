@@ -309,11 +309,9 @@ abstract contract P2pYieldProxy is
         uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
 
         Withdrawn memory withdrawn = s_totalWithdrawn[_asset];
-        bool isClient = msg.sender == s_client;
         uint256 remainingPrincipal = s_totalDeposited[_asset] > withdrawn.amount
             ? s_totalDeposited[_asset] - withdrawn.amount
             : 0;
-        bool isClosingWithdrawal = isClient && withdrawn.amount + newAssetAmount >= s_totalDeposited[_asset];
 
         uint256 positiveAccruedRewards = accruedRewardsBefore > 0
             ? uint256(accruedRewardsBefore)
@@ -323,11 +321,8 @@ abstract contract P2pYieldProxy is
             ? positiveAccruedRewards
             : newAssetAmount;
 
-        uint256 remainingAfterAccrued = newAssetAmount - profitFromAccrued;
-
         uint256 principalPortion;
         uint256 profitPortion;
-
         if (_rewardsOnly) {
             profitPortion = profitFromAccrued;
             uint256 remainingAfterProfit = newAssetAmount - profitPortion;
@@ -335,6 +330,7 @@ abstract contract P2pYieldProxy is
                 ? remainingPrincipal
                 : remainingAfterProfit;
         } else {
+            bool isClosingWithdrawal = withdrawn.amount + newAssetAmount >= s_totalDeposited[_asset] && msg.sender == s_client;
             if (isClosingWithdrawal) {
                 if (newAssetAmount > remainingPrincipal) {
                     principalPortion = remainingPrincipal;
@@ -344,6 +340,7 @@ abstract contract P2pYieldProxy is
                     profitPortion = 0;
                 }
             } else {
+                uint256 remainingAfterAccrued = newAssetAmount - profitFromAccrued;
                 principalPortion = remainingAfterAccrued > remainingPrincipal
                     ? remainingPrincipal
                     : remainingAfterAccrued;
