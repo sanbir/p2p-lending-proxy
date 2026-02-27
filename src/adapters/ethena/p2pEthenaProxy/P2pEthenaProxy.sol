@@ -217,6 +217,15 @@ contract P2pEthenaProxy is P2pYieldProxy, P2pOperatorCallable, IP2pEthenaProxy {
         return accrued > 0 ? uint256(accrued) : 0;
     }
 
+    function calculateAccruedRewards(address _yieldProtocolAddress, address _asset)
+        public
+        view
+        override(IP2pYieldProxy, P2pYieldProxy)
+        returns (int256)
+    {
+        return super.calculateAccruedRewards(_yieldProtocolAddress, _asset);
+    }
+
     function _getP2pOperator() internal view override returns (address) {
         return i_factory.getP2pOperator();
     }

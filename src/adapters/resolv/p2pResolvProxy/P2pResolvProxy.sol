@@ -288,6 +288,15 @@ contract P2pResolvProxy is P2pYieldProxy, P2pOperatorCallable, IP2pResolvProxy {
         );
     }
 
+    function calculateAccruedRewards(address _yieldProtocolAddress, address _asset)
+        public
+        view
+        override(IP2pYieldProxy, P2pYieldProxy)
+        returns (int256)
+    {
+        return super.calculateAccruedRewards(_yieldProtocolAddress, _asset);
+    }
+
     function getLastFeeCollectionTimeUSR() public view returns(uint48) {
         return getLastFeeCollectionTime(i_USR);
     }
