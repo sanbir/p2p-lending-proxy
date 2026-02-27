@@ -123,14 +123,14 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     function withdrawUSRAccruedRewards()
     external
     onlyP2pOperator {
-        int256 amount = calculateAccruedRewardsUSR();
-        require (amount > 0, P2pResolvProxy__ZeroAccruedRewards());
-        _withdraw(
+        int256 accruedBefore = calculateAccruedRewardsUSR();
+        require (accruedBefore > 0, P2pResolvProxy__ZeroAccruedRewards());
+        uint256 withdrawn = _withdraw(
             i_stUSR,
             i_USR,
-            abi.encodeWithSelector(IStUSR.withdraw.selector, amount),
-            true
+            abi.encodeWithSelector(IStUSR.withdraw.selector, uint256(accruedBefore))
         );
+        _requireWithdrawnWithinAccrued(withdrawn, accruedBefore, 0);
     }
 
     /// @inheritdoc IP2pResolvProxy

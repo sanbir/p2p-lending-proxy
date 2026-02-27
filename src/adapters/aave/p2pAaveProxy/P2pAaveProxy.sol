@@ -56,12 +56,13 @@ contract P2pAaveProxy is P2pYieldProxy, IP2pAaveProxy {
         require(_asset != address(0), P2pAaveProxy__ZeroAddressAsset());
         address aToken = getAToken(_asset);
 
-        int256 amount = calculateAccruedRewards(aToken, _asset);
-        require(amount > 0, P2pAaveProxy__ZeroAccruedRewards());
+        int256 accruedBefore = calculateAccruedRewards(aToken, _asset);
+        require(accruedBefore > 0, P2pAaveProxy__ZeroAccruedRewards());
 
         bytes memory withdrawCalldata =
-            abi.encodeCall(IAaveV3Pool.withdraw, (_asset, uint256(amount), address(this)));
-        _withdraw(aToken, _asset, address(i_aavePool), withdrawCalldata, 0);
+            abi.encodeCall(IAaveV3Pool.withdraw, (_asset, uint256(accruedBefore), address(this)));
+        uint256 withdrawn = _withdraw(aToken, _asset, address(i_aavePool), withdrawCalldata, 0);
+        _requireWithdrawnWithinAccrued(withdrawn, accruedBefore, 0);
     }
 
     function calculateAccruedRewards(address, address _asset)

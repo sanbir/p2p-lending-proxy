@@ -22,6 +22,7 @@ error P2pYieldProxy__DifferentActuallyDepositedAmount(
     uint256 _requestedAmount,
     uint256 _actualAmount
 );
+error P2pYieldProxy__AmountExceedsAccrued(uint256 _withdrawn, uint256 _maxAllowed);
 error P2pYieldProxy__NotFactoryCalled(
     address _msgSender,
     IP2pYieldProxyFactory _actualFactory
@@ -223,23 +224,6 @@ abstract contract P2pYieldProxy is
         bytes memory _yieldProtocolWithdrawalCalldata
     )
     internal
-    returns (uint256)
-    {
-        return _withdraw(_yieldProtocolAddress, _asset, _yieldProtocolWithdrawalCalldata, false);
-    }
-
-    /// @notice Withdraw assets from yield protocol
-    /// @param _yieldProtocolAddress yield protocol address
-    /// @param _asset ERC-20 asset address
-    /// @param _yieldProtocolWithdrawalCalldata calldata for withdraw function of yield protocol
-    /// @param _rewardsOnly if true, prioritize treating the withdrawal as profit (used by operator reward flows)
-    function _withdraw(
-        address _yieldProtocolAddress,
-        address _asset,
-        bytes memory _yieldProtocolWithdrawalCalldata,
-        bool _rewardsOnly
-    )
-    internal
     nonReentrant
     returns (uint256)
     {
@@ -249,8 +233,7 @@ abstract contract P2pYieldProxy is
             _yieldProtocolAddress,
             _asset,
             _yieldProtocolAddress,
-            _yieldProtocolWithdrawalCalldata,
-            _rewardsOnly
+            _yieldProtocolWithdrawalCalldata
         );
     }
 
@@ -280,8 +263,7 @@ abstract contract P2pYieldProxy is
             _vault,
             _asset,
             _callTarget,
-            _yieldProtocolWithdrawalCalldata,
-            false
+            _yieldProtocolWithdrawalCalldata
         );
     }
 
@@ -291,8 +273,7 @@ abstract contract P2pYieldProxy is
         address _eventVaultAddress,
         address _asset,
         address _callTarget,
-        bytes memory _yieldProtocolWithdrawalCalldata,
-        bool _rewardsOnly
+        bytes memory _yieldProtocolWithdrawalCalldata
     )
         private
         returns (uint256)
@@ -307,8 +288,7 @@ abstract contract P2pYieldProxy is
             newAssetAmount,
             s_totalDeposited[_asset],
             withdrawn.amount,
-            accruedRewardsBefore,
-            _rewardsOnly
+            accruedRewardsBefore
         );
 
         uint256 totalWithdrawnAfter = _updateWithdrawnState(_asset, withdrawn, principalPortion);
@@ -332,8 +312,7 @@ abstract contract P2pYieldProxy is
         uint256 _newAssetAmount,
         uint256 _totalDeposited,
         uint256 _withdrawnAmount,
-        int256 _accruedRewardsBefore,
-        bool _rewardsOnly
+        int256 _accruedRewardsBefore
     )
         private
         view
@@ -343,12 +322,6 @@ abstract contract P2pYieldProxy is
             ? _totalDeposited - _withdrawnAmount
             : 0;
         uint256 profitFromAccrued = _min(_newAssetAmount, _positivePart(_accruedRewardsBefore));
-
-        if (_rewardsOnly) {
-            profitPortion = profitFromAccrued;
-            principalPortion = _min(_newAssetAmount - profitPortion, remainingPrincipal);
-            return (principalPortion, profitPortion);
-        }
 
         bool isClient = msg.sender == s_client;
         bool isClosingWithdrawal = isClient && _withdrawnAmount + _newAssetAmount >= _totalDeposited;
@@ -401,6 +374,15 @@ abstract contract P2pYieldProxy is
 
     function _min(uint256 _a, uint256 _b) private pure returns (uint256) {
         return _a < _b ? _a : _b;
+    }
+
+    function _requireWithdrawnWithinAccrued(
+        uint256 _withdrawn,
+        int256 _accruedBefore,
+        uint256 _tolerance
+    ) internal pure {
+        uint256 maxAllowed = _positivePart(_accruedBefore) + _tolerance;
+        require(_withdrawn <= maxAllowed, P2pYieldProxy__AmountExceedsAccrued(_withdrawn, maxAllowed));
     }
 
     /// @inheritdoc IP2pYieldProxy

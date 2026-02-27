@@ -75,16 +75,17 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
         address asset = IERC4626(_vault).asset();
         require(asset != address(0), P2pMorphoProxy__VaultAssetNotSet(_vault));
 
-        int256 amount = calculateAccruedRewards(_vault, asset);
-        require(amount > 0, P2pMorphoProxy__ZeroAccruedRewards());
+        int256 accruedBefore = calculateAccruedRewards(_vault, asset);
+        require(accruedBefore > 0, P2pMorphoProxy__ZeroAccruedRewards());
 
-        uint256 shares = IERC4626(_vault).previewWithdraw(uint256(amount));
+        uint256 shares = IERC4626(_vault).previewWithdraw(uint256(accruedBefore));
         bytes[] memory dataForMulticall = new bytes[](1);
         dataForMulticall[0] = abi.encodeCall(
-            IMorphoBundler.erc4626Redeem, (_vault, shares, uint256(amount), address(this), address(this))
+            IMorphoBundler.erc4626Redeem, (_vault, shares, uint256(accruedBefore), address(this), address(this))
         );
         bytes memory redeemCalldata = abi.encodeCall(IMorphoBundler.multicall, (dataForMulticall));
-        _withdraw(_vault, asset, address(i_morphoBundler), redeemCalldata, shares);
+        uint256 withdrawn = _withdraw(_vault, asset, address(i_morphoBundler), redeemCalldata, shares);
+        _requireWithdrawnWithinAccrued(withdrawn, accruedBefore, 1);
     }
 
     /// @inheritdoc IP2pMorphoProxy
