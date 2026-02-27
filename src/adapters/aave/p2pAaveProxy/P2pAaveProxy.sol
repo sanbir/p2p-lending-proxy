@@ -5,6 +5,7 @@ pragma solidity 0.8.30;
 
 import "../../../interfaces/IAaveProtocolDataProvider.sol";
 import "../../../interfaces/IAaveV3Pool.sol";
+import "../../../access/P2pOperatorCallable.sol";
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "./IP2pAaveProxy.sol";
 
@@ -15,15 +16,9 @@ error P2pAaveProxy__ZeroAccruedRewards();
 error P2pAaveProxy__ZeroAavePool();
 error P2pAaveProxy__ZeroAaveDataProvider();
 
-contract P2pAaveProxy is P2pYieldProxy, IP2pAaveProxy {
+contract P2pAaveProxy is P2pYieldProxy, P2pOperatorCallable, IP2pAaveProxy {
     IAaveV3Pool private immutable i_aavePool;
     IAaveProtocolDataProvider private immutable i_aaveDataProvider;
-
-    modifier onlyP2pOperator() {
-        address p2pOperator = i_factory.getP2pOperator();
-        require(msg.sender == p2pOperator, P2pAaveProxy__NotP2pOperator(msg.sender));
-        _;
-    }
 
     constructor(
         address _factory,
@@ -92,6 +87,14 @@ contract P2pAaveProxy is P2pYieldProxy, IP2pAaveProxy {
         } catch {
             revert P2pAaveProxy__AssetNotSupported(_asset);
         }
+    }
+
+    function _getP2pOperator() internal view override returns (address) {
+        return i_factory.getP2pOperator();
+    }
+
+    function _revertNotP2pOperator(address _caller) internal pure override {
+        revert P2pAaveProxy__NotP2pOperator(_caller);
     }
 
     function supportsInterface(bytes4 interfaceId)

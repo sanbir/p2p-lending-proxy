@@ -5,6 +5,7 @@ pragma solidity 0.8.30;
 
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "../../../p2pYieldProxy/IP2pYieldProxy.sol";
+import "../../../access/P2pOperatorCallable.sol";
 import "../IStakedUSDe.sol";
 import "./IP2pEthenaProxy.sol";
 import {IERC4626} from "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -22,7 +23,7 @@ error P2pEthenaProxy__AmountExceedsAccrued(uint256 requested, uint256 accrued);
 
 /// @title Adapter for interacting with the Ethena staking vault through a client proxy
 /// @notice Handles deposits, cooldown flows, and withdrawals while enforcing the P2P fee split.
-contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
+contract P2pEthenaProxy is P2pYieldProxy, P2pOperatorCallable, IP2pEthenaProxy {
     using SafeERC20 for IERC20;
 
     /// @dev Staked USDe (ERC-4626) vault address
@@ -76,13 +77,6 @@ contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
             _asset,
             _amount
         );
-    }
-
-    modifier onlyP2pOperator() {
-        if (msg.sender != i_factory.getP2pOperator()) {
-            revert P2pEthenaProxy__NotP2pOperator(msg.sender);
-        }
-        _;
     }
 
     /// @inheritdoc IP2pEthenaProxy
@@ -223,6 +217,14 @@ contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
         return accrued > 0 ? uint256(accrued) : 0;
     }
 
+    function _getP2pOperator() internal view override returns (address) {
+        return i_factory.getP2pOperator();
+    }
+
+    function _revertNotP2pOperator(address _caller) internal pure override {
+        revert P2pEthenaProxy__NotP2pOperator(_caller);
+    }
+
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId)
         public
@@ -235,4 +237,3 @@ contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
             super.supportsInterface(interfaceId);
     }
 }
-

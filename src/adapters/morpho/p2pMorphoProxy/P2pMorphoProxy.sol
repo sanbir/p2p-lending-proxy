@@ -4,6 +4,7 @@
 pragma solidity 0.8.30;
 
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
+import "../../../access/P2pOperatorCallable.sol";
 import "../../../common/IMorphoBundler.sol";
 import "../../../common/IDistributor.sol";
 import "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -17,16 +18,10 @@ error P2pMorphoProxy__ZeroAccruedRewards();
 error P2pMorphoProxy__ZeroVaultAddress();
 error P2pMorphoProxy__VaultAssetNotSet(address _vault);
 
-contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
+contract P2pMorphoProxy is P2pYieldProxy, P2pOperatorCallable, IP2pMorphoProxy {
     using SafeERC20 for IERC20;
 
     IMorphoBundler private immutable i_morphoBundler;
-
-    modifier onlyP2pOperator() {
-        address p2pOperator = i_factory.getP2pOperator();
-        require(msg.sender == p2pOperator, P2pMorphoProxy__NotP2pOperator(msg.sender));
-        _;
-    }
 
     constructor(
         address _factory,
@@ -245,5 +240,13 @@ contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
             }
         }
         return (_currentLength, true);
+    }
+
+    function _getP2pOperator() internal view override returns (address) {
+        return i_factory.getP2pOperator();
+    }
+
+    function _revertNotP2pOperator(address _caller) internal pure override {
+        revert P2pMorphoProxy__NotP2pOperator(_caller);
     }
 }

@@ -6,6 +6,7 @@ pragma solidity 0.8.30;
 import "../../../@resolv/IResolvStaking.sol";
 import "../../../@resolv/IStUSR.sol";
 import "../../../@resolv/IStakedTokenDistributor.sol";
+import "../../../access/P2pOperatorCallable.sol";
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "./IP2pResolvProxy.sol";
 
@@ -20,7 +21,7 @@ error P2pResolvProxy__ZeroAddressStakedTokenDistributor();
 error P2pResolvProxy__CannotSweepProtectedToken(address _token);
 error P2pResolvProxy__RewardTokenLookupFailed(uint256 index);
 
-contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
+contract P2pResolvProxy is P2pYieldProxy, P2pOperatorCallable, IP2pResolvProxy {
     using SafeERC20 for IERC20;
 
     /// @dev USR address
@@ -40,18 +41,10 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     // Tracks pending RESOLV rewards that arrived via StakedTokenDistributor claims.
     uint256 private s_pendingResolvRewardFromStakedTokenDistributor;
 
-    /// @dev Throws if called by any account other than the P2pOperator.
-    modifier onlyP2pOperator() {
-        address p2pOperator = i_factory.getP2pOperator();
-        require (msg.sender == p2pOperator, P2pResolvProxy__NotP2pOperator(msg.sender));
-        _;
-    }
-
     /// @dev Throws if called by any account other than client or P2pOperator.
     modifier onlyClientOrP2pOperator() {
-        if (msg.sender != s_client) {
-            address p2pOperator = i_factory.getP2pOperator();
-            require (msg.sender == p2pOperator, P2pResolvProxy__CallerNeitherClientNorP2pOperator(msg.sender));
+        if (msg.sender != s_client && !_isP2pOperator(msg.sender)) {
+            revert P2pResolvProxy__CallerNeitherClientNorP2pOperator(msg.sender);
         }
         _;
     }
@@ -353,6 +346,14 @@ contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
         assembly {
             mstore(tokens, count)
         }
+    }
+
+    function _getP2pOperator() internal view override returns (address) {
+        return i_factory.getP2pOperator();
+    }
+
+    function _revertNotP2pOperator(address _caller) internal pure override {
+        revert P2pResolvProxy__NotP2pOperator(_caller);
     }
 
     /// @inheritdoc ERC165
