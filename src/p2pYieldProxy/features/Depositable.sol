@@ -7,14 +7,14 @@ import "../../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../@openzeppelin/contracts/utils/Address.sol";
 import "../P2pYieldProxyErrors.sol";
 import "../IP2pYieldProxy.sol";
-import "./P2pYieldProxyFactoryCallable.sol";
-import "../storage/P2pYieldProxyTotalDepositedStorage.sol";
-import "../storage/P2pYieldProxyClientStorage.sol";
+import "./FactoryCallable.sol";
+import "../storage/TotalDepositedStorage.sol";
+import "../storage/ClientStorage.sol";
 
-abstract contract P2pYieldProxyDepositable is
-    P2pYieldProxyFactoryCallable,
-    P2pYieldProxyTotalDepositedStorage,
-    P2pYieldProxyClientStorage
+abstract contract Depositable is
+    FactoryCallable,
+    TotalDepositedStorage,
+    ClientStorage
 {
     using SafeERC20 for IERC20;
     using Address for address;

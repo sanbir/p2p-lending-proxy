@@ -6,7 +6,7 @@ pragma solidity 0.8.30;
 import "../../common/AllowedCalldataChecker.sol";
 import "../P2pYieldProxyErrors.sol";
 
-abstract contract P2pYieldProxyCalldataAllowed {
+abstract contract CalldataAllowed {
     function _allowedCalldataCheckerRef() internal view virtual returns (IAllowedCalldataChecker);
 
     modifier calldataShouldBeAllowed(

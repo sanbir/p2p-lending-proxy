@@ -10,12 +10,12 @@ import "../common/AllowedCalldataChecker.sol";
 import "../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "./IP2pYieldProxy.sol";
 import "./P2pYieldProxyErrors.sol";
-import "./features/P2pYieldProxyWithdrawable.sol";
-import "./features/P2pYieldProxyAnyFunctionExecutor.sol";
-import "./storage/P2pYieldProxyClientStorage.sol";
-import "./storage/P2pYieldProxyClientBasisPointsStorage.sol";
-import "./storage/P2pYieldProxyTotalDepositedStorage.sol";
-import "./storage/P2pYieldProxyTotalWithdrawnStorage.sol";
+import "./features/Withdrawable.sol";
+import "./features/AnyFunctionExecutor.sol";
+import "./storage/ClientStorage.sol";
+import "./storage/ClientBasisPointsStorage.sol";
+import "./storage/TotalDepositedStorage.sol";
+import "./storage/TotalWithdrawnStorage.sol";
 
 /// @title P2pYieldProxy
 /// @notice P2pYieldProxy is a contract that allows a client to deposit and withdraw assets from a yield protocol.
@@ -24,8 +24,8 @@ abstract contract P2pYieldProxy is
     ReentrancyGuardUpgradeable,
     ERC165,
     IP2pYieldProxy,
-    P2pYieldProxyWithdrawable,
-    P2pYieldProxyAnyFunctionExecutor
+    Withdrawable,
+    AnyFunctionExecutor
 {
     /// @dev P2pYieldProxyFactory
     IP2pYieldProxyFactory internal immutable i_factory;
@@ -180,7 +180,7 @@ abstract contract P2pYieldProxy is
         public
         view
         virtual
-        override(IP2pYieldProxy, P2pYieldProxyWithdrawable)
+        override(IP2pYieldProxy, Withdrawable)
         returns (int256)
     {
         uint256 currentAmount = _getCurrentAssetAmount(_yieldProtocolAddress, _asset);

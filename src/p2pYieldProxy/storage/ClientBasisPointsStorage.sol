@@ -3,7 +3,7 @@
 
 pragma solidity 0.8.30;
 
-abstract contract P2pYieldProxyClientBasisPointsStorage {
+abstract contract ClientBasisPointsStorage {
     uint96 internal s_clientBasisPoints;
 
     function getClientBasisPointsStorage() public view virtual returns (uint96) {

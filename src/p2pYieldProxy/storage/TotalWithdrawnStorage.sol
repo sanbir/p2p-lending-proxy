@@ -5,7 +5,7 @@ pragma solidity 0.8.30;
 
 import "../../structs/P2pStructs.sol";
 
-abstract contract P2pYieldProxyTotalWithdrawnStorage {
+abstract contract TotalWithdrawnStorage {
     mapping(address => Withdrawn) internal s_totalWithdrawn;
 
     function getTotalWithdrawnStorage(address _asset) public view virtual returns (uint256) {

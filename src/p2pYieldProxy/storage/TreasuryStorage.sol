@@ -5,7 +5,7 @@ pragma solidity 0.8.30;
 
 import "../P2pYieldProxyErrors.sol";
 
-abstract contract P2pYieldProxyTreasuryStorage {
+abstract contract TreasuryStorage {
     address internal immutable i_p2pTreasury;
 
     constructor(address _p2pTreasury) {

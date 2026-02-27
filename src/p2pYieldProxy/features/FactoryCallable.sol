@@ -6,7 +6,7 @@ pragma solidity 0.8.30;
 import "../../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "../P2pYieldProxyErrors.sol";
 
-abstract contract P2pYieldProxyFactoryCallable {
+abstract contract FactoryCallable {
     function _factoryRef() internal view virtual returns (IP2pYieldProxyFactory);
 
     modifier onlyFactory() {

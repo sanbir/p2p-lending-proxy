@@ -8,14 +8,14 @@ import "../../@openzeppelin/contracts/utils/Address.sol";
 import "../../structs/P2pStructs.sol";
 import "../P2pYieldProxyErrors.sol";
 import "../IP2pYieldProxy.sol";
-import "./P2pYieldProxyDepositable.sol";
-import "./P2pYieldProxyFeeMath.sol";
-import "../storage/P2pYieldProxyTotalWithdrawnStorage.sol";
+import "./Depositable.sol";
+import "./FeeMath.sol";
+import "../storage/TotalWithdrawnStorage.sol";
 
-abstract contract P2pYieldProxyWithdrawable is
-    P2pYieldProxyDepositable,
-    P2pYieldProxyFeeMath,
-    P2pYieldProxyTotalWithdrawnStorage
+abstract contract Withdrawable is
+    Depositable,
+    FeeMath,
+    TotalWithdrawnStorage
 {
     using SafeERC20 for IERC20;
     using Address for address;

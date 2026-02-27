@@ -3,9 +3,9 @@
 
 pragma solidity 0.8.30;
 
-import "../storage/P2pYieldProxyClientBasisPointsStorage.sol";
+import "../storage/ClientBasisPointsStorage.sol";
 
-abstract contract P2pYieldProxyFeeMath is P2pYieldProxyClientBasisPointsStorage {
+abstract contract FeeMath is ClientBasisPointsStorage {
     function calculateP2pFeeAmount(uint256 _amount) internal view returns (uint256 p2pFeeAmount) {
         if (_amount == 0) return 0;
         p2pFeeAmount = (_amount * (10_000 - s_clientBasisPoints) + 9999) / 10_000;

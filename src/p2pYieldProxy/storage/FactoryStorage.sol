@@ -6,7 +6,7 @@ pragma solidity 0.8.30;
 import "../../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "../P2pYieldProxyErrors.sol";
 
-abstract contract P2pYieldProxyFactoryStorage {
+abstract contract FactoryStorage {
     IP2pYieldProxyFactory internal immutable i_factory;
 
     constructor(address _factory) {

@@ -6,7 +6,7 @@ pragma solidity 0.8.30;
 import "../../common/AllowedCalldataChecker.sol";
 import "../P2pYieldProxyErrors.sol";
 
-abstract contract P2pYieldProxyAllowedCalldataCheckerStorage {
+abstract contract AllowedCalldataCheckerStorage {
     IAllowedCalldataChecker internal immutable i_allowedCalldataChecker;
 
     constructor(address _allowedCalldataChecker) {

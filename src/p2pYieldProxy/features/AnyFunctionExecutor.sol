@@ -5,10 +5,10 @@ pragma solidity 0.8.30;
 
 import "../../@openzeppelin/contracts/utils/Address.sol";
 import "../IP2pYieldProxy.sol";
-import "./P2pYieldProxyClientCallable.sol";
-import "./P2pYieldProxyCalldataAllowed.sol";
+import "./ClientCallable.sol";
+import "./CalldataAllowed.sol";
 
-abstract contract P2pYieldProxyAnyFunctionExecutor is P2pYieldProxyClientCallable, P2pYieldProxyCalldataAllowed {
+abstract contract AnyFunctionExecutor is ClientCallable, CalldataAllowed {
     using Address for address;
 
     function _callAnyFunction(
