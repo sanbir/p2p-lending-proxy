@@ -298,78 +298,21 @@ abstract contract P2pYieldProxy is
         returns (uint256)
     {
         int256 accruedRewardsBefore = calculateAccruedRewards(_accrualTarget, _asset);
-
         uint256 assetAmountBefore = IERC20(_asset).balanceOf(address(this));
-
-        // withdraw assets from Protocol
         _callTarget.functionCall(_yieldProtocolWithdrawalCalldata);
-
-        uint256 assetAmountAfter = IERC20(_asset).balanceOf(address(this));
-
-        uint256 newAssetAmount = assetAmountAfter - assetAmountBefore;
+        uint256 newAssetAmount = IERC20(_asset).balanceOf(address(this)) - assetAmountBefore;
 
         Withdrawn memory withdrawn = s_totalWithdrawn[_asset];
-        uint256 remainingPrincipal = s_totalDeposited[_asset] > withdrawn.amount
-            ? s_totalDeposited[_asset] - withdrawn.amount
-            : 0;
+        (uint256 principalPortion, uint256 profitPortion) = _splitWithdrawalAmount(
+            newAssetAmount,
+            s_totalDeposited[_asset],
+            withdrawn.amount,
+            accruedRewardsBefore,
+            _rewardsOnly
+        );
 
-        uint256 positiveAccruedRewards = accruedRewardsBefore > 0
-            ? uint256(accruedRewardsBefore)
-            : 0;
-
-        uint256 profitFromAccrued = newAssetAmount > positiveAccruedRewards
-            ? positiveAccruedRewards
-            : newAssetAmount;
-
-        uint256 principalPortion;
-        uint256 profitPortion;
-        if (_rewardsOnly) {
-            profitPortion = profitFromAccrued;
-            uint256 remainingAfterProfit = newAssetAmount - profitPortion;
-            principalPortion = remainingAfterProfit > remainingPrincipal
-                ? remainingPrincipal
-                : remainingAfterProfit;
-        } else {
-            bool isClosingWithdrawal = withdrawn.amount + newAssetAmount >= s_totalDeposited[_asset] && msg.sender == s_client;
-            if (isClosingWithdrawal) {
-                if (newAssetAmount > remainingPrincipal) {
-                    principalPortion = remainingPrincipal;
-                    profitPortion = newAssetAmount - remainingPrincipal;
-                } else {
-                    principalPortion = newAssetAmount;
-                    profitPortion = 0;
-                }
-            } else {
-                uint256 remainingAfterAccrued = newAssetAmount - profitFromAccrued;
-                principalPortion = remainingAfterAccrued > remainingPrincipal
-                    ? remainingPrincipal
-                    : remainingAfterAccrued;
-
-                uint256 extraProfit = remainingAfterAccrued - principalPortion;
-                profitPortion = profitFromAccrued + extraProfit;
-            }
-        }
-
-        uint256 totalWithdrawnBefore = uint256(withdrawn.amount);
-        uint256 totalWithdrawnAfter = totalWithdrawnBefore + principalPortion;
-
-        // update total withdrawn
-        withdrawn.amount = uint208(totalWithdrawnAfter);
-        withdrawn.lastFeeCollectionTime = uint48(block.timestamp);
-        s_totalWithdrawn[_asset] = withdrawn;
-
-        uint256 p2pAmount;
-        if (profitPortion > 0) {
-            // That extra 9999 ensures that any nonzero remainder will push the result up by 1 (ceiling division).
-            p2pAmount = calculateP2pFeeAmount(profitPortion);
-        }
-        uint256 clientAmount = newAssetAmount - p2pAmount;
-
-        if (p2pAmount > 0) {
-            IERC20(_asset).safeTransfer(i_p2pTreasury, p2pAmount);
-        }
-        // clientAmount must be > 0 at this point
-        IERC20(_asset).safeTransfer(s_client, clientAmount);
+        uint256 totalWithdrawnAfter = _updateWithdrawnState(_asset, withdrawn, principalPortion);
+        (uint256 p2pAmount, uint256 clientAmount) = _distributeWithdrawal(_asset, newAssetAmount, profitPortion);
 
         emit P2pYieldProxy__Withdrawn(
             _eventYieldProtocolAddress,
@@ -383,6 +326,81 @@ abstract contract P2pYieldProxy is
         );
 
         return newAssetAmount;
+    }
+
+    function _splitWithdrawalAmount(
+        uint256 _newAssetAmount,
+        uint256 _totalDeposited,
+        uint256 _withdrawnAmount,
+        int256 _accruedRewardsBefore,
+        bool _rewardsOnly
+    )
+        private
+        view
+        returns (uint256 principalPortion, uint256 profitPortion)
+    {
+        uint256 remainingPrincipal = _totalDeposited > _withdrawnAmount
+            ? _totalDeposited - _withdrawnAmount
+            : 0;
+        uint256 profitFromAccrued = _min(_newAssetAmount, _positivePart(_accruedRewardsBefore));
+
+        if (_rewardsOnly) {
+            profitPortion = profitFromAccrued;
+            principalPortion = _min(_newAssetAmount - profitPortion, remainingPrincipal);
+            return (principalPortion, profitPortion);
+        }
+
+        bool isClient = msg.sender == s_client;
+        bool isClosingWithdrawal = isClient && _withdrawnAmount + _newAssetAmount >= _totalDeposited;
+        if (isClosingWithdrawal) {
+            principalPortion = _min(_newAssetAmount, remainingPrincipal);
+            profitPortion = _newAssetAmount - principalPortion;
+            return (principalPortion, profitPortion);
+        }
+
+        uint256 remainingAfterAccrued = _newAssetAmount - profitFromAccrued;
+        principalPortion = _min(remainingAfterAccrued, remainingPrincipal);
+        profitPortion = profitFromAccrued + (remainingAfterAccrued - principalPortion);
+    }
+
+    function _updateWithdrawnState(
+        address _asset,
+        Withdrawn memory _withdrawn,
+        uint256 _principalPortion
+    )
+        private
+        returns (uint256 totalWithdrawnAfter)
+    {
+        totalWithdrawnAfter = uint256(_withdrawn.amount) + _principalPortion;
+        _withdrawn.amount = uint208(totalWithdrawnAfter);
+        _withdrawn.lastFeeCollectionTime = uint48(block.timestamp);
+        s_totalWithdrawn[_asset] = _withdrawn;
+    }
+
+    function _distributeWithdrawal(
+        address _asset,
+        uint256 _newAssetAmount,
+        uint256 _profitPortion
+    )
+        private
+        returns (uint256 p2pAmount, uint256 clientAmount)
+    {
+        // That extra 9999 ensures that any nonzero remainder will push the result up by 1 (ceiling division).
+        p2pAmount = calculateP2pFeeAmount(_profitPortion);
+        clientAmount = _newAssetAmount - p2pAmount;
+
+        if (p2pAmount > 0) {
+            IERC20(_asset).safeTransfer(i_p2pTreasury, p2pAmount);
+        }
+        IERC20(_asset).safeTransfer(s_client, clientAmount);
+    }
+
+    function _positivePart(int256 _value) private pure returns (uint256) {
+        return _value > 0 ? uint256(_value) : 0;
+    }
+
+    function _min(uint256 _a, uint256 _b) private pure returns (uint256) {
+        return _a < _b ? _a : _b;
     }
 
     /// @inheritdoc IP2pYieldProxy
