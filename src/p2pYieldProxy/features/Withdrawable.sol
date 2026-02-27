@@ -3,6 +3,7 @@
 
 pragma solidity 0.8.30;
 
+import "../../@openzeppelin/contracts-upgradable/security/ReentrancyGuardUpgradeable.sol";
 import "../../@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../@openzeppelin/contracts/utils/Address.sol";
 import "../../structs/P2pStructs.sol";
@@ -13,6 +14,7 @@ import "./FeeMath.sol";
 import "../storage/TotalWithdrawnStorage.sol";
 
 abstract contract Withdrawable is
+    ReentrancyGuardUpgradeable,
     Depositable,
     FeeMath,
     TotalWithdrawnStorage
@@ -27,6 +29,7 @@ abstract contract Withdrawable is
     )
         internal
         virtual
+        nonReentrant
         returns (uint256)
     {
         return _executeWithdraw(
@@ -48,6 +51,7 @@ abstract contract Withdrawable is
     )
         internal
         virtual
+        nonReentrant
         returns (uint256)
     {
         if (_shares > 0) {

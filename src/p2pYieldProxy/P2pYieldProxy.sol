@@ -3,7 +3,6 @@
 
 pragma solidity 0.8.30;
 
-import "../@openzeppelin/contracts-upgradable/security/ReentrancyGuardUpgradeable.sol";
 import "../@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../common/AllowedCalldataChecker.sol";
@@ -21,7 +20,6 @@ import "./storage/TotalWithdrawnStorage.sol";
 /// @notice P2pYieldProxy is a contract that allows a client to deposit and withdraw assets from a yield protocol.
 abstract contract P2pYieldProxy is
     Initializable,
-    ReentrancyGuardUpgradeable,
     ERC165,
     IP2pYieldProxy,
     Withdrawable,
@@ -79,50 +77,6 @@ abstract contract P2pYieldProxy is
 
     /// @inheritdoc IP2pYieldProxy
     function deposit(address _asset, uint256 _amount) external virtual;
-
-    function _withdraw(
-        address _yieldProtocolAddress,
-        address _asset,
-        bytes memory _yieldProtocolWithdrawalCalldata
-    )
-        internal
-        virtual
-        override
-        nonReentrant
-        returns (uint256)
-    {
-        return super._withdraw(_yieldProtocolAddress, _asset, _yieldProtocolWithdrawalCalldata);
-    }
-
-    function _withdraw(
-        address _vault,
-        address _asset,
-        address _callTarget,
-        bytes memory _yieldProtocolWithdrawalCalldata,
-        uint256 _shares
-    )
-        internal
-        virtual
-        override
-        nonReentrant
-        returns (uint256)
-    {
-        return super._withdraw(_vault, _asset, _callTarget, _yieldProtocolWithdrawalCalldata, _shares);
-    }
-
-    /// @inheritdoc IP2pYieldProxy
-    function callAnyFunction(
-        address _yieldProtocolAddress,
-        bytes calldata _yieldProtocolCalldata
-    )
-        external
-        override
-        onlyClient
-        nonReentrant
-        calldataShouldBeAllowed(_yieldProtocolAddress, _yieldProtocolCalldata)
-    {
-        _callAnyFunction(_yieldProtocolAddress, _yieldProtocolCalldata);
-    }
 
     /// @inheritdoc IP2pYieldProxy
     function getFactory() public view override returns (address) {
