@@ -11,6 +11,9 @@ import "./IP2pYieldProxy.sol";
 import "./P2pYieldProxyErrors.sol";
 import "./features/Withdrawable.sol";
 import "./features/AnyFunctionExecutor.sol";
+import "./immutables/FactoryImmutable.sol";
+import "./immutables/TreasuryImmutable.sol";
+import "./immutables/AllowedCalldataCheckerImmutable.sol";
 import "./storage/ClientStorage.sol";
 import "./storage/ClientBasisPointsStorage.sol";
 import "./storage/TotalDepositedStorage.sol";
@@ -22,17 +25,12 @@ abstract contract P2pYieldProxy is
     Initializable,
     ERC165,
     IP2pYieldProxy,
+    FactoryImmutable,
+    TreasuryImmutable,
+    AllowedCalldataCheckerImmutable,
     Withdrawable,
     AnyFunctionExecutor
 {
-    /// @dev P2pYieldProxyFactory
-    IP2pYieldProxyFactory internal immutable i_factory;
-
-    /// @dev P2pTreasury
-    address internal immutable i_p2pTreasury;
-
-    IAllowedCalldataChecker internal immutable i_allowedCalldataChecker;
-
     /// @notice Constructor for P2pYieldProxy
     /// @param _factory The factory address
     /// @param _p2pTreasury The P2pTreasury address
@@ -41,16 +39,11 @@ abstract contract P2pYieldProxy is
         address _factory,
         address _p2pTreasury,
         address _allowedCalldataChecker
-    ) {
-        require(_factory != address(0), P2pYieldProxy__ZeroAddressFactory());
-        i_factory = IP2pYieldProxyFactory(_factory);
-
-        require(_p2pTreasury != address(0), P2pYieldProxy__ZeroAddressP2pTreasury());
-        i_p2pTreasury = _p2pTreasury;
-
-        require(_allowedCalldataChecker != address(0), P2pYieldProxy__ZeroAllowedCalldataChecker());
-        i_allowedCalldataChecker = IAllowedCalldataChecker(_allowedCalldataChecker);
-    }
+    )
+        FactoryImmutable(_factory)
+        TreasuryImmutable(_p2pTreasury)
+        AllowedCalldataCheckerImmutable(_allowedCalldataChecker)
+    {}
 
     /// @inheritdoc IP2pYieldProxy
     function initialize(

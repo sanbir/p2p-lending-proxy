@@ -6,7 +6,7 @@ pragma solidity 0.8.30;
 import "../../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "../P2pYieldProxyErrors.sol";
 
-abstract contract FactoryStorage {
+abstract contract FactoryImmutable {
     IP2pYieldProxyFactory internal immutable i_factory;
 
     constructor(address _factory) {
@@ -14,7 +14,7 @@ abstract contract FactoryStorage {
         i_factory = IP2pYieldProxyFactory(_factory);
     }
 
-    function getFactoryStorage() public view virtual returns (address) {
+    function getFactoryImmutable() public view virtual returns (address) {
         return address(i_factory);
     }
 }

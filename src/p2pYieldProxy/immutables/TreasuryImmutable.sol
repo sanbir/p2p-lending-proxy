@@ -5,7 +5,7 @@ pragma solidity 0.8.30;
 
 import "../P2pYieldProxyErrors.sol";
 
-abstract contract TreasuryStorage {
+abstract contract TreasuryImmutable {
     address internal immutable i_p2pTreasury;
 
     constructor(address _p2pTreasury) {
@@ -13,7 +13,7 @@ abstract contract TreasuryStorage {
         i_p2pTreasury = _p2pTreasury;
     }
 
-    function getP2pTreasuryStorage() public view virtual returns (address) {
+    function getP2pTreasuryImmutable() public view virtual returns (address) {
         return i_p2pTreasury;
     }
 }

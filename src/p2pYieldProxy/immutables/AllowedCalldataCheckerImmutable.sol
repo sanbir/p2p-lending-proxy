@@ -6,7 +6,7 @@ pragma solidity 0.8.30;
 import "../../common/AllowedCalldataChecker.sol";
 import "../P2pYieldProxyErrors.sol";
 
-abstract contract AllowedCalldataCheckerStorage {
+abstract contract AllowedCalldataCheckerImmutable {
     IAllowedCalldataChecker internal immutable i_allowedCalldataChecker;
 
     constructor(address _allowedCalldataChecker) {
@@ -14,7 +14,7 @@ abstract contract AllowedCalldataCheckerStorage {
         i_allowedCalldataChecker = IAllowedCalldataChecker(_allowedCalldataChecker);
     }
 
-    function getAllowedCalldataCheckerStorage() public view virtual returns (address) {
+    function getAllowedCalldataCheckerImmutable() public view virtual returns (address) {
         return address(i_allowedCalldataChecker);
     }
 }
