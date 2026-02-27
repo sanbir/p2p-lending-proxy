@@ -66,7 +66,7 @@ contract MainnetAaveIntegration is Test {
         proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
     }
 
-    function test_HappyPath_USDC_Mainnet() external {
+    function test_aave_HappyPath_USDC_Mainnet() external {
         deal(USDC, client, 100e6);
 
         vm.recordLogs();
@@ -86,7 +86,7 @@ contract MainnetAaveIntegration is Test {
         assertEq(IERC20(aToken).balanceOf(proxyAddress), 0);
     }
 
-    function test_HappyPath_USDT_Mainnet() external {
+    function test_aave_HappyPath_USDT_Mainnet() external {
         deal(USDT, client, 100e6);
         _doDeposit(USDT, DEPOSIT_AMOUNT);
 
@@ -99,7 +99,7 @@ contract MainnetAaveIntegration is Test {
         assertEq(IERC20(aToken).balanceOf(proxyAddress), 0);
     }
 
-    function test_withdrawAccruedRewards_byOperator() external {
+    function test_aave_withdrawAccruedRewards_byOperator() external {
         deal(USDC, client, 100e6);
         _doDeposit(USDC, DEPOSIT_AMOUNT);
 
@@ -128,7 +128,7 @@ contract MainnetAaveIntegration is Test {
         assertEq(P2pAaveProxy(proxyAddress).getUserPrincipal(USDC), DEPOSIT_AMOUNT);
     }
 
-    function test_withdrawAccruedRewards_revertsForClient() external {
+    function test_aave_withdrawAccruedRewards_revertsForClient() external {
         deal(USDC, client, 100e6);
         _doDeposit(USDC, DEPOSIT_AMOUNT);
 
@@ -138,7 +138,7 @@ contract MainnetAaveIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_withdrawAccruedRewards_revertsWhenNoRewards() external {
+    function test_aave_withdrawAccruedRewards_revertsWhenNoRewards() external {
         deal(USDC, client, 100e6);
         _doDeposit(USDC, DEPOSIT_AMOUNT);
 
@@ -148,7 +148,7 @@ contract MainnetAaveIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_transferP2pSigner() external {
+    function test_aave_transferP2pSigner() external {
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
         factory.transferP2pSigner(nobody);
@@ -161,7 +161,7 @@ contract MainnetAaveIntegration is Test {
         assertEq(factory.getP2pSigner(), nobody);
     }
 
-    function test_p2pSignerSignatureExpired() external {
+    function test_aave_p2pSignerSignatureExpired() external {
         uint256 expiredDeadline = block.timestamp - 1;
         bytes memory signature = _getP2pSignerSignature(client, CLIENT_BPS, expiredDeadline);
 
@@ -175,7 +175,7 @@ contract MainnetAaveIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_invalidP2pSignerSignature() external {
+    function test_aave_invalidP2pSignerSignature() external {
         uint256 sigDeadline = block.timestamp + 1 days;
         bytes memory signature = _getP2pSignerSignature(client, CLIENT_BPS + 1, sigDeadline);
 
@@ -187,7 +187,7 @@ contract MainnetAaveIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_depositDirectlyOnProxy_reverts() external {
+    function test_aave_depositDirectlyOnProxy_reverts() external {
         deal(USDC, client, DEPOSIT_AMOUNT);
         _doDeposit(USDC, DEPOSIT_AMOUNT);
 
@@ -197,7 +197,7 @@ contract MainnetAaveIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_depositUnsupportedAsset_reverts() external {
+    function test_aave_depositUnsupportedAsset_reverts() external {
         address unsupportedAsset = makeAddr("unsupportedAsset");
         deal(USDC, client, DEPOSIT_AMOUNT);
         bytes memory signature = _getP2pSignerSignature(client, CLIENT_BPS, block.timestamp + 1 days);
@@ -208,7 +208,7 @@ contract MainnetAaveIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_callAnyFunction_revertsByDefault() external {
+    function test_aave_callAnyFunction_revertsByDefault() external {
         vm.expectRevert(AllowedCalldataChecker__NoAllowedCalldata.selector);
         AllowedCalldataChecker(allowedChecker).checkCalldata(
             AAVE_POOL,
@@ -217,7 +217,7 @@ contract MainnetAaveIntegration is Test {
         );
     }
 
-    function test_acceptP2pOperator() external {
+    function test_aave_acceptP2pOperator() external {
         assertEq(factory.getP2pOperator(), p2pOperator);
 
         vm.startPrank(nobody);

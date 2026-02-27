@@ -70,19 +70,19 @@ contract MainnetIntegration is Test {
         vault = VAULT_USDC;
     }
 
-    function test_HappyPath_USDC_Mainnet() external {
+    function test_morpho_HappyPath_USDC_Mainnet() external {
         asset = USDC;
         vault = VAULT_USDC;
         _happyPath();
     }
 
-    function test_HappyPath_USDT_Mainnet() external {
+    function test_morpho_HappyPath_USDT_Mainnet() external {
         asset = USDT;
         vault = VAULT_USDT;
         _happyPath();
     }
 
-    function test_profitSplit_Mainnet() external {
+    function test_morpho_profitSplit_Mainnet() external {
         asset = USDC;
         vault = VAULT_USDC;
         deal(asset, client, 100e6);
@@ -117,7 +117,7 @@ contract MainnetIntegration is Test {
         assertApproxEqAbs(10_000 - CLIENT_BPS, treasuryShare, 1);
     }
 
-    function test_withdrawAccruedRewards_byOperator() external {
+    function test_morpho_withdrawAccruedRewards_byOperator() external {
         asset = USDC;
         vault = VAULT_USDC;
         deal(asset, client, 100e6);
@@ -137,7 +137,7 @@ contract MainnetIntegration is Test {
         assertGt(treasuryAfter, treasuryBefore);
     }
 
-    function test_withdrawAccruedRewards_revertsForClient() external {
+    function test_morpho_withdrawAccruedRewards_revertsForClient() external {
         asset = USDC;
         vault = VAULT_USDC;
         deal(asset, client, 100e6);
@@ -149,7 +149,7 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_transferP2pSigner() external {
+    function test_morpho_transferP2pSigner() external {
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
         factory.transferP2pSigner(nobody);
@@ -163,7 +163,7 @@ contract MainnetIntegration is Test {
     }
 
 
-    function test_clientBasisPointsGreaterThan10000() external {
+    function test_morpho_clientBasisPointsGreaterThan10000() external {
         uint96 invalidBasisPoints = 10_001;
         bytes memory signature = _getP2pSignerSignature(invalidBasisPoints, SIG_DEADLINE);
 
@@ -178,7 +178,7 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_zeroAddressVault() external {
+    function test_morpho_zeroAddressVault() external {
         asset = USDC;
         bytes memory signature = _getP2pSignerSignature(CLIENT_BPS, SIG_DEADLINE);
 
@@ -188,7 +188,7 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_zeroAssetAmount() external {
+    function test_morpho_zeroAssetAmount() external {
         asset = USDC;
         vault = VAULT_USDC;
         deal(asset, client, DEPOSIT_AMOUNT);
@@ -211,7 +211,7 @@ contract MainnetIntegration is Test {
         assertEq(bytes4(returndata), P2pYieldProxy__ZeroAssetAmount.selector);
     }
 
-    function test_depositDirectlyOnProxy_reverts() external {
+    function test_morpho_depositDirectlyOnProxy_reverts() external {
         asset = USDC;
         vault = VAULT_USDC;
         deal(asset, client, DEPOSIT_AMOUNT);
@@ -225,7 +225,7 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_initializeDirectlyOnProxy_reverts() external {
+    function test_morpho_initializeDirectlyOnProxy_reverts() external {
         deal(asset, client, DEPOSIT_AMOUNT);
         _doDeposit();
 
@@ -233,7 +233,7 @@ contract MainnetIntegration is Test {
         P2pMorphoProxy(proxyAddress).initialize(client, CLIENT_BPS);
     }
 
-    function test_withdrawOnProxyOnlyCallableByClient() external {
+    function test_morpho_withdrawOnProxyOnlyCallableByClient() external {
         deal(asset, client, DEPOSIT_AMOUNT);
         _doDeposit();
 
@@ -247,7 +247,7 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_callAnyFunction_revertsByDefault() external {
+    function test_morpho_callAnyFunction_revertsByDefault() external {
         vm.expectRevert(AllowedCalldataChecker__NoAllowedCalldata.selector);
         AllowedCalldataChecker(allowedChecker).checkCalldata(
             MORPHO_BUNDLER,
@@ -256,19 +256,19 @@ contract MainnetIntegration is Test {
         );
     }
 
-    function test_getHashForP2pSigner() external view {
+    function test_morpho_getHashForP2pSigner() external view {
         bytes32 expected = keccak256(
             abi.encode(client, CLIENT_BPS, SIG_DEADLINE, address(factory), block.chainid)
         );
         assertEq(factory.getHashForP2pSigner(client, CLIENT_BPS, SIG_DEADLINE), expected);
     }
 
-    function test_supportsInterface() external view {
+    function test_morpho_supportsInterface() external view {
         assertTrue(factory.supportsInterface(type(IP2pMorphoProxyFactory).interfaceId));
         assertFalse(factory.supportsInterface(type(IERC4626).interfaceId));
     }
 
-    function test_p2pSignerSignatureExpired() external {
+    function test_morpho_p2pSignerSignatureExpired() external {
         uint256 expiredDeadline = block.timestamp - 1;
         bytes memory signature = _getP2pSignerSignature(CLIENT_BPS, expiredDeadline);
 
@@ -283,7 +283,7 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_invalidP2pSignerSignature() external {
+    function test_morpho_invalidP2pSignerSignature() external {
         bytes memory signature = _getP2pSignerSignature(CLIENT_BPS + 1, SIG_DEADLINE);
 
         deal(asset, client, DEPOSIT_AMOUNT);
@@ -295,14 +295,14 @@ contract MainnetIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_viewFunctions() external view {
+    function test_morpho_viewFunctions() external view {
         assertTrue(factory.getReferenceP2pYieldProxy() != address(0));
         assertEq(factory.getP2pSigner(), p2pSigner);
         assertEq(factory.getP2pOperator(), p2pOperator);
         assertEq(factory.getAllProxies().length, 0);
     }
 
-    function test_acceptP2pOperator() external {
+    function test_morpho_acceptP2pOperator() external {
         assertEq(factory.getP2pOperator(), p2pOperator);
 
         vm.startPrank(nobody);
@@ -329,7 +329,7 @@ contract MainnetIntegration is Test {
         assertEq(factory.getPendingP2pOperator(), address(0));
     }
 
-    function test_setTrustedDistributor_onlyOperator() external {
+    function test_morpho_setTrustedDistributor_onlyOperator() external {
         address distributor = makeAddr("distributor");
 
         vm.startPrank(nobody);
@@ -346,7 +346,7 @@ contract MainnetIntegration is Test {
         assertTrue(factory.isTrustedDistributor(distributor));
     }
 
-    function test_removeTrustedDistributor_onlyOperator() external {
+    function test_morpho_removeTrustedDistributor_onlyOperator() external {
         address distributor = makeAddr("distributor");
         vm.prank(p2pOperator);
         factory.setTrustedDistributor(distributor);
@@ -365,19 +365,19 @@ contract MainnetIntegration is Test {
         assertFalse(factory.isTrustedDistributor(distributor));
     }
 
-    function test_checkMorphoUrdClaim_requiresTrustedDistributor() external {
+    function test_morpho_checkMorphoUrdClaim_requiresTrustedDistributor() external {
         vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxyFactory__DistributorNotTrusted.selector, DISTRIBUTOR));
         factory.checkMorphoUrdClaim(p2pOperator, false, DISTRIBUTOR);
     }
 
-    function test_checkMorphoUrdClaim_requiresOperatorWhenFlagSet() external {
+    function test_morpho_checkMorphoUrdClaim_requiresOperatorWhenFlagSet() external {
         vm.expectRevert(
             abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody)
         );
         factory.checkMorphoUrdClaim(nobody, true, address(0));
     }
 
-    function test_multipleDepositsReuseProxy() external {
+    function test_morpho_multipleDepositsReuseProxy() external {
         asset = USDC;
         vault = VAULT_USDC;
         deal(asset, client, DEPOSIT_AMOUNT * 2);
@@ -464,7 +464,7 @@ contract MainnetIntegration is Test {
     }
 
     /// BUG-FLOW TEST
-function test_DoubleFeeCollectionBug_OperatorThenClientWithdraw() external {
+function test_morpho_DoubleFeeCollectionBug_OperatorThenClientWithdraw() external {
     // ============================================================
     // STEP 1: CLIENT DEPOSITS 1000 USDC
     // BUG-FLOW: s_totalDeposited = 1000, s_totalWithdrawn = 0

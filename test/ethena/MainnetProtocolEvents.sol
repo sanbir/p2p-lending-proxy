@@ -51,7 +51,7 @@ contract MainnetProtocolEvents is Test {
         proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
     }
 
-    function test_mainnet_deposit_cooldown_claim_emits_protocol_events() external {
+    function test_ethena_mainnet_deposit_cooldown_claim_emits_protocol_events() external {
         deal(USDE, client, 100e18);
 
         vm.recordLogs();

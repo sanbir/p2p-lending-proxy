@@ -62,7 +62,7 @@ contract MainnetProtocolEvents is Test {
         proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
     }
 
-    function test_mainnet_deposit_withdraw_and_claim_emit_protocol_events() external {
+    function test_morpho_mainnet_deposit_withdraw_and_claim_emit_protocol_events() external {
         deal(USDC, client, 100e6);
 
         vm.recordLogs();

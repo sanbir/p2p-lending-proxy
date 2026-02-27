@@ -88,7 +88,7 @@ contract RESOLVIntegration is Test {
         proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
     }
 
-    function test_Resolv_happyPath_Mainnet_RESOLV() public {
+    function test_resolv_Resolv_happyPath_Mainnet_RESOLV() public {
         deal(RESOLV, clientAddress, 10000e18);
 
         uint256 assetBalanceBefore = IERC20(RESOLV).balanceOf(clientAddress);
@@ -122,7 +122,7 @@ contract RESOLVIntegration is Test {
         );
     }
 
-    function test_claimRewardTokens_splitsRewards() public {
+    function test_resolv_claimRewardTokens_splitsRewards() public {
         uint256 depositAmount = 10 ether;
         (address localProxy, MockERC20 mockResolv, MockResolvStaking mockStResolv) =
             _setupMockResolvEnvironment(depositAmount);
@@ -150,7 +150,7 @@ contract RESOLVIntegration is Test {
         assertEq(clientBalanceAfter - clientBalanceBefore, expectedClient, "client share mismatch");
     }
 
-    function test_claimStakedTokenDistributor_rewardsWithdrawnWithSplit() public {
+    function test_resolv_claimStakedTokenDistributor_rewardsWithdrawnWithSplit() public {
         uint256 depositAmount = 20 ether;
         (address localProxy, MockERC20 mockResolv, MockResolvStaking mockStResolv) =
             _setupMockResolvEnvironment(depositAmount);
@@ -182,7 +182,7 @@ contract RESOLVIntegration is Test {
         assertEq(clientBalanceAfter - clientBalanceBefore, expectedClient, "client reward share mismatch");
     }
 
-    function test_withdrawRESOLV_principalAndAirdropOnlyFeesRewards() public {
+    function test_resolv_withdrawRESOLV_principalAndAirdropOnlyFeesRewards() public {
         uint256 depositAmount = 12 ether;
         (address localProxy, MockERC20 mockResolv, MockResolvStaking mockStResolv) =
             _setupMockResolvEnvironment(depositAmount);
@@ -214,7 +214,7 @@ contract RESOLVIntegration is Test {
         assertEq(clientAfter - clientBefore, expectedClient, "client receives principal plus net rewards");
     }
 
-    function test_mainnet_claimRewardTokens_for_known_proxy_address() public {
+    function test_resolv_mainnet_claimRewardTokens_for_known_proxy_address() public {
         address knownProxy = 0x3F888f4E16a08C6B3745dDbaDe98e24569852FA4;
 
         uint256 beforeBal = IERC20(RESOLV).balanceOf(knownProxy);
@@ -231,7 +231,7 @@ contract RESOLVIntegration is Test {
         }
     }
 
-    function test_claimRewardTokens_via_proxy() public {
+    function test_resolv_claimRewardTokens_via_proxy() public {
         deal(RESOLV, clientAddress, DepositAmount);
         _doDeposit();
 
@@ -249,7 +249,7 @@ contract RESOLVIntegration is Test {
         }
     }
 
-    function test_claimRewardTokens_via_etched_proxy() public {
+    function test_resolv_claimRewardTokens_via_etched_proxy() public {
         vm.createSelectFork("mainnet", 23_866_064);
         // Use the known mainnet stRESOLV and a real proxy address that may have rewards
         address knownProxy = 0x3F888f4E16a08C6B3745dDbaDe98e24569852FA4;
@@ -300,7 +300,7 @@ contract RESOLVIntegration is Test {
         }
     }
 
-    function test_calculateAccruedRewards_doesNotCountEffectiveBoost() public {
+    function test_resolv_calculateAccruedRewards_doesNotCountEffectiveBoost() public {
         uint256 depositAmount = 10 ether;
         (address localProxy, MockERC20 mockResolv, MockResolvStaking mockStResolv) =
             _setupMockResolvEnvironment(depositAmount);
@@ -315,7 +315,7 @@ contract RESOLVIntegration is Test {
         );
     }
 
-    function test_withdrawRESOLV_noFeesWhenOnlyEffectiveBoost() public {
+    function test_resolv_withdrawRESOLV_noFeesWhenOnlyEffectiveBoost() public {
         uint256 depositAmount = 8 ether;
         (address localProxy, MockERC20 mockResolv, MockResolvStaking mockStResolv) =
             _setupMockResolvEnvironment(depositAmount);
@@ -334,7 +334,7 @@ contract RESOLVIntegration is Test {
         assertEq(treasuryAfter, treasuryBefore, "no real rewards should mean no fee");
     }
 
-    function test_withdrawRESOLV_operatorCanCompleteWithdrawal() public {
+    function test_resolv_withdrawRESOLV_operatorCanCompleteWithdrawal() public {
         deal(RESOLV, clientAddress, 100e18);
         _doDeposit();
 
@@ -354,7 +354,7 @@ contract RESOLVIntegration is Test {
         assertGt(clientBalanceAfter, clientBalanceBefore, "operator should be able to finalize withdrawal");
     }
 
-    function test_rewardTokens_getter_matches_deployed_interface() public {
+    function test_resolv_rewardTokens_getter_matches_deployed_interface() public {
         address firstRewardToken = IResolvStaking(stRESOLV).rewardTokens(0);
         assertEq(firstRewardToken, RESOLV, "unexpected reward token at index 0");
 
@@ -362,7 +362,7 @@ contract RESOLVIntegration is Test {
         IResolvStaking(stRESOLV).rewardTokens(1);
     }
 
-    function test_sweepRewardToken_byClient_Mainnet_RESOLV() public {
+    function test_resolv_sweepRewardToken_byClient_Mainnet_RESOLV() public {
         deal(RESOLV, clientAddress, 1000e18);
         _doDeposit();
 
@@ -397,7 +397,7 @@ contract RESOLVIntegration is Test {
         vm.clearMockedCalls();
     }
 
-    function test_sweepRewardToken_byP2pOperator_Mainnet_RESOLV() public {
+    function test_resolv_sweepRewardToken_byP2pOperator_Mainnet_RESOLV() public {
         deal(RESOLV, clientAddress, 1000e18);
         _doDeposit();
 
@@ -426,7 +426,7 @@ contract RESOLVIntegration is Test {
         vm.clearMockedCalls();
     }
 
-    function test_sweepRewardToken_cannotSweepProtectedTokens_Mainnet_RESOLV() public {
+    function test_resolv_sweepRewardToken_cannotSweepProtectedTokens_Mainnet_RESOLV() public {
         deal(RESOLV, clientAddress, 1000e18);
         _doDeposit();
 
@@ -451,7 +451,7 @@ contract RESOLVIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_sweepRewardToken_zeroBalance_Mainnet_RESOLV() public {
+    function test_resolv_sweepRewardToken_zeroBalance_Mainnet_RESOLV() public {
         deal(RESOLV, clientAddress, 1000e18);
         _doDeposit();
 
@@ -472,7 +472,7 @@ contract RESOLVIntegration is Test {
         vm.clearMockedCalls();
     }
 
-    function test_sweepRewardToken_onlyClientOrOperator_Mainnet_RESOLV() public {
+    function test_resolv_sweepRewardToken_onlyClientOrOperator_Mainnet_RESOLV() public {
         deal(RESOLV, clientAddress, 1000e18);
         _doDeposit();
 
@@ -484,7 +484,7 @@ contract RESOLVIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_transferP2pSigner_Mainnet_RESOLV() public {
+    function test_resolv_transferP2pSigner_Mainnet_RESOLV() public {
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
         factory.transferP2pSigner(nobody);
@@ -499,7 +499,7 @@ contract RESOLVIntegration is Test {
         assertEq(newSigner, nobody);
     }
 
-    function test_clientBasisPointsGreaterThan10000_Mainnet_RESOLV() public {
+    function test_resolv_clientBasisPointsGreaterThan10000_Mainnet_RESOLV() public {
         uint96 invalidBasisPoints = 10001;
 
         vm.startPrank(clientAddress);
@@ -519,7 +519,7 @@ contract RESOLVIntegration is Test {
         );
     }
 
-    function test_zeroAddressAsset_Mainnet_RESOLV() public {
+    function test_resolv_zeroAddressAsset_Mainnet_RESOLV() public {
         vm.startPrank(clientAddress);
 
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -538,7 +538,7 @@ contract RESOLVIntegration is Test {
         );
     }
 
-    function test_zeroAssetAmount_Mainnet_RESOLV() public {
+    function test_resolv_zeroAssetAmount_Mainnet_RESOLV() public {
         vm.startPrank(clientAddress);
 
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -557,7 +557,7 @@ contract RESOLVIntegration is Test {
         );
     }
 
-    function test_depositDirectlyOnProxy_Mainnet_RESOLV() public {
+    function test_resolv_depositDirectlyOnProxy_Mainnet_RESOLV() public {
         vm.startPrank(clientAddress);
 
         // Add this line to give initial tokens to the client
@@ -595,7 +595,7 @@ contract RESOLVIntegration is Test {
         );
     }
 
-    function test_initializeDirectlyOnProxy_Mainnet_RESOLV() public {
+    function test_resolv_initializeDirectlyOnProxy_Mainnet_RESOLV() public {
         // Create the proxy first since we need a valid proxy address to test with
         proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
         P2pResolvProxy proxy = P2pResolvProxy(proxyAddress);
@@ -632,7 +632,7 @@ contract RESOLVIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_withdrawOnProxyOnlyCallableByClient_Mainnet_RESOLV() public {
+    function test_resolv_withdrawOnProxyOnlyCallableByClient_Mainnet_RESOLV() public {
         // Create proxy and do initial deposit
         deal(RESOLV, clientAddress, DepositAmount);
         vm.startPrank(clientAddress);
@@ -667,7 +667,7 @@ contract RESOLVIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_setStakedTokenDistributor_onlyP2pOperator_Mainnet_RESOLV() public {
+    function test_resolv_setStakedTokenDistributor_onlyP2pOperator_Mainnet_RESOLV() public {
         deal(RESOLV, clientAddress, DepositAmount);
         _doDeposit();
 
@@ -696,7 +696,7 @@ contract RESOLVIntegration is Test {
         assertEq(proxy.getStakedTokenDistributor(), newDistributor);
     }
 
-    function test_setStakedTokenDistributor_zeroAddressReverts_Mainnet_RESOLV() public {
+    function test_resolv_setStakedTokenDistributor_zeroAddressReverts_Mainnet_RESOLV() public {
         deal(RESOLV, clientAddress, DepositAmount);
         _doDeposit();
 
@@ -706,14 +706,14 @@ contract RESOLVIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_getP2pLendingProxyFactory__ZeroP2pSignerAddress_Mainnet_RESOLV() public {
+    function test_resolv_getP2pLendingProxyFactory__ZeroP2pSignerAddress_Mainnet_RESOLV() public {
         vm.startPrank(p2pOperatorAddress);
         vm.expectRevert(P2pYieldProxyFactory__ZeroP2pSignerAddress.selector);
         factory.transferP2pSigner(address(0));
         vm.stopPrank();
     }
 
-    function test_getHashForP2pSigner_Mainnet_RESOLV() public view {
+    function test_resolv_getHashForP2pSigner_Mainnet_RESOLV() public view {
         bytes32 expectedHash = keccak256(abi.encode(
             clientAddress,
             ClientBasisPoints,
@@ -731,7 +731,7 @@ contract RESOLVIntegration is Test {
         assertEq(actualHash, expectedHash);
     }
 
-    function test_supportsInterface_Mainnet_RESOLV() public view {
+    function test_resolv_supportsInterface_Mainnet_RESOLV() public view {
         // Test IP2pLendingProxyFactory interface support
         bool supportsP2pLendingProxyFactory = factory.supportsInterface(type(IP2pYieldProxyFactory).interfaceId);
         assertTrue(supportsP2pLendingProxyFactory);
@@ -746,7 +746,7 @@ contract RESOLVIntegration is Test {
         assertFalse(supportsNonSupported);
     }
 
-    function test_p2pSignerSignatureExpired_Mainnet_RESOLV() public {
+    function test_resolv_p2pSignerSignatureExpired_Mainnet_RESOLV() public {
         // Add this line to give tokens to the client before attempting deposit
         deal(RESOLV, clientAddress, DepositAmount);
 
@@ -778,7 +778,7 @@ contract RESOLVIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_invalidP2pSignerSignature_Mainnet_RESOLV() public {
+    function test_resolv_invalidP2pSignerSignature_Mainnet_RESOLV() public {
         // Add this line to give tokens to the client before attempting deposit
         deal(RESOLV, clientAddress, DepositAmount);
 
@@ -809,7 +809,7 @@ contract RESOLVIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_viewFunctions_Mainnet_RESOLV() public {
+    function test_resolv_viewFunctions_Mainnet_RESOLV() public {
         // Add this line to give tokens to the client before attempting deposit
         deal(RESOLV, clientAddress, DepositAmount);
 
@@ -843,7 +843,7 @@ contract RESOLVIntegration is Test {
         assertEq(factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints), proxyAddress);
     }
 
-    function test_acceptP2pOperator_Mainnet_RESOLV() public {
+    function test_resolv_acceptP2pOperator_Mainnet_RESOLV() public {
         // Initial state check
         assertEq(factory.getP2pOperator(), p2pOperatorAddress);
 
@@ -902,7 +902,7 @@ contract RESOLVIntegration is Test {
         vm.stopPrank();
     }
 
-    function testDropClaim() public {
+    function test_resolv_DropClaim() public {
         deal(RESOLV, clientAddress, 10000e18);
         _doDeposit();
 

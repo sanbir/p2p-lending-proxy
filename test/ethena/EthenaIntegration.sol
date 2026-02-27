@@ -73,7 +73,7 @@ contract EthenaIntegration is Test {
         proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
     }
 
-    function test_happyPath_Mainnet() public {
+    function test_ethena_happyPath_Mainnet() public {
         deal(USDe, clientAddress, 10_000e18);
 
         uint256 assetBalanceBefore = IERC20(USDe).balanceOf(clientAddress);
@@ -109,7 +109,7 @@ contract EthenaIntegration is Test {
         assertGt(assetBalanceAfterAllWithdrawals, assetBalanceBefore, "Expected non-zero profit");
     }
 
-    function test_profitSplit_Mainnet() public {
+    function test_ethena_profitSplit_Mainnet() public {
         deal(USDe, clientAddress, 100e18);
 
         uint256 clientAssetBalanceBefore = IERC20(USDe).balanceOf(clientAddress);
@@ -131,7 +131,7 @@ contract EthenaIntegration is Test {
         assertGt(clientBalanceChange, p2pBalanceChange, "Client share should be greater than treasury share");
     }
 
-    function test_transferP2pSigner_Mainnet() public {
+    function test_ethena_transferP2pSigner_Mainnet() public {
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
         factory.transferP2pSigner(nobody);
@@ -144,7 +144,7 @@ contract EthenaIntegration is Test {
         assertEq(factory.getP2pSigner(), nobody);
     }
 
-    function test_getHashForP2pSigner_Mainnet() public view {
+    function test_ethena_getHashForP2pSigner_Mainnet() public view {
         bytes32 expected = keccak256(
             abi.encode(
                 clientAddress,
@@ -158,17 +158,17 @@ contract EthenaIntegration is Test {
         assertEq(actual, expected);
     }
 
-    function test_predictP2pYieldProxyAddress_Mainnet() public view {
+    function test_ethena_predictP2pYieldProxyAddress_Mainnet() public view {
         address predicted = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
         assertEq(predicted, proxyAddress);
     }
 
-    function test_getReferenceP2pYieldProxy_Mainnet() public view {
+    function test_ethena_getReferenceP2pYieldProxy_Mainnet() public view {
         address referenceProxy = factory.getReferenceP2pYieldProxy();
         assertTrue(referenceProxy != address(0), "reference should be deployed");
     }
 
-    function test_getAllProxies_Mainnet() public {
+    function test_ethena_getAllProxies_Mainnet() public {
         deal(USDe, clientAddress, DepositAmount);
         _doDeposit();
         address[] memory proxies = factory.getAllProxies();
@@ -176,7 +176,7 @@ contract EthenaIntegration is Test {
         assertEq(proxies[0], proxyAddress);
     }
 
-    function test_getAllProxiesAfterSecondDeposit_Mainnet() public {
+    function test_ethena_getAllProxiesAfterSecondDeposit_Mainnet() public {
         deal(USDe, clientAddress, 2 * DepositAmount);
         _doDeposit();
         _doDeposit();
@@ -185,11 +185,11 @@ contract EthenaIntegration is Test {
         assertEq(proxies[0], proxyAddress);
     }
 
-    function test_getP2pSignerAddress_Mainnet() public view {
+    function test_ethena_getP2pSignerAddress_Mainnet() public view {
         assertEq(factory.getP2pSigner(), p2pSignerAddress);
     }
 
-    function test_invalidP2pSignerSignature_Mainnet() public {
+    function test_ethena_invalidP2pSignerSignature_Mainnet() public {
         deal(USDe, clientAddress, DepositAmount);
         (address rogueSigner, uint256 roguePrivateKey) = makeAddrAndKey("rogueSigner");
         vm.label(rogueSigner, "rogueSigner");
@@ -214,7 +214,7 @@ contract EthenaIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_p2pSignerSignatureExpired_Mainnet() public {
+    function test_ethena_p2pSignerSignatureExpired_Mainnet() public {
         deal(USDe, clientAddress, DepositAmount);
         uint256 expiredDeadline = block.timestamp - 1;
         bytes memory signature = _getP2pSignerSignature(
@@ -241,7 +241,7 @@ contract EthenaIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_depositRequiresAllowance_Mainnet() public {
+    function test_ethena_depositRequiresAllowance_Mainnet() public {
         deal(USDe, clientAddress, DepositAmount);
 
         bytes memory signature = _getP2pSignerSignature(
@@ -262,7 +262,7 @@ contract EthenaIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_viewFunctions_Mainnet() public {
+    function test_ethena_viewFunctions_Mainnet() public {
         deal(USDe, clientAddress, DepositAmount);
         _doDeposit();
 
@@ -278,7 +278,7 @@ contract EthenaIntegration is Test {
         assertEq(proxy.getTotalWithdrawn(USDe), 0);
     }
 
-    function test_supportsInterface_Mainnet() public {
+    function test_ethena_supportsInterface_Mainnet() public {
         bool factorySupports = factory.supportsInterface(type(IP2pEthenaProxyFactory).interfaceId);
         assertTrue(factorySupports, "factory should expose interface id");
 
@@ -290,7 +290,7 @@ contract EthenaIntegration is Test {
         assertTrue(proxySupportsYield, "proxy should expose base yield interface");
     }
 
-    function test_operatorCooldownAssets_RevertsWithoutAccruedRewards_Mainnet() public {
+    function test_ethena_operatorCooldownAssets_RevertsWithoutAccruedRewards_Mainnet() public {
         deal(USDe, clientAddress, DepositAmount);
         _doDeposit();
 
@@ -300,7 +300,7 @@ contract EthenaIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_getHashForP2pSignerMatchesSignature_Mainnet() public view {
+    function test_ethena_getHashForP2pSignerMatchesSignature_Mainnet() public view {
         bytes32 hash = factory.getHashForP2pSigner(clientAddress, ClientBasisPoints, SigDeadline);
         bytes32 signedHash = ECDSA.toEthSignedMessageHash(hash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(p2pSignerPrivateKey, signedHash);
@@ -308,7 +308,7 @@ contract EthenaIntegration is Test {
         assertEq(recovered, p2pSignerAddress);
     }
 
-    function test_withdrawViaCallAnyFunction_Mainnet() public {
+    function test_ethena_withdrawViaCallAnyFunction_Mainnet() public {
         deal(USDe, clientAddress, DepositAmount);
         _doDeposit();
 
@@ -326,7 +326,7 @@ contract EthenaIntegration is Test {
     }
 
 
-    function test_transferP2pOperator_Mainnet() public {
+    function test_ethena_transferP2pOperator_Mainnet() public {
         address newOperator = makeAddr("newOperator");
 
         vm.startPrank(p2pOperatorAddress);
@@ -346,7 +346,7 @@ contract EthenaIntegration is Test {
         assertEq(factory.getPendingP2pOperator(), address(0));
     }
 
-    function test_clientBasisPointsGreaterThan10000_Mainnet() public {
+    function test_ethena_clientBasisPointsGreaterThan10000_Mainnet() public {
         uint96 invalidBasisPoints = 10_001;
 
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -368,7 +368,7 @@ contract EthenaIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_zeroAddressAsset_Mainnet() public {
+    function test_ethena_zeroAddressAsset_Mainnet() public {
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
@@ -387,7 +387,7 @@ contract EthenaIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_zeroAssetAmount_Mainnet() public {
+    function test_ethena_zeroAssetAmount_Mainnet() public {
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
             clientAddress,
             ClientBasisPoints,
@@ -406,7 +406,7 @@ contract EthenaIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_depositDirectlyOnProxy_Mainnet() public {
+    function test_ethena_depositDirectlyOnProxy_Mainnet() public {
         deal(USDe, clientAddress, DepositAmount);
         _doDeposit();
 
@@ -422,7 +422,7 @@ contract EthenaIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_initializeDirectlyOnProxy_Mainnet() public {
+    function test_ethena_initializeDirectlyOnProxy_Mainnet() public {
         deal(USDe, clientAddress, DepositAmount);
         _doDeposit();
 
@@ -432,7 +432,7 @@ contract EthenaIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_withdrawOnProxyOnlyCallableByClient_Mainnet() public {
+    function test_ethena_withdrawOnProxyOnlyCallableByClient_Mainnet() public {
         deal(USDe, clientAddress, DepositAmount);
         _doDeposit();
 

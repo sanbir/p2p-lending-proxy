@@ -75,7 +75,7 @@ contract USRIntegration is Test {
         proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
     }
 
-    function test_Resolv_happyPath_Mainnet() public {
+    function test_resolv_Resolv_happyPath_Mainnet() public {
         deal(USR, clientAddress, 10000e18);
 
         uint256 assetBalanceBefore = IERC20(USR).balanceOf(clientAddress);
@@ -112,7 +112,7 @@ contract USRIntegration is Test {
         assertApproxEqAbs(assetBalanceAfterAllWithdrawals, assetBalanceBefore + profit, 1);
     }
 
-    function test_Resolv_profitSplit_Mainnet() public {
+    function test_resolv_Resolv_profitSplit_Mainnet() public {
         deal(USR, clientAddress, 100e18);
 
         uint256 clientAssetBalanceBefore = IERC20(USR).balanceOf(clientAddress);
@@ -148,7 +148,7 @@ contract USRIntegration is Test {
         assertApproxEqAbs(10_000 - ClientBasisPoints, p2pBasisPointsDeFacto, 1);
     }
 
-    function test_withdrawUSRAccruedRewards_byP2pOperator_Mainnet() public {
+    function test_resolv_withdrawUSRAccruedRewards_byP2pOperator_Mainnet() public {
         // Simulate initial deposit to create some rewards later
         deal(USR, clientAddress, 100e18);
         _doDeposit();
@@ -178,7 +178,7 @@ contract USRIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_DoubleFeeCollectionBug_OperatorThenClientWithdraw_USR() public {
+    function test_resolv_DoubleFeeCollectionBug_OperatorThenClientWithdraw_USR() public {
         deal(USR, clientAddress, 100e18);
         _doDeposit();
 
@@ -209,7 +209,7 @@ contract USRIntegration is Test {
         assertGt(treasuryAfterRewards - treasuryBeforeRewards, 0, "treasury did not collect yield");
     }
 
-    function test_withdrawUSRAccruedRewards_revertsForNonOperator_Mainnet() public {
+    function test_resolv_withdrawUSRAccruedRewards_revertsForNonOperator_Mainnet() public {
         // First deploy and initialize the proxy by doing a deposit
         deal(USR, clientAddress, 100e18);
         _doDeposit();
@@ -231,7 +231,7 @@ contract USRIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_withdrawUSR_zeroAmount_reverts() public {
+    function test_resolv_withdrawUSR_zeroAmount_reverts() public {
         deal(USR, clientAddress, DepositAmount);
         _doDeposit();
 
@@ -241,7 +241,7 @@ contract USRIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_transferP2pSigner_Mainnet() public {
+    function test_resolv_transferP2pSigner_Mainnet() public {
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
         factory.transferP2pSigner(nobody);
@@ -256,7 +256,7 @@ contract USRIntegration is Test {
         assertEq(newSigner, nobody);
     }
 
-    function test_clientBasisPointsGreaterThan10000_Mainnet() public {
+    function test_resolv_clientBasisPointsGreaterThan10000_Mainnet() public {
         uint96 invalidBasisPoints = 10001;
 
         vm.startPrank(clientAddress);
@@ -276,7 +276,7 @@ contract USRIntegration is Test {
         );
     }
 
-    function test_zeroAddressAsset_Mainnet() public {
+    function test_resolv_zeroAddressAsset_Mainnet() public {
         vm.startPrank(clientAddress);
 
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -295,7 +295,7 @@ contract USRIntegration is Test {
         );
     }
 
-    function test_zeroAssetAmount_Mainnet() public {
+    function test_resolv_zeroAssetAmount_Mainnet() public {
         vm.startPrank(clientAddress);
 
         bytes memory p2pSignerSignature = _getP2pSignerSignature(
@@ -314,7 +314,7 @@ contract USRIntegration is Test {
         );
     }
 
-    function test_depositDirectlyOnProxy_Mainnet() public {
+    function test_resolv_depositDirectlyOnProxy_Mainnet() public {
         vm.startPrank(clientAddress);
 
         // Add this line to give initial tokens to the client
@@ -352,7 +352,7 @@ contract USRIntegration is Test {
         );
     }
 
-    function test_initializeDirectlyOnProxy_Mainnet() public {
+    function test_resolv_initializeDirectlyOnProxy_Mainnet() public {
         // Create the proxy first since we need a valid proxy address to test with
         proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
         P2pResolvProxy proxy = P2pResolvProxy(proxyAddress);
@@ -389,7 +389,7 @@ contract USRIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_withdrawOnProxyOnlyCallableByClient_Mainnet() public {
+    function test_resolv_withdrawOnProxyOnlyCallableByClient_Mainnet() public {
         // Create proxy and do initial deposit
         deal(USR, clientAddress, DepositAmount);
         vm.startPrank(clientAddress);
@@ -424,14 +424,14 @@ contract USRIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_getP2pLendingProxyFactory__ZeroP2pSignerAddress_Mainnet() public {
+    function test_resolv_getP2pLendingProxyFactory__ZeroP2pSignerAddress_Mainnet() public {
         vm.startPrank(p2pOperatorAddress);
         vm.expectRevert(P2pYieldProxyFactory__ZeroP2pSignerAddress.selector);
         factory.transferP2pSigner(address(0));
         vm.stopPrank();
     }
 
-    function test_getHashForP2pSigner_Mainnet() public view {
+    function test_resolv_getHashForP2pSigner_Mainnet() public view {
         bytes32 expectedHash = keccak256(abi.encode(
             clientAddress,
             ClientBasisPoints,
@@ -449,7 +449,7 @@ contract USRIntegration is Test {
         assertEq(actualHash, expectedHash);
     }
 
-    function test_supportsInterface_Mainnet() public view {
+    function test_resolv_supportsInterface_Mainnet() public view {
         // Test IP2pLendingProxyFactory interface support
         bool supportsP2pLendingProxyFactory = factory.supportsInterface(type(IP2pYieldProxyFactory).interfaceId);
         assertTrue(supportsP2pLendingProxyFactory);
@@ -464,7 +464,7 @@ contract USRIntegration is Test {
         assertFalse(supportsNonSupported);
     }
 
-    function test_p2pSignerSignatureExpired_Mainnet() public {
+    function test_resolv_p2pSignerSignatureExpired_Mainnet() public {
         // Add this line to give tokens to the client before attempting deposit
         deal(USR, clientAddress, DepositAmount);
 
@@ -496,7 +496,7 @@ contract USRIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_invalidP2pSignerSignature_Mainnet() public {
+    function test_resolv_invalidP2pSignerSignature_Mainnet() public {
         // Add this line to give tokens to the client before attempting deposit
         deal(USR, clientAddress, DepositAmount);
 
@@ -527,7 +527,7 @@ contract USRIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_viewFunctions_Mainnet() public {
+    function test_resolv_viewFunctions_Mainnet() public {
         // Add this line to give tokens to the client before attempting deposit
         deal(USR, clientAddress, DepositAmount);
 
@@ -561,7 +561,7 @@ contract USRIntegration is Test {
         assertEq(factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints), proxyAddress);
     }
 
-    function test_acceptP2pOperator_Mainnet() public {
+    function test_resolv_acceptP2pOperator_Mainnet() public {
         // Initial state check
         assertEq(factory.getP2pOperator(), p2pOperatorAddress);
 

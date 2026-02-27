@@ -62,7 +62,7 @@ contract MainnetProtocolEvents is Test {
         proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
     }
 
-    function test_mainnet_usr_deposit_and_withdraw_emit_protocol_events() external {
+    function test_resolv_mainnet_usr_deposit_and_withdraw_emit_protocol_events() external {
         deal(USR, client, 100e18);
 
         vm.recordLogs();
@@ -77,7 +77,7 @@ contract MainnetProtocolEvents is Test {
         _assertEventSeen(withdrawLogs, stUSR, ERC20_TRANSFER_EVENT);
     }
 
-    function test_mainnet_claim_reward_tokens_emits_protocol_events() external {
+    function test_resolv_mainnet_claim_reward_tokens_emits_protocol_events() external {
         vm.createSelectFork("mainnet", 23_866_064);
 
         AllowedCalldataChecker checker = new AllowedCalldataChecker();

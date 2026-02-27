@@ -70,7 +70,7 @@ contract MainnetMorphoClaiming is Test {
         vault = VAULT_USDC;
     }
 
-    function test_MorphoClaimingByClient() external {
+    function test_morpho_MorphoClaimingByClient() external {
         uint256 claimable = 10 ether;
 
         deal(asset, client, 100e6);
@@ -92,7 +92,7 @@ contract MainnetMorphoClaiming is Test {
         assertEq(treasuryBalanceAfter - treasuryBalanceBefore, claimable * (10_000 - CLIENT_BASIS_POINTS) / 10_000);
     }
 
-    function test_MorphoClaimingByOperator() external {
+    function test_morpho_MorphoClaimingByOperator() external {
         uint256 claimable = 5 ether;
 
         deal(asset, client, 50e6);

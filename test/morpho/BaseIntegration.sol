@@ -54,7 +54,7 @@ contract BaseIntegration is Test {
         proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
     }
 
-    function test_HappyPath_Base() external {
+    function test_morpho_HappyPath_Base() external {
         _doDeposit();
 
         uint256 shares = IERC20(VAULT_USDC).balanceOf(proxyAddress);

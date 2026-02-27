@@ -291,7 +291,7 @@ contract P2pEthenaProxyUnitTest is Test {
         proxy = P2pEthenaProxy(factory.getReferenceP2pYieldProxy());
     }
 
-    function testOperatorCooldownAssetsRevertsWhenNoAccrued() public {
+    function test_ethena_OperatorCooldownAssetsRevertsWhenNoAccrued() public {
         _clientDeposit(DEPOSIT);
 
         vm.prank(p2pOperator);
@@ -299,7 +299,7 @@ contract P2pEthenaProxyUnitTest is Test {
         proxy.cooldownAssetsAccruedRewards();
     }
 
-    function testOperatorCooldownAssetsUsesFullAccrued() public {
+    function test_ethena_OperatorCooldownAssetsUsesFullAccrued() public {
         _clientDeposit(DEPOSIT);
         stakedUsde.increaseYield(120 ether);
 
@@ -311,7 +311,7 @@ contract P2pEthenaProxyUnitTest is Test {
         assertEq(stakedUsde.cooldownAmounts(address(proxy)), accrued, "cooldown amount should equal accrued");
     }
 
-    function testOperatorWithdrawWithoutCooldownDistributesRewards() public {
+    function test_ethena_OperatorWithdrawWithoutCooldownDistributesRewards() public {
         _clientDeposit(DEPOSIT);
         stakedUsde.increaseYield(200 ether);
 
@@ -328,7 +328,7 @@ contract P2pEthenaProxyUnitTest is Test {
         assertGt(clientAfter, clientBefore, "client balance should increase");
     }
 
-    function testOperatorWithdrawWithoutCooldownAccruedRewardsRevertsWithoutAccrued() public {
+    function test_ethena_OperatorWithdrawWithoutCooldownAccruedRewardsRevertsWithoutAccrued() public {
         _clientDeposit(DEPOSIT);
 
         vm.prank(p2pOperator);
@@ -336,7 +336,7 @@ contract P2pEthenaProxyUnitTest is Test {
         proxy.withdrawWithoutCooldownAccruedRewards();
     }
 
-    function testDoubleFeeCollectionBug_OperatorThenClientWithdraw() public {
+    function test_ethena_DoubleFeeCollectionBug_OperatorThenClientWithdraw() public {
         _clientDeposit(DEPOSIT);
         stakedUsde.increaseYield(250 ether);
 
@@ -364,7 +364,7 @@ contract P2pEthenaProxyUnitTest is Test {
         assertGt(clientAfterRewards - clientBeforeRewards, 0, "client did not receive yield share");
     }
 
-    function testOperatorWithdrawAfterCooldownWithinAccrued() public {
+    function test_ethena_OperatorWithdrawAfterCooldownWithinAccrued() public {
         _clientDeposit(DEPOSIT);
         stakedUsde.increaseYield(150 ether);
 
@@ -384,7 +384,7 @@ contract P2pEthenaProxyUnitTest is Test {
         assertGt(clientAfter, clientBefore, "client balance should increase");
     }
 
-    function testOperatorWithdrawAfterCooldownRevertsWithoutAccrued() public {
+    function test_ethena_OperatorWithdrawAfterCooldownRevertsWithoutAccrued() public {
         _clientDeposit(DEPOSIT);
 
         vm.startPrank(p2pOperator);

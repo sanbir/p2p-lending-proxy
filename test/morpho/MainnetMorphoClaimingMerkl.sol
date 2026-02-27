@@ -58,7 +58,7 @@ contract MainnetMorphoClaimingMerkl is Test {
         vm.deal(p2pOperator, 10 ether);
     }
 
-    function test_MorphoClaimingMerklEOA() external {
+    function test_morpho_MorphoClaimingMerklEOA() external {
         (
             address[] memory users,
             address[] memory tokens,
@@ -79,7 +79,7 @@ contract MainnetMorphoClaimingMerkl is Test {
         assertEq(claimedAfter - claimedBefore, MERKL_CLAIM_AMOUNT);
     }
 
-    function test_MorphoClaimingMerklByClient() external {
+    function test_morpho_MorphoClaimingMerklByClient() external {
         _deployProxy();
 
         (address[] memory tokens, address[] memory payoutTokens, uint256[] memory amounts, bytes32[][] memory proofs) =
@@ -103,7 +103,7 @@ contract MainnetMorphoClaimingMerkl is Test {
         assertEq(treasuryBalanceAfter - treasuryBalanceBefore, expectedP2pAmount);
     }
 
-    function test_MorphoClaimingMerklByOperator() external {
+    function test_morpho_MorphoClaimingMerklByOperator() external {
         _deployProxy();
 
         (address[] memory tokens, address[] memory payoutTokens, uint256[] memory amounts, bytes32[][] memory proofs) =
