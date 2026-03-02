@@ -3,9 +3,7 @@
 
 pragma solidity 0.8.30;
 
-import "../../../p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
-
-interface IP2pMorphoProxyFactory is IP2pYieldProxyFactory {
+interface IP2pMorphoProxyFactory {
     /// @notice Emitted when a distributor is marked as trusted
     event P2pMorphoProxyFactory__TrustedDistributorSet(address indexed _newTrustedDistributor);
     /// @notice Emitted when a distributor loses the trusted status

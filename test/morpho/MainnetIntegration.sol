@@ -15,6 +15,7 @@ import "../../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.so
 import "../../src/p2pYieldProxy/P2pYieldProxy.sol";
 import "../../src/p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
+import "../../src/p2pYieldProxyFactory/interfaces/IFactoryDeposit.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "forge-std/Test.sol";
 
@@ -197,7 +198,7 @@ contract MainnetIntegration is Test {
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         (bool success, bytes memory returndata) = address(factory).call(
             abi.encodeWithSelector(
-                IP2pYieldProxyFactory.deposit.selector,
+                IFactoryDeposit.deposit.selector,
                 vault,
                 0,
                 CLIENT_BPS,
