@@ -7,7 +7,10 @@ import "../@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "../common/IAllowedCalldataChecker.sol";
 
 /// @dev External interface of P2pYieldProxyFactory
-interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
+interface IP2pYieldProxyFactory is
+    IAllowedCalldataChecker,
+    IERC165
+{
 
     /// @dev Emitted when the P2pSigner is transferred
     event P2pYieldProxyFactory__P2pSignerTransferred(
@@ -38,13 +41,12 @@ interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
     function deposit(
         address _asset,
         uint256 _amount,
-
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
     )
-    external
-    returns (address p2pYieldProxyAddress);
+        external
+        returns (address p2pYieldProxyAddress);
 
     /// @notice Predicts the deterministic proxy address that will serve a specific client and fee configuration.
     /// @param _client Address of the client that will control the proxy.
@@ -53,13 +55,14 @@ interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
     function predictP2pYieldProxyAddress(
         address _client,
         uint96 _clientBasisPoints
-    ) external view returns (address proxyAddress);
+    )
+        external
+        view
+        returns (address proxyAddress);
 
     /// @notice Updates the recognised P2P signer that authorises new deposits.
     /// @param _newP2pSigner Address of the replacement signer allowed to approve deposits.
-    function transferP2pSigner(
-        address _newP2pSigner
-    ) external;
+    function transferP2pSigner(address _newP2pSigner) external;
 
     /// @notice Starts a pending transfer of the factory operator role.
     /// @param _newP2pOperator Address that will receive the operator role once accepted.
@@ -81,7 +84,10 @@ interface IP2pYieldProxyFactory is IAllowedCalldataChecker, IERC165 {
         address _client,
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline
-    ) external view returns (bytes32 signerHash);
+    )
+        external
+        view
+        returns (bytes32 signerHash);
 
     /// @notice Returns the address authorised to co-sign new deposits.
     /// @return signer Address of the currently configured P2P signer.
