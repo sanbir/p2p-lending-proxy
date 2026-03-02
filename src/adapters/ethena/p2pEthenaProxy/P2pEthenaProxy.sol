@@ -61,7 +61,7 @@ contract P2pEthenaProxy is P2pYieldProxy, P2pOperatorCallable, IP2pEthenaProxy {
 
     function deposit(address _asset, uint256 _amount)
         external
-        override(P2pYieldProxy)
+        override
         onlyFactory
     {
         if (_asset != i_USDe) {

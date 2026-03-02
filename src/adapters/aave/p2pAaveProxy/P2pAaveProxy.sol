@@ -33,7 +33,7 @@ contract P2pAaveProxy is P2pYieldProxy, P2pOperatorCallable, IP2pAaveProxy {
         i_aaveDataProvider = IAaveProtocolDataProvider(_aaveDataProvider);
     }
 
-    function deposit(address _asset, uint256 _amount) external override(P2pYieldProxy) {
+    function deposit(address _asset, uint256 _amount) external override {
         require(_asset != address(0), P2pAaveProxy__ZeroAddressAsset());
         address aToken = getAToken(_asset);
         bytes memory supplyCalldata = abi.encodeCall(IAaveV3Pool.supply, (_asset, _amount, address(this), 0));

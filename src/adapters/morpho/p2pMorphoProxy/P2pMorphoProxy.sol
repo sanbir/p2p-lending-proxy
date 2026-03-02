@@ -9,6 +9,7 @@ import "../../../common/IMorphoBundler.sol";
 import "../../../common/IDistributor.sol";
 import "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../p2pMorphoProxyFactory/IP2pMorphoProxyFactory.sol";
+import "../../../p2pYieldProxy/interfaces/IDepositable.sol";
 import "./IP2pMorphoProxy.sol";
 
 error P2pMorphoProxy__NothingClaimed();
@@ -33,7 +34,7 @@ contract P2pMorphoProxy is P2pYieldProxy, P2pOperatorCallable, IP2pMorphoProxy {
     }
 
     /// @inheritdoc IP2pMorphoProxy
-    function deposit(address _vault, uint256 _amount) external override(IP2pMorphoProxy, P2pYieldProxy) {
+    function deposit(address _vault, uint256 _amount) external override(IP2pMorphoProxy, IDepositable) {
         require(_vault != address(0), P2pMorphoProxy__ZeroVaultAddress());
 
         address asset = IERC4626(_vault).asset();

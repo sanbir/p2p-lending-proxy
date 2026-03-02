@@ -77,7 +77,7 @@ contract P2pResolvProxy is P2pYieldProxy, P2pOperatorCallable, IP2pResolvProxy {
     }
 
     /// @notice Deposits either USR or RESOLV depending on `_asset`.
-    function deposit(address _asset, uint256 _amount) external override(P2pYieldProxy) onlyFactory {
+    function deposit(address _asset, uint256 _amount) external override onlyFactory {
         if (_asset == i_USR) {
             _deposit(
                 i_stUSR,

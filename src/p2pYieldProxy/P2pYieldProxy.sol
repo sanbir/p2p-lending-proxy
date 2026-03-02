@@ -8,18 +8,18 @@ import "./IP2pYieldProxy.sol";
 import "./features/AccruedRewardsWithTreasury.sol";
 import "./features/AnyFunctionWithCalldataChecker.sol";
 import "./features/ProxyInitializer.sol";
-import "./features/DepositEntryPoint.sol";
 import "./immutables/FactoryImmutable.sol";
+import "./interfaces/IDepositable.sol";
 
 /// @title P2pYieldProxy
 /// @notice P2pYieldProxy is a contract that allows a client to deposit and withdraw assets from a yield protocol.
 abstract contract P2pYieldProxy is
     ERC165,
+    IDepositable,
     FactoryImmutable,
     AccruedRewardsWithTreasury,
     AnyFunctionWithCalldataChecker,
-    ProxyInitializer,
-    DepositEntryPoint
+    ProxyInitializer
 {
     /// @notice Constructor for P2pYieldProxy
     /// @param _factoryAddress The factory address
@@ -34,11 +34,6 @@ abstract contract P2pYieldProxy is
         AccruedRewardsWithTreasury(_p2pTreasuryAddress_)
         AnyFunctionWithCalldataChecker(_allowedCalldataCheckerAddress)
     {}
-
-    function deposit(address _asset, uint256 _amount)
-        external
-        virtual
-        override(DepositEntryPoint);
 
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId)
