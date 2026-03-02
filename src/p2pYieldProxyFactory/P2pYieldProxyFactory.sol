@@ -13,7 +13,7 @@ import "./features/P2pSignerHashing.sol";
 import "./features/DeterministicProxyCreation.sol";
 import "./storage/P2pSignerStorage.sol";
 import "./storage/AllProxiesStorage.sol";
-import "./storage/ReferenceP2pYieldProxyStorage.sol";
+import "./immutables/ReferenceP2pYieldProxyImmutable.sol";
 
 /// @title P2pYieldProxyFactory
 /// @author P2P Validator <info@p2p.org>

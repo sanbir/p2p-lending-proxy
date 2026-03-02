@@ -8,11 +8,11 @@ import "../../p2pYieldProxy/P2pYieldProxy.sol";
 import "../IP2pYieldProxyFactory.sol";
 import "../interfaces/IFactoryPredictProxyAddress.sol";
 import "../storage/AllProxiesStorage.sol";
-import "../storage/ReferenceP2pYieldProxyStorage.sol";
+import "../immutables/ReferenceP2pYieldProxyImmutable.sol";
 
 abstract contract DeterministicProxyCreation is
     IFactoryPredictProxyAddress,
-    ReferenceP2pYieldProxyStorage,
+    ReferenceP2pYieldProxyImmutable,
     AllProxiesStorage
 {
     function predictP2pYieldProxyAddress(address _client, uint96 _clientBasisPoints)
