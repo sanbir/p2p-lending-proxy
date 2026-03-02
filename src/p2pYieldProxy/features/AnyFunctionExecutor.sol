@@ -8,8 +8,14 @@ import "../../@openzeppelin/contracts/utils/Address.sol";
 import "../IP2pYieldProxy.sol";
 import "./ClientCallable.sol";
 import "./CalldataAllowed.sol";
+import "../interfaces/IAnyFunctionCallable.sol";
 
-abstract contract AnyFunctionExecutor is ReentrancyGuardUpgradeable, ClientCallable, CalldataAllowed, IP2pYieldProxy {
+abstract contract AnyFunctionExecutor is
+    IAnyFunctionCallable,
+    ReentrancyGuardUpgradeable,
+    ClientCallable,
+    CalldataAllowed
+{
     using Address for address;
 
     function callAnyFunction(
@@ -18,7 +24,7 @@ abstract contract AnyFunctionExecutor is ReentrancyGuardUpgradeable, ClientCalla
     )
         public
         virtual
-        override
+        override(IAnyFunctionCallable)
         onlyClient
         nonReentrant
         calldataShouldBeAllowed(_yieldProtocolAddress, _yieldProtocolCalldata)

@@ -3,11 +3,7 @@
 
 pragma solidity 0.8.30;
 
-import "../../../p2pYieldProxy/IP2pYieldProxy.sol";
-
-interface IP2pAaveProxy is IP2pYieldProxy {
-    function deposit(address _asset, uint256 _amount) external override;
-
+interface IP2pAaveProxy {
     function withdraw(address _asset, uint256 _amount) external;
 
     function withdrawAccruedRewards(address _asset) external;

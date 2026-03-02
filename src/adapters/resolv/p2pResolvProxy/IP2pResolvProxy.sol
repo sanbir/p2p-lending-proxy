@@ -3,11 +3,9 @@
 
 pragma solidity 0.8.30;
 
-import "../../../p2pYieldProxy/IP2pYieldProxy.sol";
-
 /// @title Interface for the P2P Resolv proxy adapter
 /// @notice Exposes Resolv specific helper flows to withdraw and claim on behalf of a client.
-interface IP2pResolvProxy is IP2pYieldProxy {
+interface IP2pResolvProxy {
     /// @notice Withdraws a specific amount of USR on behalf of the client.
     /// @param _amount Amount of USR (in wei) requested by the client.
     function withdrawUSR(uint256 _amount) external;

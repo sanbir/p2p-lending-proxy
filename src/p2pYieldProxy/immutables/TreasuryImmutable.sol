@@ -12,4 +12,8 @@ abstract contract TreasuryImmutable {
         require(_p2pTreasury != address(0), P2pYieldProxy__ZeroAddressP2pTreasury());
         i_p2pTreasury = _p2pTreasury;
     }
+
+    function getP2pTreasury() public view virtual returns (address) {
+        return i_p2pTreasury;
+    }
 }

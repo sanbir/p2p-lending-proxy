@@ -3,11 +3,9 @@
 
 pragma solidity 0.8.30;
 
-import "../../../p2pYieldProxy/IP2pYieldProxy.sol";
-
 /// @title Interface for the P2P Ethena proxy adapter
 /// @notice Extends the base proxy interface with Ethena specific helper flows for managing cooldowns and withdrawals.
-interface IP2pEthenaProxy is IP2pYieldProxy {
+interface IP2pEthenaProxy {
     /// @notice Redeems assets and starts a cooldown to claim the converted underlying asset.
     /// @param _assets Amount of USDe (assets) to redeem and start cooling down.
     /// @return shares Amount of sUSDe shares burned during the call.
@@ -39,4 +37,3 @@ interface IP2pEthenaProxy is IP2pYieldProxy {
     /// @param _shares Amount of sUSDe shares to redeem via `redeem`.
     function redeemWithoutCooldown(uint256 _shares) external;
 }
-

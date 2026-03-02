@@ -61,7 +61,7 @@ contract P2pEthenaProxy is P2pYieldProxy, P2pOperatorCallable, IP2pEthenaProxy {
 
     function deposit(address _asset, uint256 _amount)
         external
-        override(IP2pYieldProxy, P2pYieldProxy)
+        override(P2pYieldProxy)
         onlyFactory
     {
         if (_asset != i_USDe) {
@@ -220,7 +220,7 @@ contract P2pEthenaProxy is P2pYieldProxy, P2pOperatorCallable, IP2pEthenaProxy {
     function calculateAccruedRewards(address _yieldProtocolAddress, address _asset)
         public
         view
-        override(IP2pYieldProxy, P2pYieldProxy)
+        override
         returns (int256)
     {
         return super.calculateAccruedRewards(_yieldProtocolAddress, _asset);
@@ -239,7 +239,7 @@ contract P2pEthenaProxy is P2pYieldProxy, P2pOperatorCallable, IP2pEthenaProxy {
         public
         view
         virtual
-        override(P2pYieldProxy, IERC165)
+        override(P2pYieldProxy)
         returns (bool)
     {
         return interfaceId == type(IP2pEthenaProxy).interfaceId ||

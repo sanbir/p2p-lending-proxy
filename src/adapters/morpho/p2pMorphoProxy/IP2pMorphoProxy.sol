@@ -3,9 +3,7 @@
 
 pragma solidity 0.8.30;
 
-import "../../../p2pYieldProxy/IP2pYieldProxy.sol";
-
-interface IP2pMorphoProxy is IP2pYieldProxy {
+interface IP2pMorphoProxy {
     /// @notice Emitted when URD rewards are claimed through the proxy
     event P2pMorphoProxy__ClaimedMorphoUrd(
         address _distributor, address _reward, uint256 _totalAmount, uint256 _p2pAmount, uint256 _clientAmount
@@ -18,7 +16,7 @@ interface IP2pMorphoProxy is IP2pYieldProxy {
     /// @notice Deposits underlying assets into a Morpho ERC4626 vault
     /// @param _vault The ERC4626 vault that should receive the deposit
     /// @param _amount The amount of assets to deposit
-    function deposit(address _vault, uint256 _amount) external override;
+    function deposit(address _vault, uint256 _amount) external;
 
     /// @notice Withdraws vault shares back to the client
     /// @param _vault The ERC4626 vault from which shares are redeemed

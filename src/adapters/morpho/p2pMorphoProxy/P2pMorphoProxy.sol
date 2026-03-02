@@ -206,11 +206,11 @@ contract P2pMorphoProxy is P2pYieldProxy, P2pOperatorCallable, IP2pMorphoProxy {
         require(totalClaimed > 0, P2pMorphoProxy__NothingClaimed());
     }
 
-    /// @inheritdoc IP2pYieldProxy
+    /// @notice Calculates accrued rewards as current vault assets minus tracked user principal.
     function calculateAccruedRewards(address _vault, address _asset)
         public
         view
-        override(IP2pYieldProxy, P2pYieldProxy)
+        override
         returns (int256)
     {
         uint256 shares = IERC20(_vault).balanceOf(address(this));
@@ -223,7 +223,7 @@ contract P2pMorphoProxy is P2pYieldProxy, P2pOperatorCallable, IP2pMorphoProxy {
         public
         view
         virtual
-        override(P2pYieldProxy, IERC165)
+        override(P2pYieldProxy)
         returns (bool)
     {
         return interfaceId == type(IP2pMorphoProxy).interfaceId || super.supportsInterface(interfaceId);
