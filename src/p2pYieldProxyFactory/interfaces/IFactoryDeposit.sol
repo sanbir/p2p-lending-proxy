@@ -5,6 +5,7 @@ pragma solidity 0.8.30;
 
 interface IFactoryDeposit {
     function deposit(
+        address _referenceP2pYieldProxy,
         address _asset,
         uint256 _amount,
         uint96 _clientBasisPoints,

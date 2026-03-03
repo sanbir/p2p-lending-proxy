@@ -714,7 +714,9 @@ contract RESOLVIntegration is Test {
     }
 
     function test_resolv_getHashForP2pSigner_Mainnet_RESOLV() public view {
+        address referenceProxy = factory.getReferenceP2pYieldProxy();
         bytes32 expectedHash = keccak256(abi.encode(
+            referenceProxy,
             clientAddress,
             ClientBasisPoints,
             SigDeadline,

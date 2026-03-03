@@ -3,8 +3,4 @@
 
 pragma solidity 0.8.30;
 
-interface IP2pAaveProxyFactory {
-    function getAavePool() external view returns (address);
-
-    function getAaveDataProvider() external view returns (address);
-}
+interface IP2pAaveProxyFactory {}

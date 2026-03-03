@@ -11,6 +11,7 @@ import "./P2pSignerValidation.sol";
 
 abstract contract FactoryDepositExecutor is IFactoryDeposit, DeterministicProxyCreation, P2pSignerValidation {
     function deposit(
+        address _referenceP2pYieldProxy,
         address _asset,
         uint256 _amount,
         uint96 _clientBasisPoints,
@@ -21,10 +22,15 @@ abstract contract FactoryDepositExecutor is IFactoryDeposit, DeterministicProxyC
         virtual
         override(IFactoryDeposit)
         p2pSignerSignatureShouldNotExpire(_p2pSignerSigDeadline)
-        p2pSignerSignatureShouldBeValid(_clientBasisPoints, _p2pSignerSigDeadline, _p2pSignerSignature)
+        p2pSignerSignatureShouldBeValid(
+            _referenceP2pYieldProxy,
+            _clientBasisPoints,
+            _p2pSignerSigDeadline,
+            _p2pSignerSignature
+        )
         returns (address p2pYieldProxyAddress)
     {
-        P2pYieldProxy p2pYieldProxy = _getOrCreateP2pYieldProxy(_clientBasisPoints);
+        P2pYieldProxy p2pYieldProxy = _getOrCreateP2pYieldProxy(_referenceP2pYieldProxy, _clientBasisPoints);
         p2pYieldProxy.deposit(_asset, _amount);
 
         emit IP2pYieldProxyFactory.P2pYieldProxyFactory__Deposited(msg.sender, _clientBasisPoints);

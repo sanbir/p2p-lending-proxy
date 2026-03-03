@@ -11,18 +11,20 @@ import "./features/FactoryDepositExecutor.sol";
 import "./features/P2pSignerTransferable.sol";
 import "./features/P2pSignerHashing.sol";
 import "./features/DeterministicProxyCreation.sol";
+import "./features/ReferenceP2pYieldProxyAllowlist.sol";
 import "./storage/P2pSignerStorage.sol";
 import "./storage/AllProxiesStorage.sol";
-import "./immutables/ReferenceP2pYieldProxyImmutable.sol";
+import "./storage/ReferenceP2pYieldProxiesStorage.sol";
 
 /// @title P2pYieldProxyFactory
 /// @author P2P Validator <info@p2p.org>
 /// @notice P2pYieldProxyFactory is a factory contract for creating P2pYieldProxy contracts
-abstract contract P2pYieldProxyFactory is
+contract P2pYieldProxyFactory is
     AllowedCalldataChecker,
     P2pOperator2Step,
     ERC165,
     FactoryDepositExecutor,
+    ReferenceP2pYieldProxyAllowlist,
     P2pSignerTransferable
 {
     /// @notice Constructor for P2pYieldProxyFactory
@@ -32,6 +34,10 @@ abstract contract P2pYieldProxyFactory is
     }
 
     function _authorizeP2pSignerTransfer() internal view virtual override {
+        _checkP2pOperator();
+    }
+
+    function _authorizeReferenceP2pYieldProxyAllowlist() internal view virtual override {
         _checkP2pOperator();
     }
 

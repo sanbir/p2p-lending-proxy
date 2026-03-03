@@ -15,7 +15,6 @@ import "../../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.so
 import "../../src/p2pYieldProxy/P2pYieldProxy.sol";
 import "../../src/p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
-import "../../src/p2pYieldProxyFactory/interfaces/IFactoryDeposit.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "forge-std/Test.sol";
 
@@ -198,7 +197,7 @@ contract MainnetIntegration is Test {
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         (bool success, bytes memory returndata) = address(factory).call(
             abi.encodeWithSelector(
-                IFactoryDeposit.deposit.selector,
+                P2pMorphoProxyFactory.deposit.selector,
                 vault,
                 0,
                 CLIENT_BPS,
@@ -258,8 +257,9 @@ contract MainnetIntegration is Test {
     }
 
     function test_morpho_getHashForP2pSigner() external view {
+        address referenceProxy = factory.getReferenceP2pYieldProxy();
         bytes32 expected = keccak256(
-            abi.encode(client, CLIENT_BPS, SIG_DEADLINE, address(factory), block.chainid)
+            abi.encode(referenceProxy, client, CLIENT_BPS, SIG_DEADLINE, address(factory), block.chainid)
         );
         assertEq(factory.getHashForP2pSigner(client, CLIENT_BPS, SIG_DEADLINE), expected);
     }

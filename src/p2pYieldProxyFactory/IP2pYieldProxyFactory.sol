@@ -10,12 +10,13 @@ import "./interfaces/IFactoryPredictProxyAddress.sol";
 import "./interfaces/IFactoryTransferP2pSigner.sol";
 import "./interfaces/IFactoryTransferP2pOperator.sol";
 import "./interfaces/IFactoryAcceptP2pOperator.sol";
-import "./interfaces/IFactoryGetReferenceProxy.sol";
 import "./interfaces/IFactoryGetHashForP2pSigner.sol";
 import "./interfaces/IFactoryGetP2pSigner.sol";
 import "./interfaces/IFactoryGetP2pOperator.sol";
 import "./interfaces/IFactoryGetPendingP2pOperator.sol";
 import "./interfaces/IFactoryGetAllProxies.sol";
+import "./interfaces/IFactoryAddReferenceP2pYieldProxy.sol";
+import "./interfaces/IFactoryIsReferenceP2pYieldProxyAllowed.sol";
 
 /// @dev External interface of P2pYieldProxyFactory
 interface IP2pYieldProxyFactory is
@@ -23,8 +24,9 @@ interface IP2pYieldProxyFactory is
     IERC165,
     IFactoryDeposit,
     IFactoryPredictProxyAddress,
-    IFactoryGetReferenceProxy,
     IFactoryGetAllProxies,
+    IFactoryAddReferenceP2pYieldProxy,
+    IFactoryIsReferenceP2pYieldProxyAllowed,
     IFactoryGetP2pSigner,
     IFactoryGetHashForP2pSigner,
     IFactoryTransferP2pSigner,
@@ -52,5 +54,8 @@ interface IP2pYieldProxyFactory is
         address _client,
         uint96 _clientBasisPoints
     );
+
+    /// @dev Emitted when a reference proxy is allowlisted
+    event P2pYieldProxyFactory__ReferenceP2pYieldProxyAllowed(address indexed _referenceP2pYieldProxy);
     // Functions are inherited from the composed interfaces.
 }

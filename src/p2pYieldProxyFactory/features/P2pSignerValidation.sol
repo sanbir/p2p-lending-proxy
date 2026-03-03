@@ -22,13 +22,19 @@ abstract contract P2pSignerValidation is P2pSignerStorage, P2pSignerHashing {
     }
 
     modifier p2pSignerSignatureShouldBeValid(
+        address _referenceP2pYieldProxy,
         uint96 _clientBasisPoints,
         uint256 _p2pSignerSigDeadline,
         bytes calldata _p2pSignerSignature
     ) {
         require(
             s_p2pSigner.isValidSignatureNow(
-                getHashForP2pSigner(msg.sender, _clientBasisPoints, _p2pSignerSigDeadline)
+                getHashForP2pSigner(
+                    _referenceP2pYieldProxy,
+                    msg.sender,
+                    _clientBasisPoints,
+                    _p2pSignerSigDeadline
+                )
                     .toEthSignedMessageHash(),
                 _p2pSignerSignature
             ),

@@ -8,7 +8,7 @@ import "../../../access/P2pOperatorCallable.sol";
 import "../../../common/IMorphoBundler.sol";
 import "../../../common/IDistributor.sol";
 import "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
-import "../p2pMorphoProxyFactory/IP2pMorphoProxyFactory.sol";
+import "../p2pMorphoTrustedDistributorRegistry/IP2pMorphoTrustedDistributorRegistry.sol";
 import "../../../p2pYieldProxy/interfaces/IDepositable.sol";
 import "./IP2pMorphoProxy.sol";
 
@@ -23,14 +23,17 @@ contract P2pMorphoProxy is P2pYieldProxy, P2pOperatorCallable, IP2pMorphoProxy {
     using SafeERC20 for IERC20;
 
     IMorphoBundler private immutable i_morphoBundler;
+    IP2pMorphoTrustedDistributorRegistry private immutable i_trustedDistributorRegistry;
 
     constructor(
         address _factory,
         address _p2pTreasury,
         address _allowedCalldataChecker,
-        address _morphoBundler
+        address _morphoBundler,
+        address _trustedDistributorRegistry
     ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker) {
         i_morphoBundler = IMorphoBundler(_morphoBundler);
+        i_trustedDistributorRegistry = IP2pMorphoTrustedDistributorRegistry(_trustedDistributorRegistry);
     }
 
     /// @inheritdoc IP2pMorphoProxy
@@ -94,7 +97,7 @@ contract P2pMorphoProxy is P2pYieldProxy, P2pOperatorCallable, IP2pMorphoProxy {
         if (msg.sender != s_client) {
             shouldCheckP2pOperator = true;
         }
-        IP2pMorphoProxyFactory(address(i_factory)).checkMorphoUrdClaim(
+        i_trustedDistributorRegistry.checkMorphoUrdClaim(
             msg.sender,
             shouldCheckP2pOperator,
             _distributor
@@ -147,7 +150,7 @@ contract P2pMorphoProxy is P2pYieldProxy, P2pOperatorCallable, IP2pMorphoProxy {
         if (msg.sender != s_client) {
             shouldCheckP2pOperator = true;
         }
-        IP2pMorphoProxyFactory(address(i_factory)).checkMorphoUrdClaim(
+        i_trustedDistributorRegistry.checkMorphoUrdClaim(
             msg.sender,
             shouldCheckP2pOperator,
             _distributor

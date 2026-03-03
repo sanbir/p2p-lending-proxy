@@ -145,8 +145,10 @@ contract EthenaIntegration is Test {
     }
 
     function test_ethena_getHashForP2pSigner_Mainnet() public view {
+        address referenceProxy = factory.getReferenceP2pYieldProxy();
         bytes32 expected = keccak256(
             abi.encode(
+                referenceProxy,
                 clientAddress,
                 ClientBasisPoints,
                 SigDeadline,
@@ -525,4 +527,3 @@ contract EthenaIntegration is Test {
         vm.warp(block.timestamp + blocks * 13);
     }
 }
-

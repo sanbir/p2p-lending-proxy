@@ -4,7 +4,7 @@
 pragma solidity 0.8.30;
 
 interface IFactoryPredictProxyAddress {
-    function predictP2pYieldProxyAddress(address _client, uint96 _clientBasisPoints)
+    function predictP2pYieldProxyAddress(address _referenceP2pYieldProxy, address _client, uint96 _clientBasisPoints)
         external
         view
         returns (address proxyAddress);
