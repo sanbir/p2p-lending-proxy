@@ -10,8 +10,7 @@ import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../src/access/P2pOperator.sol";
 import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
-import "../../src/adapters/morpho/p2pMorphoProxyFactory/IP2pMorphoProxyFactory.sol";
-import "../../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
+import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
 import "../../src/p2pYieldProxy/P2pYieldProxy.sol";
 import "../../src/p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
@@ -33,7 +32,8 @@ contract MainnetIntegration is Test {
     uint96 constant CLIENT_BPS = 8_700;
     uint256 constant DEPOSIT_AMOUNT = 10_000_000;
 
-    P2pMorphoProxyFactory private factory;
+    P2pYieldProxyFactory private factory;
+    P2pMorphoTrustedDistributorRegistry private trustedDistributorRegistry;
     address private client;
     uint256 private clientKey;
     address private p2pSigner;
@@ -41,6 +41,7 @@ contract MainnetIntegration is Test {
     address private p2pOperator;
     address private nobody;
     address private allowedChecker;
+    address private referenceProxy;
 
     address private proxyAddress;
     address private asset;
@@ -60,12 +61,23 @@ contract MainnetIntegration is Test {
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
-        factory = new P2pMorphoProxyFactory(p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER);
+        factory = new P2pYieldProxyFactory(p2pSigner);
+        trustedDistributorRegistry = new P2pMorphoTrustedDistributorRegistry(address(factory));
+        referenceProxy = address(
+            new P2pMorphoProxy(
+                address(factory),
+                P2P_TREASURY,
+                address(checkerProxy),
+                MORPHO_BUNDLER,
+                address(trustedDistributorRegistry)
+            )
+        );
+        factory.addReferenceP2pYieldProxy(referenceProxy);
         vm.stopPrank();
 
         allowedChecker = address(checkerProxy);
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
+        proxyAddress = factory.predictP2pYieldProxyAddress(referenceProxy, client, CLIENT_BPS);
         asset = USDC;
         vault = VAULT_USDC;
     }
@@ -174,7 +186,9 @@ contract MainnetIntegration is Test {
         IERC20(asset).safeApprove(proxyAddress, 0);
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__InvalidClientBasisPoints.selector, invalidBasisPoints));
-        factory.deposit(vault, DEPOSIT_AMOUNT, invalidBasisPoints, SIG_DEADLINE, signature);
+        factory.deposit(
+            referenceProxy,
+            vault, DEPOSIT_AMOUNT, invalidBasisPoints, SIG_DEADLINE, signature);
         vm.stopPrank();
     }
 
@@ -184,7 +198,9 @@ contract MainnetIntegration is Test {
 
         vm.startPrank(client);
         vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxy__ZeroVaultAddress.selector));
-        factory.deposit(address(0), DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
+        factory.deposit(
+            referenceProxy,
+            address(0), DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
         vm.stopPrank();
     }
 
@@ -197,7 +213,8 @@ contract MainnetIntegration is Test {
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         (bool success, bytes memory returndata) = address(factory).call(
             abi.encodeWithSelector(
-                P2pMorphoProxyFactory.deposit.selector,
+                bytes4(keccak256("deposit(address,address,uint256,uint96,uint256,bytes)")),
+                referenceProxy,
                 vault,
                 0,
                 CLIENT_BPS,
@@ -257,15 +274,16 @@ contract MainnetIntegration is Test {
     }
 
     function test_morpho_getHashForP2pSigner() external view {
-        address referenceProxy = factory.getReferenceP2pYieldProxy();
-        bytes32 expected = keccak256(
+                bytes32 expected = keccak256(
             abi.encode(referenceProxy, client, CLIENT_BPS, SIG_DEADLINE, address(factory), block.chainid)
         );
-        assertEq(factory.getHashForP2pSigner(client, CLIENT_BPS, SIG_DEADLINE), expected);
+        assertEq(factory.getHashForP2pSigner(
+            referenceProxy,
+            client, CLIENT_BPS, SIG_DEADLINE), expected);
     }
 
     function test_morpho_supportsInterface() external view {
-        assertTrue(factory.supportsInterface(type(IP2pMorphoProxyFactory).interfaceId));
+        assertTrue(factory.supportsInterface(type(IP2pYieldProxyFactory).interfaceId));
         assertFalse(factory.supportsInterface(type(IERC4626).interfaceId));
     }
 
@@ -280,7 +298,9 @@ contract MainnetIntegration is Test {
         vm.expectRevert(
             abi.encodeWithSelector(P2pYieldProxyFactory__P2pSignerSignatureExpired.selector, expiredDeadline)
         );
-        factory.deposit(vault, DEPOSIT_AMOUNT, CLIENT_BPS, expiredDeadline, signature);
+        factory.deposit(
+            referenceProxy,
+            vault, DEPOSIT_AMOUNT, CLIENT_BPS, expiredDeadline, signature);
         vm.stopPrank();
     }
 
@@ -292,12 +312,14 @@ contract MainnetIntegration is Test {
         IERC20(asset).safeApprove(proxyAddress, 0);
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
         vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
-        factory.deposit(vault, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
+        factory.deposit(
+            referenceProxy,
+            vault, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
         vm.stopPrank();
     }
 
     function test_morpho_viewFunctions() external view {
-        assertTrue(factory.getReferenceP2pYieldProxy() != address(0));
+        assertTrue(referenceProxy != address(0));
         assertEq(factory.getP2pSigner(), p2pSigner);
         assertEq(factory.getP2pOperator(), p2pOperator);
         assertEq(factory.getAllProxies().length, 0);
@@ -335,47 +357,43 @@ contract MainnetIntegration is Test {
 
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
-        factory.setTrustedDistributor(distributor);
+        trustedDistributorRegistry.setTrustedDistributor(distributor);
         vm.stopPrank();
 
         vm.startPrank(p2pOperator);
-        vm.expectEmit(false, true, false, false);
-        emit IP2pMorphoProxyFactory.P2pMorphoProxyFactory__TrustedDistributorSet(distributor);
-        factory.setTrustedDistributor(distributor);
+        trustedDistributorRegistry.setTrustedDistributor(distributor);
         vm.stopPrank();
 
-        assertTrue(factory.isTrustedDistributor(distributor));
+        assertTrue(trustedDistributorRegistry.isTrustedDistributor(distributor));
     }
 
     function test_morpho_removeTrustedDistributor_onlyOperator() external {
         address distributor = makeAddr("distributor");
         vm.prank(p2pOperator);
-        factory.setTrustedDistributor(distributor);
+        trustedDistributorRegistry.setTrustedDistributor(distributor);
 
         vm.startPrank(nobody);
         vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
-        factory.removeTrustedDistributor(distributor);
+        trustedDistributorRegistry.removeTrustedDistributor(distributor);
         vm.stopPrank();
 
         vm.startPrank(p2pOperator);
-        vm.expectEmit(false, true, false, false);
-        emit IP2pMorphoProxyFactory.P2pMorphoProxyFactory__TrustedDistributorRemoved(distributor);
-        factory.removeTrustedDistributor(distributor);
+        trustedDistributorRegistry.removeTrustedDistributor(distributor);
         vm.stopPrank();
 
-        assertFalse(factory.isTrustedDistributor(distributor));
+        assertFalse(trustedDistributorRegistry.isTrustedDistributor(distributor));
     }
 
     function test_morpho_checkMorphoUrdClaim_requiresTrustedDistributor() external {
         vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxyFactory__DistributorNotTrusted.selector, DISTRIBUTOR));
-        factory.checkMorphoUrdClaim(p2pOperator, false, DISTRIBUTOR);
+        trustedDistributorRegistry.checkMorphoUrdClaim(p2pOperator, false, DISTRIBUTOR);
     }
 
     function test_morpho_checkMorphoUrdClaim_requiresOperatorWhenFlagSet() external {
         vm.expectRevert(
             abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody)
         );
-        factory.checkMorphoUrdClaim(nobody, true, address(0));
+        trustedDistributorRegistry.checkMorphoUrdClaim(nobody, true, address(0));
     }
 
     function test_morpho_multipleDepositsReuseProxy() external {
@@ -435,7 +453,9 @@ contract MainnetIntegration is Test {
         vm.startPrank(client);
         IERC20(asset).safeApprove(proxyAddress, 0);
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
-        factory.deposit(vault, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
+        factory.deposit(
+            referenceProxy,
+            vault, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
         vm.stopPrank();
     }
 
@@ -453,7 +473,9 @@ contract MainnetIntegration is Test {
         view
         returns (bytes memory)
     {
-        bytes32 hashForSigner = factory.getHashForP2pSigner(client, clientBasisPoints, deadline);
+        bytes32 hashForSigner = factory.getHashForP2pSigner(
+            referenceProxy,
+            client, clientBasisPoints, deadline);
         bytes32 ethHash = ECDSA.toEthSignedMessageHash(hashForSigner);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(p2pSignerKey, ethHash);
         return abi.encodePacked(r, s, v);
@@ -479,7 +501,9 @@ function test_morpho_DoubleFeeCollectionBug_OperatorThenClientWithdraw() externa
     vm.startPrank(client);
     IERC20(asset).safeApprove(proxyAddress, 0);
     IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
-    factory.deposit(vault, depositAmount, CLIENT_BPS, SIG_DEADLINE, signature);
+    factory.deposit(
+            referenceProxy,
+            vault, depositAmount, CLIENT_BPS, SIG_DEADLINE, signature);
     vm.stopPrank();
 
     uint256 clientStart = IERC20(asset).balanceOf(client);

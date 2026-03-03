@@ -9,11 +9,12 @@ import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeab
 import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
-import "../../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
+import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/common/IMorphoBundler.sol";
 import "../../src/mocks/@murky/Merkle.sol";
 import "../../src/mocks/IUniversalRewardsDistributor.sol";
+import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 
 contract MainnetMorphoClaiming is Test {
@@ -34,12 +35,14 @@ contract MainnetMorphoClaiming is Test {
     uint96 constant CLIENT_BASIS_POINTS = 8700;
     uint256 constant DEPOSIT_AMOUNT = 10_000_000;
 
-    P2pMorphoProxyFactory private factory;
+    P2pYieldProxyFactory private factory;
+    P2pMorphoTrustedDistributorRegistry private trustedDistributorRegistry;
     address private client;
     uint256 private clientKey;
     address private p2pSigner;
     uint256 private p2pSignerKey;
     address private p2pOperator;
+    address private referenceProxy;
 
     address private proxyAddress;
     Merkle internal merkle;
@@ -60,11 +63,22 @@ contract MainnetMorphoClaiming is Test {
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
-        factory = new P2pMorphoProxyFactory(p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER);
-        factory.setTrustedDistributor(DISTRIBUTOR);
+        factory = new P2pYieldProxyFactory(p2pSigner);
+        trustedDistributorRegistry = new P2pMorphoTrustedDistributorRegistry(address(factory));
+        referenceProxy = address(
+            new P2pMorphoProxy(
+                address(factory),
+                P2P_TREASURY,
+                address(checkerProxy),
+                MORPHO_BUNDLER,
+                address(trustedDistributorRegistry)
+            )
+        );
+        factory.addReferenceP2pYieldProxy(referenceProxy);
+        trustedDistributorRegistry.setTrustedDistributor(DISTRIBUTOR);
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BASIS_POINTS);
+        proxyAddress = factory.predictP2pYieldProxyAddress(referenceProxy, client, CLIENT_BASIS_POINTS);
         merkle = new Merkle();
         asset = USDC;
         vault = VAULT_USDC;
@@ -131,7 +145,7 @@ contract MainnetMorphoClaiming is Test {
         vm.startPrank(client);
         IERC20(asset).safeApprove(proxyAddress, 0);
         IERC20(asset).safeApprove(proxyAddress, type(uint256).max);
-        factory.deposit(vault, DEPOSIT_AMOUNT, CLIENT_BASIS_POINTS, SIG_DEADLINE, signerSignature);
+        factory.deposit(referenceProxy, vault, DEPOSIT_AMOUNT, CLIENT_BASIS_POINTS, SIG_DEADLINE, signerSignature);
         vm.stopPrank();
     }
 
@@ -140,7 +154,12 @@ contract MainnetMorphoClaiming is Test {
         view
         returns (bytes memory)
     {
-        bytes32 hashForSigner = factory.getHashForP2pSigner(_client, _clientBasisPoints, _sigDeadline);
+        bytes32 hashForSigner = factory.getHashForP2pSigner(
+            referenceProxy,
+            _client,
+            _clientBasisPoints,
+            _sigDeadline
+        );
         bytes32 ethHash = ECDSA.toEthSignedMessageHash(hashForSigner);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(p2pSignerKey, ethHash);
         return abi.encodePacked(r, s, v);

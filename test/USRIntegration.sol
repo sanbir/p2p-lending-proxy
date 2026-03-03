@@ -6,7 +6,7 @@ pragma solidity 0.8.30;
 import "../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../src/access/P2pOperator.sol";
-import "../src/adapters/resolv/p2pResolvProxyFactory/P2pResolvProxyFactory.sol";
+import "../src/adapters/resolv/p2pResolvProxy/P2pResolvProxy.sol";
 import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "./mock/IERC20Rebasing.sol";
 import "forge-std/Test.sol";
@@ -25,7 +25,8 @@ contract USRIntegration is Test {
     address constant P2pTreasury = 0xfeef177E6168F9b7fd59e6C5b6c2d87FF398c6FD;
     address constant StakedTokenDistributor = 0xCE9d50db432e0702BcAd5a4A9122F1F8a77aD8f9;
 
-    P2pResolvProxyFactory private factory;
+    P2pYieldProxyFactory private factory;
+    address private referenceProxy;
 
     address private clientAddress;
     uint256 private clientPrivateKey;
@@ -61,18 +62,22 @@ contract USRIntegration is Test {
             address(admin),
             initData
         );
-        factory = new P2pResolvProxyFactory(
-            p2pSignerAddress,
-            P2pTreasury,
-            stUSR,
-            USR,
-            stRESOLV,
-            RESOLV,
-            address(tup)
+        factory = new P2pYieldProxyFactory(p2pSignerAddress);
+        referenceProxy = address(
+            new P2pResolvProxy(
+                address(factory),
+                P2pTreasury,
+                address(tup),
+                stUSR,
+                USR,
+                stRESOLV,
+                RESOLV
+            )
         );
+        factory.addReferenceP2pYieldProxy(referenceProxy);
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
+        proxyAddress = factory.predictP2pYieldProxyAddress(referenceProxy, clientAddress, ClientBasisPoints);
     }
 
     function test_resolv_Resolv_happyPath_Mainnet() public {
@@ -268,6 +273,7 @@ contract USRIntegration is Test {
 
         vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__InvalidClientBasisPoints.selector, invalidBasisPoints));
         factory.deposit(
+            referenceProxy,
             USR,
             DepositAmount,
             invalidBasisPoints,
@@ -287,6 +293,7 @@ contract USRIntegration is Test {
 
         vm.expectRevert(abi.encodeWithSelector(P2pResolvProxy__AssetNotSupported.selector, address(0)));
         factory.deposit(
+            referenceProxy,
             address(0),
             0,
             ClientBasisPoints,
@@ -306,6 +313,7 @@ contract USRIntegration is Test {
 
         vm.expectRevert(P2pYieldProxy__ZeroAssetAmount.selector);
         factory.deposit(
+            referenceProxy,
             USR,
             0,
             ClientBasisPoints,
@@ -331,6 +339,7 @@ contract USRIntegration is Test {
         );
 
         factory.deposit(
+            referenceProxy,
             USR,
             DepositAmount,
             ClientBasisPoints,
@@ -354,7 +363,7 @@ contract USRIntegration is Test {
 
     function test_resolv_initializeDirectlyOnProxy_Mainnet() public {
         // Create the proxy first since we need a valid proxy address to test with
-        proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
+        proxyAddress = factory.predictP2pYieldProxyAddress(referenceProxy, clientAddress, ClientBasisPoints);
         P2pResolvProxy proxy = P2pResolvProxy(proxyAddress);
 
         vm.startPrank(clientAddress);
@@ -373,6 +382,7 @@ contract USRIntegration is Test {
 
         // This will create the proxy
         factory.deposit(
+            referenceProxy,
             USR,
             DepositAmount,
             ClientBasisPoints,
@@ -401,6 +411,7 @@ contract USRIntegration is Test {
         );
 
         factory.deposit(
+            referenceProxy,
             USR,
             DepositAmount,
             ClientBasisPoints,
@@ -432,8 +443,7 @@ contract USRIntegration is Test {
     }
 
     function test_resolv_getHashForP2pSigner_Mainnet() public view {
-        address referenceProxy = factory.getReferenceP2pYieldProxy();
-        bytes32 expectedHash = keccak256(abi.encode(
+                bytes32 expectedHash = keccak256(abi.encode(
             referenceProxy,
             clientAddress,
             ClientBasisPoints,
@@ -443,6 +453,7 @@ contract USRIntegration is Test {
         ));
 
         bytes32 actualHash = factory.getHashForP2pSigner(
+            referenceProxy,
             clientAddress,
             ClientBasisPoints,
             SigDeadline
@@ -489,6 +500,7 @@ contract USRIntegration is Test {
         );
 
         factory.deposit(
+            referenceProxy,
             USR,
             DepositAmount,
             ClientBasisPoints,
@@ -509,7 +521,8 @@ contract USRIntegration is Test {
         uint256 wrongPrivateKey = 0x12345; // Some random private key
         bytes32 messageHash = ECDSA.toEthSignedMessageHash(
             factory.getHashForP2pSigner(
-                clientAddress,
+            referenceProxy,
+            clientAddress,
                 ClientBasisPoints,
                 SigDeadline
             )
@@ -520,6 +533,7 @@ contract USRIntegration is Test {
         vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
 
         factory.deposit(
+            referenceProxy,
             USR,
             DepositAmount,
             ClientBasisPoints,
@@ -546,6 +560,7 @@ contract USRIntegration is Test {
         );
 
         factory.deposit(
+            referenceProxy,
             USR,
             DepositAmount,
             ClientBasisPoints,
@@ -560,7 +575,7 @@ contract USRIntegration is Test {
         assertEq(proxy.getClientBasisPoints(), ClientBasisPoints);
         assertEq(proxy.getTotalDeposited(USR), DepositAmount);
         assertEq(factory.getP2pSigner(), p2pSignerAddress);
-        assertEq(factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints), proxyAddress);
+        assertEq(factory.predictP2pYieldProxyAddress(referenceProxy, clientAddress, ClientBasisPoints), proxyAddress);
     }
 
     function test_resolv_acceptP2pOperator_Mainnet() public {
@@ -629,6 +644,7 @@ contract USRIntegration is Test {
     ) private view returns(bytes memory) {
         // p2p signer signing
         bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
+            referenceProxy,
             _clientAddress,
             _clientBasisPoints,
             _sigDeadline
@@ -651,6 +667,7 @@ contract USRIntegration is Test {
             IERC20(USR).safeApprove(proxyAddress, type(uint256).max);
         }
         factory.deposit(
+            referenceProxy,
             USR,
             DepositAmount,
 

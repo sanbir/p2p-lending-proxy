@@ -22,7 +22,7 @@ contract P2pMorphoTrustedDistributorRegistry is IP2pMorphoTrustedDistributorRegi
         i_factory = IP2pYieldProxyFactory(_factoryAddress);
     }
 
-    function setTrustedDistributor(address _newTrustedDistributor) external override onlyP2pOperatorOrFactory {
+    function setTrustedDistributor(address _newTrustedDistributor) external override onlyP2pOperator {
         require(
             _newTrustedDistributor != address(0),
             P2pMorphoProxyFactory__ZeroTrustedDistributorAddress()
@@ -31,7 +31,7 @@ contract P2pMorphoTrustedDistributorRegistry is IP2pMorphoTrustedDistributorRegi
         emit P2pMorphoTrustedDistributorRegistry__TrustedDistributorSet(_newTrustedDistributor);
     }
 
-    function removeTrustedDistributor(address _trustedDistributor) external override onlyP2pOperatorOrFactory {
+    function removeTrustedDistributor(address _trustedDistributor) external override onlyP2pOperator {
         s_trustedDistributors[_trustedDistributor] = false;
         emit P2pMorphoTrustedDistributorRegistry__TrustedDistributorRemoved(_trustedDistributor);
     }
@@ -57,10 +57,10 @@ contract P2pMorphoTrustedDistributorRegistry is IP2pMorphoTrustedDistributorRegi
         return s_trustedDistributors[_distributor];
     }
 
-    modifier onlyP2pOperatorOrFactory() {
+    modifier onlyP2pOperator() {
         address p2pOperator = i_factory.getP2pOperator();
         require(
-            msg.sender == p2pOperator || msg.sender == address(i_factory),
+            msg.sender == p2pOperator,
             P2pOperator.P2pOperator__UnauthorizedAccount(msg.sender)
         );
         _;

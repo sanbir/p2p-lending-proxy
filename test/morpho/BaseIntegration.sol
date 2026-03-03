@@ -9,8 +9,9 @@ import "../../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
-import "../../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
+import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
+import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 
 contract BaseIntegration is Test {
@@ -25,12 +26,13 @@ contract BaseIntegration is Test {
     uint96 constant CLIENT_BPS = 8_700;
     uint256 constant DEPOSIT_AMOUNT = 10_000_000;
 
-    P2pMorphoProxyFactory private factory;
+    P2pYieldProxyFactory private factory;
     address private client;
     uint256 private clientKey;
     address private p2pSigner;
     uint256 private p2pSignerKey;
     address private p2pOperator;
+    address private referenceProxy;
     address private proxyAddress;
 
     function setUp() public {
@@ -48,10 +50,22 @@ contract BaseIntegration is Test {
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
-        factory = new P2pMorphoProxyFactory(p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER);
+        factory = new P2pYieldProxyFactory(p2pSigner);
+        P2pMorphoTrustedDistributorRegistry trustedDistributorRegistry =
+            new P2pMorphoTrustedDistributorRegistry(address(factory));
+        referenceProxy = address(
+            new P2pMorphoProxy(
+                address(factory),
+                P2P_TREASURY,
+                address(checkerProxy),
+                MORPHO_BUNDLER,
+                address(trustedDistributorRegistry)
+            )
+        );
+        factory.addReferenceP2pYieldProxy(referenceProxy);
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
+        proxyAddress = factory.predictP2pYieldProxyAddress(referenceProxy, client, CLIENT_BPS);
     }
 
     function test_morpho_HappyPath_Base() external {
@@ -68,7 +82,7 @@ contract BaseIntegration is Test {
     }
 
     function _doDeposit() internal {
-        bytes32 hashForSigner = factory.getHashForP2pSigner(client, CLIENT_BPS, SIG_DEADLINE);
+        bytes32 hashForSigner = factory.getHashForP2pSigner(referenceProxy, client, CLIENT_BPS, SIG_DEADLINE);
         bytes32 ethHash = ECDSA.toEthSignedMessageHash(hashForSigner);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(p2pSignerKey, ethHash);
         bytes memory p2pSignature = abi.encodePacked(r, s, v);
@@ -76,7 +90,7 @@ contract BaseIntegration is Test {
         vm.startPrank(client);
         IERC20(USDC).safeApprove(proxyAddress, 0);
         IERC20(USDC).safeApprove(proxyAddress, type(uint256).max);
-        factory.deposit(VAULT_USDC, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, p2pSignature);
+        factory.deposit(referenceProxy, VAULT_USDC, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, p2pSignature);
         vm.stopPrank();
     }
 }

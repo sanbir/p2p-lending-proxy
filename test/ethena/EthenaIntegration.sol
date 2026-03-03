@@ -12,11 +12,10 @@ import "../../src/access/P2pOperator.sol";
 import "../../src/adapters/ethena/IStakedUSDe.sol";
 import "../../src/adapters/ethena/p2pEthenaProxy/P2pEthenaProxy.sol";
 import "../../src/adapters/ethena/p2pEthenaProxy/IP2pEthenaProxy.sol";
-import "../../src/adapters/ethena/p2pEthenaProxyFactory/P2pEthenaProxyFactory.sol";
-import "../../src/adapters/ethena/p2pEthenaProxyFactory/IP2pEthenaProxyFactory.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/p2pYieldProxy/IP2pYieldProxy.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
+import "../../src/p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 
@@ -27,7 +26,8 @@ contract EthenaIntegration is Test {
     address constant sUSDe = 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497;
     address constant P2pTreasury = 0xfeef177E6168F9b7fd59e6C5b6c2d87FF398c6FD;
 
-    P2pEthenaProxyFactory private factory;
+    P2pYieldProxyFactory private factory;
+    address private referenceProxy;
 
     address private clientAddress;
     uint256 private clientPrivateKey;
@@ -61,16 +61,12 @@ contract EthenaIntegration is Test {
             address(admin),
             initData
         );
-        factory = new P2pEthenaProxyFactory(
-            p2pSignerAddress,
-            P2pTreasury,
-            address(tup),
-            sUSDe,
-            USDe
-        );
+        factory = new P2pYieldProxyFactory(p2pSignerAddress);
+        referenceProxy = address(new P2pEthenaProxy(address(factory), P2pTreasury, address(tup), sUSDe, USDe));
+        factory.addReferenceP2pYieldProxy(referenceProxy);
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
+        proxyAddress = factory.predictP2pYieldProxyAddress(referenceProxy, clientAddress, ClientBasisPoints);
     }
 
     function test_ethena_happyPath_Mainnet() public {
@@ -145,8 +141,7 @@ contract EthenaIntegration is Test {
     }
 
     function test_ethena_getHashForP2pSigner_Mainnet() public view {
-        address referenceProxy = factory.getReferenceP2pYieldProxy();
-        bytes32 expected = keccak256(
+                bytes32 expected = keccak256(
             abi.encode(
                 referenceProxy,
                 clientAddress,
@@ -156,18 +151,17 @@ contract EthenaIntegration is Test {
                 block.chainid
             )
         );
-        bytes32 actual = factory.getHashForP2pSigner(clientAddress, ClientBasisPoints, SigDeadline);
+        bytes32 actual = factory.getHashForP2pSigner(referenceProxy, clientAddress, ClientBasisPoints, SigDeadline);
         assertEq(actual, expected);
     }
 
     function test_ethena_predictP2pYieldProxyAddress_Mainnet() public view {
-        address predicted = factory.predictP2pYieldProxyAddress(clientAddress, ClientBasisPoints);
+        address predicted = factory.predictP2pYieldProxyAddress(referenceProxy, clientAddress, ClientBasisPoints);
         assertEq(predicted, proxyAddress);
     }
 
     function test_ethena_getReferenceP2pYieldProxy_Mainnet() public view {
-        address referenceProxy = factory.getReferenceP2pYieldProxy();
-        assertTrue(referenceProxy != address(0), "reference should be deployed");
+                assertTrue(referenceProxy != address(0), "reference should be deployed");
     }
 
     function test_ethena_getAllProxies_Mainnet() public {
@@ -207,6 +201,7 @@ contract EthenaIntegration is Test {
         _ensureProxyAllowance(DepositAmount);
         vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
         factory.deposit(
+            referenceProxy,
             USDe,
             DepositAmount,
             ClientBasisPoints,
@@ -234,6 +229,7 @@ contract EthenaIntegration is Test {
             )
         );
         factory.deposit(
+            referenceProxy,
             USDe,
             DepositAmount,
             ClientBasisPoints,
@@ -255,6 +251,7 @@ contract EthenaIntegration is Test {
         vm.startPrank(clientAddress);
         vm.expectRevert(bytes("ERC20: insufficient allowance"));
         factory.deposit(
+            referenceProxy,
             USDe,
             DepositAmount,
             ClientBasisPoints,
@@ -281,7 +278,7 @@ contract EthenaIntegration is Test {
     }
 
     function test_ethena_supportsInterface_Mainnet() public {
-        bool factorySupports = factory.supportsInterface(type(IP2pEthenaProxyFactory).interfaceId);
+        bool factorySupports = factory.supportsInterface(type(IP2pYieldProxyFactory).interfaceId);
         assertTrue(factorySupports, "factory should expose interface id");
 
         deal(USDe, clientAddress, DepositAmount);
@@ -303,7 +300,7 @@ contract EthenaIntegration is Test {
     }
 
     function test_ethena_getHashForP2pSignerMatchesSignature_Mainnet() public view {
-        bytes32 hash = factory.getHashForP2pSigner(clientAddress, ClientBasisPoints, SigDeadline);
+        bytes32 hash = factory.getHashForP2pSigner(referenceProxy, clientAddress, ClientBasisPoints, SigDeadline);
         bytes32 signedHash = ECDSA.toEthSignedMessageHash(hash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(p2pSignerPrivateKey, signedHash);
         address recovered = ECDSA.recover(signedHash, v, r, s);
@@ -361,6 +358,7 @@ contract EthenaIntegration is Test {
         _ensureProxyAllowance(DepositAmount);
         vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__InvalidClientBasisPoints.selector, invalidBasisPoints));
         factory.deposit(
+            referenceProxy,
             USDe,
             DepositAmount,
             invalidBasisPoints,
@@ -380,6 +378,7 @@ contract EthenaIntegration is Test {
         vm.startPrank(clientAddress);
         vm.expectRevert(abi.encodeWithSelector(P2pEthenaProxy__InvalidDepositAsset.selector, address(0)));
         factory.deposit(
+            referenceProxy,
             address(0),
             DepositAmount,
             ClientBasisPoints,
@@ -399,6 +398,7 @@ contract EthenaIntegration is Test {
         vm.startPrank(clientAddress);
         vm.expectRevert(P2pYieldProxy__ZeroAssetAmount.selector);
         factory.deposit(
+            referenceProxy,
             USDe,
             0,
             ClientBasisPoints,
@@ -460,6 +460,7 @@ contract EthenaIntegration is Test {
         vm.startPrank(clientAddress);
         _ensureProxyAllowance(DepositAmount);
         factory.deposit(
+            referenceProxy,
             USDe,
             DepositAmount,
             ClientBasisPoints,
@@ -511,7 +512,7 @@ contract EthenaIntegration is Test {
         uint256 _sigDeadline,
         uint256 _signerPrivateKey
     ) private view returns (bytes memory) {
-        bytes32 hashForP2pSigner = factory.getHashForP2pSigner(
+        bytes32 hashForP2pSigner = factory.getHashForP2pSigner(referenceProxy, 
             _clientAddress,
             _clientBasisPoints,
             _sigDeadline

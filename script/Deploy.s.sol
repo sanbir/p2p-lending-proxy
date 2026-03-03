@@ -5,7 +5,8 @@ pragma solidity 0.8.30;
 
 import "../lib/forge-std/src/Vm.sol";
 import "../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
-import "../src/adapters/resolv/p2pResolvProxyFactory/P2pResolvProxyFactory.sol";
+import "../src/adapters/resolv/p2pResolvProxy/P2pResolvProxy.sol";
+import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import {Script} from "forge-std/Script.sol";
 
 contract Deploy is Script {
@@ -17,7 +18,7 @@ contract Deploy is Script {
 
     function run()
         external
-        returns (P2pResolvProxyFactory factory, P2pResolvProxy proxy)
+        returns (P2pYieldProxyFactory factory, P2pResolvProxy referenceProxy)
     {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         Vm.Wallet memory wallet = vm.createWallet(deployerKey);
@@ -31,19 +32,19 @@ contract Deploy is Script {
             address(admin),
             initData
         );
-        factory = new P2pResolvProxyFactory(
-            wallet.addr,
+        factory = new P2pYieldProxyFactory(wallet.addr);
+        referenceProxy = new P2pResolvProxy(
+            address(factory),
             P2pTreasury,
+            address(tup),
             stUSR,
             USR,
             stRESOLV,
-            RESOLV,
-            address(tup)
+            RESOLV
         );
+        factory.addReferenceP2pYieldProxy(address(referenceProxy));
         vm.stopBroadcast();
 
-        proxy = P2pResolvProxy(factory.getReferenceP2pYieldProxy());
-
-        return (factory, proxy);
+        return (factory, referenceProxy);
     }
 }

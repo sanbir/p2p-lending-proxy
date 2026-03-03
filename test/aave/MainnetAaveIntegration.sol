@@ -9,7 +9,6 @@ import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../src/access/P2pOperator.sol";
 import "../../src/adapters/aave/p2pAaveProxy/P2pAaveProxy.sol";
-import "../../src/adapters/aave/p2pAaveProxyFactory/P2pAaveProxyFactory.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/interfaces/IAaveV3Pool.sol";
 import "../../src/p2pYieldProxy/P2pYieldProxy.sol";
@@ -29,13 +28,14 @@ contract MainnetAaveIntegration is Test {
     uint96 constant CLIENT_BPS = 8_700;
     uint256 constant DEPOSIT_AMOUNT = 10_000_000; // 10 USDC/USDT
 
-    P2pAaveProxyFactory private factory;
+    P2pYieldProxyFactory private factory;
     address private client;
     uint256 private p2pSignerKey;
     address private p2pSigner;
     address private p2pOperator;
     address private nobody;
     address private allowedChecker;
+    address private referenceProxy;
     address private proxyAddress;
 
     function setUp() public {
@@ -53,17 +53,21 @@ contract MainnetAaveIntegration is Test {
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
-        factory = new P2pAaveProxyFactory(
-            p2pSigner,
-            P2P_TREASURY,
-            address(checkerProxy),
-            AAVE_POOL,
-            AAVE_DATA_PROVIDER
+        factory = new P2pYieldProxyFactory(p2pSigner);
+        referenceProxy = address(
+            new P2pAaveProxy(
+                address(factory),
+                P2P_TREASURY,
+                address(checkerProxy),
+                AAVE_POOL,
+                AAVE_DATA_PROVIDER
+            )
         );
+        factory.addReferenceP2pYieldProxy(referenceProxy);
         vm.stopPrank();
 
         allowedChecker = address(checkerProxy);
-        proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
+        proxyAddress = factory.predictP2pYieldProxyAddress(referenceProxy, client, CLIENT_BPS);
     }
 
     function test_aave_HappyPath_USDC_Mainnet() external {
@@ -171,7 +175,7 @@ contract MainnetAaveIntegration is Test {
         vm.expectRevert(
             abi.encodeWithSelector(P2pYieldProxyFactory__P2pSignerSignatureExpired.selector, expiredDeadline)
         );
-        factory.deposit(USDC, DEPOSIT_AMOUNT, CLIENT_BPS, expiredDeadline, signature);
+        factory.deposit(referenceProxy, USDC, DEPOSIT_AMOUNT, CLIENT_BPS, expiredDeadline, signature);
         vm.stopPrank();
     }
 
@@ -183,7 +187,7 @@ contract MainnetAaveIntegration is Test {
         vm.startPrank(client);
         IERC20(USDC).safeApprove(proxyAddress, type(uint256).max);
         vm.expectRevert(P2pYieldProxyFactory__InvalidP2pSignerSignature.selector);
-        factory.deposit(USDC, DEPOSIT_AMOUNT, CLIENT_BPS, sigDeadline, signature);
+        factory.deposit(referenceProxy, USDC, DEPOSIT_AMOUNT, CLIENT_BPS, sigDeadline, signature);
         vm.stopPrank();
     }
 
@@ -204,7 +208,7 @@ contract MainnetAaveIntegration is Test {
 
         vm.startPrank(client);
         vm.expectRevert(abi.encodeWithSelector(P2pAaveProxy__AssetNotSupported.selector, unsupportedAsset));
-        factory.deposit(unsupportedAsset, DEPOSIT_AMOUNT, CLIENT_BPS, block.timestamp + 1 days, signature);
+        factory.deposit(referenceProxy, unsupportedAsset, DEPOSIT_AMOUNT, CLIENT_BPS, block.timestamp + 1 days, signature);
         vm.stopPrank();
     }
 
@@ -257,7 +261,7 @@ contract MainnetAaveIntegration is Test {
         vm.startPrank(client);
         IERC20(_asset).safeApprove(proxyAddress, 0);
         IERC20(_asset).safeApprove(proxyAddress, type(uint256).max);
-        factory.deposit(_asset, _amount, CLIENT_BPS, sigDeadline, signerSignature);
+        factory.deposit(referenceProxy, _asset, _amount, CLIENT_BPS, sigDeadline, signerSignature);
         vm.stopPrank();
     }
 
@@ -266,7 +270,7 @@ contract MainnetAaveIntegration is Test {
         view
         returns (bytes memory)
     {
-        bytes32 hashForSigner = factory.getHashForP2pSigner(_client, _clientBasisPoints, _sigDeadline);
+        bytes32 hashForSigner = factory.getHashForP2pSigner(referenceProxy, _client, _clientBasisPoints, _sigDeadline);
         bytes32 ethHash = ECDSA.toEthSignedMessageHash(hashForSigner);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(p2pSignerKey, ethHash);
         return abi.encodePacked(r, s, v);

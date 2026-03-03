@@ -12,8 +12,8 @@ import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import "../../src/adapters/ethena/IStakedUSDe.sol";
 import "../../src/adapters/ethena/p2pEthenaProxy/P2pEthenaProxy.sol";
-import "../../src/adapters/ethena/p2pEthenaProxyFactory/P2pEthenaProxyFactory.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
+import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 
 contract MockERC20 is IERC20 {
     string public name;
@@ -250,8 +250,9 @@ contract P2pEthenaProxyUnitTest is Test {
     MockERC20 private usde;
     MockStakedUSDe private stakedUsde;
     AllowedCalldataChecker private checker;
-    P2pEthenaProxyFactory private factory;
+    P2pYieldProxyFactory private factory;
     P2pEthenaProxy private proxy;
+    address private referenceProxy;
 
     address private client;
     uint256 private clientKey;
@@ -275,20 +276,24 @@ contract P2pEthenaProxyUnitTest is Test {
         checker = new AllowedCalldataChecker();
         checker.initialize();
 
-        factory = new P2pEthenaProxyFactory(
-            p2pSigner,
-            treasury,
-            address(checker),
-            address(stakedUsde),
-            address(usde)
+        factory = new P2pYieldProxyFactory(p2pSigner);
+        referenceProxy = address(
+            new P2pEthenaProxy(
+                address(factory),
+                treasury,
+                address(checker),
+                address(stakedUsde),
+                address(usde)
+            )
         );
+        factory.addReferenceP2pYieldProxy(referenceProxy);
 
         factory.transferP2pOperator(p2pOperator);
         vm.prank(p2pOperator);
         factory.acceptP2pOperator();
 
         usde.mint(client, 10_000 ether);
-        proxy = P2pEthenaProxy(factory.getReferenceP2pYieldProxy());
+        proxy = P2pEthenaProxy(referenceProxy);
     }
 
     function test_ethena_OperatorCooldownAssetsRevertsWhenNoAccrued() public {
@@ -394,12 +399,13 @@ contract P2pEthenaProxyUnitTest is Test {
     }
 
     function _clientDeposit(uint256 amount) private {
-        address predicted = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
+        address predicted = factory.predictP2pYieldProxyAddress(referenceProxy, client, CLIENT_BPS);
         bytes memory sig = _sign(client, CLIENT_BPS, SIG_DEADLINE, p2pSignerKey);
 
         vm.startPrank(client);
         usde.approve(predicted, type(uint256).max);
         address deployed = factory.deposit(
+            referenceProxy,
             address(usde),
             amount,
             CLIENT_BPS,
@@ -422,11 +428,10 @@ contract P2pEthenaProxyUnitTest is Test {
         uint256 _deadline,
         uint256 _signerKey
     ) private view returns (bytes memory) {
-        bytes32 hash = factory.getHashForP2pSigner(_client, _bps, _deadline);
+        bytes32 hash = factory.getHashForP2pSigner(referenceProxy, _client, _bps, _deadline);
         bytes32 messageHash = ECDSA.toEthSignedMessageHash(hash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signerKey, messageHash);
         return abi.encodePacked(r, s, v);
     }
 }
-
 

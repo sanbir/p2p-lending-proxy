@@ -9,8 +9,8 @@ import "../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../src/@resolv/IResolvStaking.sol";
 import "../src/adapters/resolv/p2pResolvProxy/P2pResolvProxy.sol";
-import "../src/adapters/resolv/p2pResolvProxyFactory/P2pResolvProxyFactory.sol";
 import "../src/common/AllowedCalldataChecker.sol";
+import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 
 contract MainnetProtocolEvents is Test {
@@ -28,11 +28,12 @@ contract MainnetProtocolEvents is Test {
     uint256 constant DEPOSIT_AMOUNT = 10 ether;
     bytes32 private constant ERC20_TRANSFER_EVENT = keccak256("Transfer(address,address,uint256)");
 
-    P2pResolvProxyFactory private factory;
+    P2pYieldProxyFactory private factory;
     address private client;
     address private p2pSigner;
     uint256 private p2pSignerKey;
     address private p2pOperator;
+    address private referenceProxy;
     address private proxyAddress;
 
     function setUp() public {
@@ -48,18 +49,22 @@ contract MainnetProtocolEvents is Test {
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
-        factory = new P2pResolvProxyFactory(
-            p2pSigner,
-            P2P_TREASURY,
-            stUSR,
-            USR,
-            stRESOLV,
-            RESOLV,
-            address(checkerProxy)
+        factory = new P2pYieldProxyFactory(p2pSigner);
+        referenceProxy = address(
+            new P2pResolvProxy(
+                address(factory),
+                P2P_TREASURY,
+                address(checkerProxy),
+                stUSR,
+                USR,
+                stRESOLV,
+                RESOLV
+            )
         );
+        factory.addReferenceP2pYieldProxy(referenceProxy);
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
+        proxyAddress = factory.predictP2pYieldProxyAddress(referenceProxy, client, CLIENT_BPS);
     }
 
     function test_resolv_mainnet_usr_deposit_and_withdraw_emit_protocol_events() external {
@@ -118,12 +123,12 @@ contract MainnetProtocolEvents is Test {
         vm.startPrank(client);
         IERC20(USR).safeApprove(proxyAddress, 0);
         IERC20(USR).safeApprove(proxyAddress, type(uint256).max);
-        factory.deposit(USR, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
+        factory.deposit(referenceProxy, USR, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
         vm.stopPrank();
     }
 
     function _getP2pSignerSignature() private view returns (bytes memory) {
-        bytes32 hashForSigner = factory.getHashForP2pSigner(client, CLIENT_BPS, SIG_DEADLINE);
+        bytes32 hashForSigner = factory.getHashForP2pSigner(referenceProxy, client, CLIENT_BPS, SIG_DEADLINE);
         bytes32 ethHash = ECDSA.toEthSignedMessageHash(hashForSigner);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(p2pSignerKey, ethHash);
         return abi.encodePacked(r, s, v);

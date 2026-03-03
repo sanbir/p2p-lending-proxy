@@ -7,9 +7,10 @@ import "../../src/@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
-import "../../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
+import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/common/IDistributor.sol";
+import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 
 contract MainnetMorphoClaimingMerkl is Test {
@@ -25,10 +26,12 @@ contract MainnetMorphoClaimingMerkl is Test {
     uint256 constant MERKL_CLAIM_AMOUNT = 28_225_464;
     uint96 constant CLIENT_BASIS_POINTS = 8700;
 
-    P2pMorphoProxyFactory private factory;
+    P2pYieldProxyFactory private factory;
+    P2pMorphoTrustedDistributorRegistry private trustedDistributorRegistry;
     address private client;
     address private p2pSigner;
     address private p2pOperator;
+    address private referenceProxy;
 
     function setUp() public {
         vm.createSelectFork("mainnet", FORK_BLOCK);
@@ -44,14 +47,25 @@ contract MainnetMorphoClaimingMerkl is Test {
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
 
-        factory = new P2pMorphoProxyFactory(p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER);
+        factory = new P2pYieldProxyFactory(p2pSigner);
+        trustedDistributorRegistry = new P2pMorphoTrustedDistributorRegistry(address(factory));
+        referenceProxy = address(
+            new P2pMorphoProxy(
+                address(factory),
+                P2P_TREASURY,
+                address(checkerProxy),
+                MORPHO_BUNDLER,
+                address(trustedDistributorRegistry)
+            )
+        );
+        factory.addReferenceP2pYieldProxy(referenceProxy);
 
         factory.transferP2pOperator(p2pOperator);
         vm.prank(p2pOperator);
         factory.acceptP2pOperator();
 
         vm.prank(p2pOperator);
-        factory.setTrustedDistributor(MERKL_DISTRIBUTOR);
+        trustedDistributorRegistry.setTrustedDistributor(MERKL_DISTRIBUTOR);
 
         vm.deal(PROXY_ADDRESS, 10 ether);
         vm.deal(client, 10 ether);
@@ -130,7 +144,6 @@ contract MainnetMorphoClaimingMerkl is Test {
     function _deployProxy() internal {
         if (PROXY_ADDRESS.code.length != 0) return;
 
-        address referenceProxy = factory.getReferenceP2pYieldProxy();
         vm.etch(PROXY_ADDRESS, referenceProxy.code);
 
         vm.prank(address(factory));

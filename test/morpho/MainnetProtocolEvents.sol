@@ -9,10 +9,11 @@ import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeab
 import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
-import "../../src/adapters/morpho/p2pMorphoProxyFactory/P2pMorphoProxyFactory.sol";
+import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/mocks/@murky/Merkle.sol";
 import "../../src/mocks/IUniversalRewardsDistributor.sol";
+import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 
 contract MainnetProtocolEvents is Test {
@@ -33,11 +34,13 @@ contract MainnetProtocolEvents is Test {
     bytes32 private constant ERC4626_WITHDRAW_EVENT = keccak256("Withdraw(address,address,address,uint256,uint256)");
     bytes32 private constant ERC20_TRANSFER_EVENT = keccak256("Transfer(address,address,uint256)");
 
-    P2pMorphoProxyFactory private factory;
+    P2pYieldProxyFactory private factory;
+    P2pMorphoTrustedDistributorRegistry private trustedDistributorRegistry;
     address private client;
     address private p2pSigner;
     uint256 private p2pSignerKey;
     address private p2pOperator;
+    address private referenceProxy;
     address private proxyAddress;
     Merkle private merkle;
 
@@ -55,11 +58,22 @@ contract MainnetProtocolEvents is Test {
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
-        factory = new P2pMorphoProxyFactory(p2pSigner, P2P_TREASURY, address(checkerProxy), MORPHO_BUNDLER);
-        factory.setTrustedDistributor(DISTRIBUTOR);
+        factory = new P2pYieldProxyFactory(p2pSigner);
+        trustedDistributorRegistry = new P2pMorphoTrustedDistributorRegistry(address(factory));
+        referenceProxy = address(
+            new P2pMorphoProxy(
+                address(factory),
+                P2P_TREASURY,
+                address(checkerProxy),
+                MORPHO_BUNDLER,
+                address(trustedDistributorRegistry)
+            )
+        );
+        factory.addReferenceP2pYieldProxy(referenceProxy);
+        trustedDistributorRegistry.setTrustedDistributor(DISTRIBUTOR);
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
+        proxyAddress = factory.predictP2pYieldProxyAddress(referenceProxy, client, CLIENT_BPS);
     }
 
     function test_morpho_mainnet_deposit_withdraw_and_claim_emit_protocol_events() external {
@@ -96,7 +110,7 @@ contract MainnetProtocolEvents is Test {
         vm.startPrank(client);
         IERC20(USDC).safeApprove(proxyAddress, 0);
         IERC20(USDC).safeApprove(proxyAddress, type(uint256).max);
-        factory.deposit(VAULT_USDC, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signerSignature);
+        factory.deposit(referenceProxy, VAULT_USDC, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signerSignature);
         vm.stopPrank();
     }
 
@@ -111,7 +125,7 @@ contract MainnetProtocolEvents is Test {
     }
 
     function _getP2pSignerSignature() private view returns (bytes memory) {
-        bytes32 hashForSigner = factory.getHashForP2pSigner(client, CLIENT_BPS, SIG_DEADLINE);
+        bytes32 hashForSigner = factory.getHashForP2pSigner(referenceProxy, client, CLIENT_BPS, SIG_DEADLINE);
         bytes32 ethHash = ECDSA.toEthSignedMessageHash(hashForSigner);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(p2pSignerKey, ethHash);
         return abi.encodePacked(r, s, v);

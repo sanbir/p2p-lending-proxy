@@ -8,8 +8,8 @@ import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeab
 import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../src/adapters/ethena/p2pEthenaProxy/P2pEthenaProxy.sol";
-import "../../src/adapters/ethena/p2pEthenaProxyFactory/P2pEthenaProxyFactory.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
+import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 
 contract MainnetProtocolEvents is Test {
@@ -25,11 +25,12 @@ contract MainnetProtocolEvents is Test {
     bytes32 private constant ERC4626_DEPOSIT_EVENT = keccak256("Deposit(address,address,uint256,uint256)");
     bytes32 private constant ERC20_TRANSFER_EVENT = keccak256("Transfer(address,address,uint256)");
 
-    P2pEthenaProxyFactory private factory;
+    P2pYieldProxyFactory private factory;
     address private client;
     address private p2pSigner;
     uint256 private p2pSignerKey;
     address private p2pOperator;
+    address private referenceProxy;
     address private proxyAddress;
 
     function setUp() public {
@@ -45,10 +46,12 @@ contract MainnetProtocolEvents is Test {
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
-        factory = new P2pEthenaProxyFactory(p2pSigner, P2P_TREASURY, address(checkerProxy), SUSDE, USDE);
+        factory = new P2pYieldProxyFactory(p2pSigner);
+        referenceProxy = address(new P2pEthenaProxy(address(factory), P2P_TREASURY, address(checkerProxy), SUSDE, USDE));
+        factory.addReferenceP2pYieldProxy(referenceProxy);
         vm.stopPrank();
 
-        proxyAddress = factory.predictP2pYieldProxyAddress(client, CLIENT_BPS);
+        proxyAddress = factory.predictP2pYieldProxyAddress(referenceProxy, client, CLIENT_BPS);
     }
 
     function test_ethena_mainnet_deposit_cooldown_claim_emits_protocol_events() external {
@@ -83,12 +86,12 @@ contract MainnetProtocolEvents is Test {
         vm.startPrank(client);
         IERC20(USDE).safeApprove(proxyAddress, 0);
         IERC20(USDE).safeApprove(proxyAddress, type(uint256).max);
-        factory.deposit(USDE, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
+        factory.deposit(referenceProxy, USDE, DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
         vm.stopPrank();
     }
 
     function _getP2pSignerSignature() private view returns (bytes memory) {
-        bytes32 hashForSigner = factory.getHashForP2pSigner(client, CLIENT_BPS, SIG_DEADLINE);
+        bytes32 hashForSigner = factory.getHashForP2pSigner(referenceProxy, client, CLIENT_BPS, SIG_DEADLINE);
         bytes32 ethHash = ECDSA.toEthSignedMessageHash(hashForSigner);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(p2pSignerKey, ethHash);
         return abi.encodePacked(r, s, v);
