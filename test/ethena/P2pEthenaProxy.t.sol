@@ -10,7 +10,7 @@ import "../../src/@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-import "../../src/adapters/ethena/IStakedUSDe.sol";
+import "../../src/adapters/ethena/@ethena/IStakedUSDe.sol";
 import "../../src/adapters/ethena/p2pEthenaProxy/P2pEthenaProxy.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
@@ -434,4 +434,3 @@ contract P2pEthenaProxyUnitTest is Test {
         return abi.encodePacked(r, s, v);
     }
 }
-

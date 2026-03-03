@@ -3,8 +3,8 @@
 
 pragma solidity 0.8.30;
 
-import "../../../interfaces/IAaveProtocolDataProvider.sol";
-import "../../../interfaces/IAaveV3Pool.sol";
+import "../@aave/IAaveProtocolDataProvider.sol";
+import "../@aave/IAaveV3Pool.sol";
 import "../../../access/P2pOperatorCallable.sol";
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "./IP2pAaveProxy.sol";

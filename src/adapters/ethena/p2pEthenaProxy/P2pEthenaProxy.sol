@@ -6,7 +6,7 @@ pragma solidity 0.8.30;
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "../../../p2pYieldProxy/IP2pYieldProxy.sol";
 import "../../../access/P2pOperatorCallable.sol";
-import "../IStakedUSDe.sol";
+import "../@ethena/IStakedUSDe.sol";
 import "./IP2pEthenaProxy.sol";
 import {IERC4626} from "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "../../../@openzeppelin/contracts/token/ERC20/IERC20.sol";

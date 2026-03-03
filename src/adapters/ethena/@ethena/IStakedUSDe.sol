@@ -3,7 +3,7 @@
 
 pragma solidity 0.8.30;
 
-import "../../@openzeppelin/contracts/interfaces/IERC4626.sol";
+import "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 /// @title Interface for Ethena's StakedUSDe vault
 /// @notice Extends the ERC-4626 interface with queued withdrawal helper flows.
@@ -22,4 +22,3 @@ interface IStakedUSDe is IERC4626 {
     /// @param receiver Address that will receive the unlocked assets.
     function unstake(address receiver) external;
 }
-

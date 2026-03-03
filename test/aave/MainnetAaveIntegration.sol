@@ -10,7 +10,7 @@ import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../src/access/P2pOperator.sol";
 import "../../src/adapters/aave/p2pAaveProxy/P2pAaveProxy.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
-import "../../src/interfaces/IAaveV3Pool.sol";
+import "../../src/adapters/aave/@aave/IAaveV3Pool.sol";
 import "../../src/p2pYieldProxy/P2pYieldProxy.sol";
 import "../../src/p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
