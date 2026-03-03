@@ -9,7 +9,7 @@ import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeab
 import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
 import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
-import "../../src/common/IDistributor.sol";
+import "../../src/adapters/morpho/@morpho/IDistributor.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 

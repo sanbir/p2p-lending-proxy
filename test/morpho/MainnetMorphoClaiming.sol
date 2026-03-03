@@ -11,7 +11,7 @@ import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
 import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
-import "../../src/common/IMorphoBundler.sol";
+import "../../src/adapters/morpho/@morpho/IMorphoBundler.sol";
 import "../../src/mocks/@murky/Merkle.sol";
 import "../../src/mocks/IUniversalRewardsDistributor.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";

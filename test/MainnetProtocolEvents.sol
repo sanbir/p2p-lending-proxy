@@ -7,7 +7,7 @@ import "../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "../src/@resolv/IResolvStaking.sol";
+import "../src/adapters/resolv/@resolv/IResolvStaking.sol";
 import "../src/adapters/resolv/p2pResolvProxy/P2pResolvProxy.sol";
 import "../src/common/AllowedCalldataChecker.sol";
 import "../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";

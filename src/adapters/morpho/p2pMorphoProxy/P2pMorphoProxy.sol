@@ -5,8 +5,8 @@ pragma solidity 0.8.30;
 
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "../../../access/P2pOperatorCallable.sol";
-import "../../../common/IMorphoBundler.sol";
-import "../../../common/IDistributor.sol";
+import "../@morpho/IMorphoBundler.sol";
+import "../@morpho/IDistributor.sol";
 import "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../p2pMorphoTrustedDistributorRegistry/IP2pMorphoTrustedDistributorRegistry.sol";
 import "../../../p2pYieldProxy/interfaces/IDepositable.sol";

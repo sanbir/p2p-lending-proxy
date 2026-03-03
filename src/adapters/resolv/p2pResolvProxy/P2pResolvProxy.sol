@@ -3,9 +3,9 @@
 
 pragma solidity 0.8.30;
 
-import "../../../@resolv/IResolvStaking.sol";
-import "../../../@resolv/IStUSR.sol";
-import "../../../@resolv/IStakedTokenDistributor.sol";
+import "../@resolv/IResolvStaking.sol";
+import "../@resolv/IStUSR.sol";
+import "../@resolv/IStakedTokenDistributor.sol";
 import "../../../access/P2pOperatorCallable.sol";
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "./IP2pResolvProxy.sol";
