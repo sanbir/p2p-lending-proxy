@@ -32,11 +32,19 @@ contract Deploy is Script {
             address(admin),
             initData
         );
+        AllowedCalldataChecker clientToP2pImpl = new AllowedCalldataChecker();
+        ProxyAdmin clientToP2pAdmin = new ProxyAdmin();
+        TransparentUpgradeableProxy clientToP2pTup = new TransparentUpgradeableProxy(
+            address(clientToP2pImpl),
+            address(clientToP2pAdmin),
+            initData
+        );
         factory = new P2pYieldProxyFactory(wallet.addr);
         referenceProxy = new P2pResolvProxy(
             address(factory),
             P2pTreasury,
             address(tup),
+            address(clientToP2pTup),
             stUSR,
             USR,
             stRESOLV,

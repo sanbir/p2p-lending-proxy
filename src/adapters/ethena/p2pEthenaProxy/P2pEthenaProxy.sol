@@ -5,7 +5,6 @@ pragma solidity 0.8.30;
 
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "../../../p2pYieldProxy/IP2pYieldProxy.sol";
-import "../../../access/P2pOperatorCallable.sol";
 import "../@ethena/IStakedUSDe.sol";
 import "./IP2pEthenaProxy.sol";
 import {IERC4626} from "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -23,7 +22,7 @@ error P2pEthenaProxy__AmountExceedsAccrued(uint256 requested, uint256 accrued);
 
 /// @title Adapter for interacting with the Ethena staking vault through a client proxy
 /// @notice Handles deposits, cooldown flows, and withdrawals while enforcing the P2P fee split.
-contract P2pEthenaProxy is P2pYieldProxy, P2pOperatorCallable, IP2pEthenaProxy {
+contract P2pEthenaProxy is P2pYieldProxy, IP2pEthenaProxy {
     using SafeERC20 for IERC20;
 
     /// @dev Staked USDe (ERC-4626) vault address
@@ -45,9 +44,10 @@ contract P2pEthenaProxy is P2pYieldProxy, P2pOperatorCallable, IP2pEthenaProxy {
         address _factory,
         address _p2pTreasury,
         address _allowedCalldataChecker,
+        address _allowedCalldataByClientToP2pChecker,
         address _stakedUSDe,
         address _USDe
-    ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker) {
+    ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker, _allowedCalldataByClientToP2pChecker) {
         if (_stakedUSDe == address(0)) {
             revert P2pEthenaProxy__ZeroAddressStakedUSDe();
         }

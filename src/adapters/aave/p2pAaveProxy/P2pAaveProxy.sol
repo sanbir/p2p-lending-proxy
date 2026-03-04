@@ -5,7 +5,6 @@ pragma solidity 0.8.30;
 
 import "../@aave/IAaveProtocolDataProvider.sol";
 import "../@aave/IAaveV3Pool.sol";
-import "../../../access/P2pOperatorCallable.sol";
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "./IP2pAaveProxy.sol";
 
@@ -16,7 +15,7 @@ error P2pAaveProxy__ZeroAccruedRewards();
 error P2pAaveProxy__ZeroAavePool();
 error P2pAaveProxy__ZeroAaveDataProvider();
 
-contract P2pAaveProxy is P2pYieldProxy, P2pOperatorCallable, IP2pAaveProxy {
+contract P2pAaveProxy is P2pYieldProxy, IP2pAaveProxy {
     IAaveV3Pool private immutable i_aavePool;
     IAaveProtocolDataProvider private immutable i_aaveDataProvider;
 
@@ -24,9 +23,10 @@ contract P2pAaveProxy is P2pYieldProxy, P2pOperatorCallable, IP2pAaveProxy {
         address _factory,
         address _p2pTreasury,
         address _allowedCalldataChecker,
+        address _allowedCalldataByClientToP2pChecker,
         address _aavePool,
         address _aaveDataProvider
-    ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker) {
+    ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker, _allowedCalldataByClientToP2pChecker) {
         require(_aavePool != address(0), P2pAaveProxy__ZeroAavePool());
         require(_aaveDataProvider != address(0), P2pAaveProxy__ZeroAaveDataProvider());
         i_aavePool = IAaveV3Pool(_aavePool);

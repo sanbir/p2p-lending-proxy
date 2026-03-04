@@ -49,12 +49,17 @@ contract MainnetProtocolEvents is Test {
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
+        AllowedCalldataChecker clientToP2pImpl = new AllowedCalldataChecker();
+        ProxyAdmin clientToP2pAdmin = new ProxyAdmin();
+        TransparentUpgradeableProxy clientToP2pCheckerProxy =
+            new TransparentUpgradeableProxy(address(clientToP2pImpl), address(clientToP2pAdmin), initData);
         factory = new P2pYieldProxyFactory(p2pSigner);
         referenceProxy = address(
             new P2pResolvProxy(
                 address(factory),
                 P2P_TREASURY,
                 address(checkerProxy),
+                address(clientToP2pCheckerProxy),
                 stUSR,
                 USR,
                 stRESOLV,
@@ -87,11 +92,14 @@ contract MainnetProtocolEvents is Test {
 
         AllowedCalldataChecker checker = new AllowedCalldataChecker();
         checker.initialize();
+        AllowedCalldataChecker clientToP2pChecker2 = new AllowedCalldataChecker();
+        clientToP2pChecker2.initialize();
 
         P2pResolvProxy fresh = new P2pResolvProxy(
             address(this),
             P2P_TREASURY,
             address(checker),
+            address(clientToP2pChecker2),
             stUSR,
             USR,
             stRESOLV,

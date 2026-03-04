@@ -48,5 +48,14 @@ interface IP2pYieldProxy is
         address indexed _yieldProtocolAddress
     );
 
+    /// @notice Emitted when additional reward tokens are claimed and distributed
+    event P2pYieldProxy__AdditionalRewardTokensClaimed(
+        address indexed _target,
+        address indexed _token,
+        uint256 _claimedAmount,
+        uint256 _p2pAmount,
+        uint256 _clientAmount
+    );
+
     // Functions are inherited from the composed interfaces.
 }

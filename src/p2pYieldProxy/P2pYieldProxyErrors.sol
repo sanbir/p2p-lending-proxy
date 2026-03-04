@@ -26,4 +26,6 @@ error P2pYieldProxy__NotClientCalled(
 error P2pYieldProxy__ZeroAddressFactory();
 error P2pYieldProxy__ZeroAddressP2pTreasury();
 error P2pYieldProxy__ZeroAllowedCalldataChecker();
+error P2pYieldProxy__ZeroAllowedCalldataByClientToP2pChecker();
+error P2pYieldProxy__CallerNeitherClientNorP2pOperator(address _caller);
 error P2pYieldProxy__DataTooShort();

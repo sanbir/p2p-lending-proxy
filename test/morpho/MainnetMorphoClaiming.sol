@@ -63,6 +63,10 @@ contract MainnetMorphoClaiming is Test {
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
         TransparentUpgradeableProxy checkerProxy =
             new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
+        AllowedCalldataChecker clientToP2pImpl = new AllowedCalldataChecker();
+        ProxyAdmin clientToP2pAdmin = new ProxyAdmin();
+        TransparentUpgradeableProxy clientToP2pCheckerProxy =
+            new TransparentUpgradeableProxy(address(clientToP2pImpl), address(clientToP2pAdmin), initData);
         factory = new P2pYieldProxyFactory(p2pSigner);
         trustedDistributorRegistry = new P2pMorphoTrustedDistributorRegistry(address(factory));
         referenceProxy = address(
@@ -70,6 +74,7 @@ contract MainnetMorphoClaiming is Test {
                 address(factory),
                 P2P_TREASURY,
                 address(checkerProxy),
+                address(clientToP2pCheckerProxy),
                 MORPHO_BUNDLER,
                 address(trustedDistributorRegistry)
             )

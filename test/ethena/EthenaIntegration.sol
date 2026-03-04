@@ -61,8 +61,15 @@ contract EthenaIntegration is Test {
             address(admin),
             initData
         );
+        AllowedCalldataChecker clientToP2pImpl = new AllowedCalldataChecker();
+        ProxyAdmin clientToP2pAdmin = new ProxyAdmin();
+        TransparentUpgradeableProxy clientToP2pTup = new TransparentUpgradeableProxy(
+            address(clientToP2pImpl),
+            address(clientToP2pAdmin),
+            initData
+        );
         factory = new P2pYieldProxyFactory(p2pSignerAddress);
-        referenceProxy = address(new P2pEthenaProxy(address(factory), P2pTreasury, address(tup), sUSDe, USDe));
+        referenceProxy = address(new P2pEthenaProxy(address(factory), P2pTreasury, address(tup), address(clientToP2pTup), sUSDe, USDe));
         factory.addReferenceP2pYieldProxy(referenceProxy);
         vm.stopPrank();
 

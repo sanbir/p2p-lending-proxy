@@ -275,6 +275,8 @@ contract P2pEthenaProxyUnitTest is Test {
 
         checker = new AllowedCalldataChecker();
         checker.initialize();
+        AllowedCalldataChecker clientToP2pChecker = new AllowedCalldataChecker();
+        clientToP2pChecker.initialize();
 
         factory = new P2pYieldProxyFactory(p2pSigner);
         referenceProxy = address(
@@ -282,6 +284,7 @@ contract P2pEthenaProxyUnitTest is Test {
                 address(factory),
                 treasury,
                 address(checker),
+                address(clientToP2pChecker),
                 address(stakedUsde),
                 address(usde)
             )

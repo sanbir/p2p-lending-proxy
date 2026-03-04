@@ -192,7 +192,7 @@ abstract contract Withdrawable is
         address _asset,
         uint256 _totalAmount,
         uint256 _feeBaseAmount
-    ) internal returns (uint256 p2pAmount, uint256 clientAmount) {
+    ) internal virtual returns (uint256 p2pAmount, uint256 clientAmount) {
         p2pAmount = calculateP2pFeeAmount(_feeBaseAmount);
         clientAmount = _totalAmount - p2pAmount;
 

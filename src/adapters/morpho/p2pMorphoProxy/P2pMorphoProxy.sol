@@ -4,7 +4,6 @@
 pragma solidity 0.8.30;
 
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
-import "../../../access/P2pOperatorCallable.sol";
 import "../@morpho/IMorphoBundler.sol";
 import "../@morpho/IDistributor.sol";
 import "../../../@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -19,7 +18,7 @@ error P2pMorphoProxy__ZeroAccruedRewards();
 error P2pMorphoProxy__ZeroVaultAddress();
 error P2pMorphoProxy__VaultAssetNotSet(address _vault);
 
-contract P2pMorphoProxy is P2pYieldProxy, P2pOperatorCallable, IP2pMorphoProxy {
+contract P2pMorphoProxy is P2pYieldProxy, IP2pMorphoProxy {
     using SafeERC20 for IERC20;
 
     IMorphoBundler private immutable i_morphoBundler;
@@ -29,9 +28,10 @@ contract P2pMorphoProxy is P2pYieldProxy, P2pOperatorCallable, IP2pMorphoProxy {
         address _factory,
         address _p2pTreasury,
         address _allowedCalldataChecker,
+        address _allowedCalldataByClientToP2pChecker,
         address _morphoBundler,
         address _trustedDistributorRegistry
-    ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker) {
+    ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker, _allowedCalldataByClientToP2pChecker) {
         i_morphoBundler = IMorphoBundler(_morphoBundler);
         i_trustedDistributorRegistry = IP2pMorphoTrustedDistributorRegistry(_trustedDistributorRegistry);
     }

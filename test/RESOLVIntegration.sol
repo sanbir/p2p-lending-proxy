@@ -75,12 +75,20 @@ contract RESOLVIntegration is Test {
             address(admin),
             initData
         );
+        AllowedCalldataChecker clientToP2pImpl = new AllowedCalldataChecker();
+        ProxyAdmin clientToP2pAdmin = new ProxyAdmin();
+        TransparentUpgradeableProxy clientToP2pTup = new TransparentUpgradeableProxy(
+            address(clientToP2pImpl),
+            address(clientToP2pAdmin),
+            initData
+        );
         factory = new P2pYieldProxyFactory(p2pSignerAddress);
         referenceProxy = address(
             new P2pResolvProxy(
                 address(factory),
                 P2pTreasury,
                 address(tup),
+                address(clientToP2pTup),
                 stUSR,
                 USR,
                 stRESOLV,
@@ -262,11 +270,14 @@ contract RESOLVIntegration is Test {
         // Deploy a fresh proxy to extract runtime code with correct immutables
         AllowedCalldataChecker checker = new AllowedCalldataChecker();
         checker.initialize();
+        AllowedCalldataChecker clientToP2pChecker = new AllowedCalldataChecker();
+        clientToP2pChecker.initialize();
 
         P2pResolvProxy fresh = new P2pResolvProxy(
             address(this),
             P2pTreasury,
             address(checker),
+            address(clientToP2pChecker),
             stUSR,
             USR,
             stRESOLV,
@@ -1032,6 +1043,8 @@ contract RESOLVIntegration is Test {
     {
         AllowedCalldataChecker checker = new AllowedCalldataChecker();
         checker.initialize();
+        AllowedCalldataChecker clientToP2pChecker = new AllowedCalldataChecker();
+        clientToP2pChecker.initialize();
 
         mockResolv = new MockERC20("RESOLV", "RESOLV");
         MockERC20 mockUsr = new MockERC20("USR", "USR");
@@ -1045,6 +1058,7 @@ contract RESOLVIntegration is Test {
                 address(factory),
                 P2pTreasury,
                 address(checker),
+                address(clientToP2pChecker),
                 address(mockStUsr),
                 address(mockUsr),
                 address(mockStResolv),

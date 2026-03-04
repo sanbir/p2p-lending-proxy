@@ -6,7 +6,6 @@ pragma solidity 0.8.30;
 import "../@resolv/IResolvStaking.sol";
 import "../@resolv/IStUSR.sol";
 import "../@resolv/IStakedTokenDistributor.sol";
-import "../../../access/P2pOperatorCallable.sol";
 import "../../../p2pYieldProxy/P2pYieldProxy.sol";
 import "./IP2pResolvProxy.sol";
 
@@ -21,7 +20,7 @@ error P2pResolvProxy__ZeroAddressStakedTokenDistributor();
 error P2pResolvProxy__CannotSweepProtectedToken(address _token);
 error P2pResolvProxy__RewardTokenLookupFailed(uint256 index);
 
-contract P2pResolvProxy is P2pYieldProxy, P2pOperatorCallable, IP2pResolvProxy {
+contract P2pResolvProxy is P2pYieldProxy, IP2pResolvProxy {
     using SafeERC20 for IERC20;
 
     /// @dev USR address
@@ -61,11 +60,12 @@ contract P2pResolvProxy is P2pYieldProxy, P2pOperatorCallable, IP2pResolvProxy {
         address _factory,
         address _p2pTreasury,
         address _allowedCalldataChecker,
+        address _allowedCalldataByClientToP2pChecker,
         address _stUSR,
         address _USR,
         address _stRESOLV,
         address _RESOLV
-    ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker) {
+    ) P2pYieldProxy(_factory, _p2pTreasury, _allowedCalldataChecker, _allowedCalldataByClientToP2pChecker) {
         require(_USR != address(0), P2pResolvProxy__ZeroAddress_USR());
         i_USR = _USR;
 
