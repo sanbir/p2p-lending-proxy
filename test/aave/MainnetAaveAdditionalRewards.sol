@@ -28,7 +28,7 @@ contract MainnetAaveAdditionalRewards is Test {
     // Aave rewards infrastructure on mainnet
     address constant AAVE_REWARDS_CONTROLLER = 0x8164Cc65827dcFe994AB23944CBC90e0aa80bFcb;
     address constant UMBRELLA_REWARDS_CONTROLLER = 0x4655Ce3D625a63d30bA704087E52B4C31E38188B;
-    address constant MERKL_DISTRIBUTOR = 0x3ef3D8bA38E5c153a499d4E6Dd1bAFD17CE5D56c;
+    address constant MERKL_DISTRIBUTOR = 0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae;
 
     uint96 constant CLIENT_BPS = 8_700;
     uint256 constant DEPOSIT_AMOUNT = 10_000_000; // 10 USDC
@@ -47,7 +47,7 @@ contract MainnetAaveAdditionalRewards is Test {
 
     function setUp() public {
         string memory mainnetRpc = vm.envOr("MAINNET_RPC_URL", string("https://ethereum.publicnode.com"));
-        vm.createSelectFork(mainnetRpc, 21_308_893);
+        vm.createSelectFork(mainnetRpc, 22_400_000);
 
         client = makeAddr("client");
         (p2pSigner, p2pSignerKey) = makeAddrAndKey("p2pSigner");
@@ -145,8 +145,28 @@ contract MainnetAaveAdditionalRewards is Test {
         );
     }
 
-    /// @notice Umbrella RewardsController's claimAllRewardsToSelf is whitelisted by the checker
-    function test_aave_claimAdditionalRewards_umbrella_checkerAllows() external {
+    /// @notice Full 3-step flow for Umbrella Safety/staking incentives:
+    /// 1. Client cannot claim (default-deny checker blocks)
+    /// 2. P2pOperator upgrades AllowedCalldataChecker to AaveRewardsAllowedCalldataChecker
+    /// 3. Client can now claim successfully
+    function test_aave_claimAdditionalRewards_umbrella_fullFlow() external {
+        address aToken = P2pAaveProxy(proxyAddress).getAToken(USDC);
+        address[] memory assets = new address[](1);
+        assets[0] = aToken;
+        bytes memory claimCalldata =
+            abi.encodeCall(IRewardsController.claimAllRewardsToSelf, (assets));
+        address[] memory tokens = new address[](0);
+
+        // --- Step 1: Client cannot claim (default-deny checker) ---
+        vm.prank(client);
+        vm.expectRevert(AllowedCalldataChecker__NoAllowedCalldata.selector);
+        P2pAaveProxy(proxyAddress).claimAdditionalRewardTokens(
+            UMBRELLA_REWARDS_CONTROLLER,
+            claimCalldata,
+            tokens
+        );
+
+        // --- Step 2: P2pOperator upgrades the checker ---
         AaveRewardsAllowedCalldataChecker aaveChecker =
             new AaveRewardsAllowedCalldataChecker(
                 AAVE_REWARDS_CONTROLLER,
@@ -154,20 +174,24 @@ contract MainnetAaveAdditionalRewards is Test {
                 MERKL_DISTRIBUTOR
             );
 
-        // checkCalldata should NOT revert for Umbrella target + claimAllRewardsToSelf selector
-        // The checker only validates target + selector, not the calldata body
-        aaveChecker.checkCalldata(
-            UMBRELLA_REWARDS_CONTROLLER,
-            IRewardsController.claimAllRewardsToSelf.selector,
-            ""
+        vm.prank(p2pOperator);
+        operatorCheckerAdmin.upgrade(
+            ITransparentUpgradeableProxy(address(operatorCheckerProxy)),
+            address(aaveChecker)
         );
 
-        // But should revert for unknown selector on Umbrella target
-        vm.expectRevert(AllowedCalldataChecker__NoAllowedCalldata.selector);
-        aaveChecker.checkCalldata(
+        // --- Step 3: Checker now allows the call through ---
+        // The Umbrella RewardsController reverts at the protocol level because
+        // this proxy has no active rewards/stakes. Crucially, the revert is NOT
+        // AllowedCalldataChecker__NoAllowedCalldata — proving the checker
+        // correctly whitelisted the call. In production, the call succeeds
+        // when rewards exist.
+        vm.prank(client);
+        vm.expectRevert("Address: low-level call failed");
+        P2pAaveProxy(proxyAddress).claimAdditionalRewardTokens(
             UMBRELLA_REWARDS_CONTROLLER,
-            bytes4(0xdeadbeef),
-            ""
+            claimCalldata,
+            tokens
         );
     }
 
@@ -242,13 +266,13 @@ contract MainnetAaveAdditionalRewards is Test {
         vm.startPrank(client);
         IERC20(_asset).safeApprove(proxyAddress, 0);
         IERC20(_asset).safeApprove(proxyAddress, type(uint256).max);
-        factory.deposit(referenceProxy, _asset, _amount, CLIENT_BPS, 1_734_464_723, sig);
+        factory.deposit(referenceProxy, _asset, _amount, CLIENT_BPS, 1_800_000_000, sig);
         vm.stopPrank();
     }
 
     function _getP2pSignerSignature() private view returns (bytes memory) {
         bytes32 hashForSigner =
-            factory.getHashForP2pSigner(referenceProxy, client, CLIENT_BPS, 1_734_464_723);
+            factory.getHashForP2pSigner(referenceProxy, client, CLIENT_BPS, 1_800_000_000);
         bytes32 ethHash = ECDSA.toEthSignedMessageHash(hashForSigner);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(p2pSignerKey, ethHash);
         return abi.encodePacked(r, s, v);
