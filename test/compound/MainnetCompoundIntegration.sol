@@ -53,6 +53,8 @@ contract MainnetCompoundIntegration is Test {
 
     ProxyAdmin private operatorCheckerAdmin;
     TransparentUpgradeableProxy private operatorCheckerProxy;
+    ProxyAdmin private clientToP2pCheckerAdmin;
+    TransparentUpgradeableProxy private clientToP2pCheckerProxy;
 
     function setUp() public {
         string memory mainnetRpc = vm.envOr("MAINNET_RPC_URL", string("https://ethereum.publicnode.com"));
@@ -74,9 +76,9 @@ contract MainnetCompoundIntegration is Test {
 
         // Deploy client-controlled checker (default: deny all)
         AllowedCalldataChecker clientToP2pImpl = new AllowedCalldataChecker();
-        ProxyAdmin clientToP2pAdmin = new ProxyAdmin();
-        TransparentUpgradeableProxy clientToP2pCheckerProxy = new TransparentUpgradeableProxy(
-            address(clientToP2pImpl), address(clientToP2pAdmin), initData
+        clientToP2pCheckerAdmin = new ProxyAdmin();
+        clientToP2pCheckerProxy = new TransparentUpgradeableProxy(
+            address(clientToP2pImpl), address(clientToP2pCheckerAdmin), initData
         );
 
         factory = new P2pYieldProxyFactory(p2pSigner);
@@ -389,7 +391,87 @@ contract MainnetCompoundIntegration is Test {
         marketRegistry.addMarket(USDC, USDC_COMET);
     }
 
+    // ==================== E2E: Operator Claims COMP via claimAdditionalRewardTokens ====================
+
+    /// @notice Operator claims COMP rewards after upgrading client-to-p2p checker
+    function test_compound_claimCOMPRewards_byOperator() external {
+        _upgradeChecker();
+        _upgradeClientToP2pChecker();
+
+        uint256 largeDeposit = 10_000_000e6;
+        deal(USDC, client, largeDeposit);
+        _doDeposit(USDC, largeDeposit);
+
+        vm.warp(block.timestamp + 90 days);
+        vm.roll(block.number + 657_000);
+
+        bytes memory claimCalldata = abi.encodeCall(
+            ICometRewards.claim,
+            (USDC_COMET, proxyAddress, true)
+        );
+        address[] memory tokens = new address[](1);
+        tokens[0] = COMP_TOKEN;
+
+        uint256 treasuryBefore = IERC20(COMP_TOKEN).balanceOf(P2P_TREASURY);
+        uint256 clientBefore = IERC20(COMP_TOKEN).balanceOf(client);
+
+        vm.prank(p2pOperator);
+        P2pCompoundProxy(proxyAddress).claimAdditionalRewardTokens(
+            COMET_REWARDS,
+            claimCalldata,
+            tokens
+        );
+
+        uint256 treasuryGain = IERC20(COMP_TOKEN).balanceOf(P2P_TREASURY) - treasuryBefore;
+        uint256 clientGain = IERC20(COMP_TOKEN).balanceOf(client) - clientBefore;
+
+        assertGt(treasuryGain, 0, "treasury should receive COMP fee");
+        assertGt(clientGain, 0, "client should receive COMP");
+
+        uint256 totalClaimed = treasuryGain + clientGain;
+        uint256 expectedP2p = totalClaimed * (10_000 - CLIENT_BPS) / 10_000;
+        uint256 expectedClient = totalClaimed - expectedP2p;
+
+        assertEq(treasuryGain, expectedP2p, "p2p fee mismatch");
+        assertEq(clientGain, expectedClient, "client amount mismatch");
+    }
+
+    /// @notice Nobody (not client or operator) cannot call claimAdditionalRewardTokens
+    function test_compound_claimCOMPRewards_revertForNobody() external {
+        _upgradeChecker();
+
+        deal(USDC, client, 100e6);
+        _doDeposit(USDC, USDC_DEPOSIT);
+
+        bytes memory claimCalldata = abi.encodeCall(
+            ICometRewards.claim,
+            (USDC_COMET, proxyAddress, true)
+        );
+        address[] memory tokens = new address[](1);
+        tokens[0] = COMP_TOKEN;
+
+        address nobody = makeAddr("nobody");
+        vm.prank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__CallerNeitherClientNorP2pOperator.selector, nobody));
+        P2pCompoundProxy(proxyAddress).claimAdditionalRewardTokens(
+            COMET_REWARDS,
+            claimCalldata,
+            tokens
+        );
+    }
+
     // ==================== Helpers ====================
+
+    function _upgradeClientToP2pChecker() private {
+        CompoundRewardsAllowedCalldataChecker compoundChecker =
+            new CompoundRewardsAllowedCalldataChecker(COMET_REWARDS);
+
+        vm.prank(p2pOperator);
+        clientToP2pCheckerAdmin.upgrade(
+            ITransparentUpgradeableProxy(address(clientToP2pCheckerProxy)),
+            address(compoundChecker)
+        );
+    }
 
     function _upgradeChecker() private {
         CompoundRewardsAllowedCalldataChecker compoundChecker =

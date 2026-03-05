@@ -57,6 +57,8 @@ contract MainnetAaveAdditionalRewards is Test {
     // Checker infrastructure
     ProxyAdmin private operatorCheckerAdmin;
     TransparentUpgradeableProxy private operatorCheckerProxy;
+    ProxyAdmin private clientToP2pCheckerAdmin;
+    TransparentUpgradeableProxy private clientToP2pCheckerProxy;
 
     function setUp() public {
         string memory mainnetRpc = vm.envOr("MAINNET_RPC_URL", string("https://ethereum.publicnode.com"));
@@ -79,9 +81,9 @@ contract MainnetAaveAdditionalRewards is Test {
 
         // Deploy client-controlled checker (allows p2pOperator calls)
         AllowedCalldataChecker clientToP2pImpl = new AllowedCalldataChecker();
-        ProxyAdmin clientToP2pAdmin = new ProxyAdmin();
-        TransparentUpgradeableProxy clientToP2pCheckerProxy = new TransparentUpgradeableProxy(
-            address(clientToP2pImpl), address(clientToP2pAdmin), initData
+        clientToP2pCheckerAdmin = new ProxyAdmin();
+        clientToP2pCheckerProxy = new TransparentUpgradeableProxy(
+            address(clientToP2pImpl), address(clientToP2pCheckerAdmin), initData
         );
 
         factory = new P2pYieldProxyFactory(p2pSigner);
@@ -406,7 +408,103 @@ contract MainnetAaveAdditionalRewards is Test {
         );
     }
 
+    // ==================== E2E: Operator Claims Merkl Rewards ====================
+
+    /// @notice Operator claims Merkl GHO rewards after upgrading client-to-p2p checker
+    function test_aave_claimMerklRewards_byOperator() external {
+        _upgradeChecker();
+        _upgradeClientToP2pChecker();
+
+        uint256 claimAmount = 1000e18;
+
+        bytes32 leaf0 = keccak256(abi.encode(proxyAddress, GHO, claimAmount));
+        bytes32 leaf1 = keccak256(abi.encode(address(0xdead), GHO, uint256(1)));
+
+        bytes32 root;
+        if (leaf0 < leaf1) {
+            root = keccak256(abi.encode(leaf0, leaf1));
+        } else {
+            root = keccak256(abi.encode(leaf1, leaf0));
+        }
+
+        vm.store(MERKL_DISTRIBUTOR, bytes32(uint256(MERKL_LAST_TREE_ROOT_SLOT)), root);
+        deal(GHO, MERKL_DISTRIBUTOR, claimAmount);
+
+        address[] memory users = new address[](1);
+        users[0] = proxyAddress;
+        address[] memory claimTokens = new address[](1);
+        claimTokens[0] = GHO;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = claimAmount;
+        bytes32[][] memory proofs = new bytes32[][](1);
+        proofs[0] = new bytes32[](1);
+        proofs[0][0] = leaf1;
+
+        bytes memory claimCalldata = abi.encodeCall(
+            IDistributor.claim,
+            (users, claimTokens, amounts, proofs)
+        );
+
+        address[] memory rewardTokens = new address[](1);
+        rewardTokens[0] = GHO;
+
+        uint256 treasuryBefore = IERC20(GHO).balanceOf(P2P_TREASURY);
+        uint256 clientBefore = IERC20(GHO).balanceOf(client);
+
+        vm.prank(p2pOperator);
+        P2pAaveProxy(proxyAddress).claimAdditionalRewardTokens(
+            MERKL_DISTRIBUTOR,
+            claimCalldata,
+            rewardTokens
+        );
+
+        uint256 treasuryGain = IERC20(GHO).balanceOf(P2P_TREASURY) - treasuryBefore;
+        uint256 clientGain = IERC20(GHO).balanceOf(client) - clientBefore;
+
+        uint256 expectedP2p = claimAmount * (10_000 - CLIENT_BPS) / 10_000;
+        uint256 expectedClient = claimAmount - expectedP2p;
+
+        assertEq(treasuryGain, expectedP2p, "p2p fee mismatch");
+        assertEq(clientGain, expectedClient, "client amount mismatch");
+    }
+
+    /// @notice Nobody (not client or operator) cannot call claimAdditionalRewardTokens
+    function test_aave_claimAdditionalRewards_revertForNobody() external {
+        _upgradeChecker();
+
+        address aToken = P2pAaveProxy(proxyAddress).getAToken(USDC);
+        address[] memory assets = new address[](1);
+        assets[0] = aToken;
+        bytes memory claimCalldata =
+            abi.encodeCall(IRewardsController.claimAllRewardsToSelf, (assets));
+        address[] memory tokens = new address[](0);
+
+        address nobody = makeAddr("nobody");
+        vm.prank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__CallerNeitherClientNorP2pOperator.selector, nobody));
+        P2pAaveProxy(proxyAddress).claimAdditionalRewardTokens(
+            AAVE_REWARDS_CONTROLLER,
+            claimCalldata,
+            tokens
+        );
+    }
+
     // ==================== Helpers ====================
+
+    function _upgradeClientToP2pChecker() private {
+        AaveRewardsAllowedCalldataChecker aaveChecker =
+            new AaveRewardsAllowedCalldataChecker(
+                AAVE_REWARDS_CONTROLLER,
+                UMBRELLA_REWARDS_CONTROLLER,
+                MERKL_DISTRIBUTOR
+            );
+
+        vm.prank(p2pOperator);
+        clientToP2pCheckerAdmin.upgrade(
+            ITransparentUpgradeableProxy(address(clientToP2pCheckerProxy)),
+            address(aaveChecker)
+        );
+    }
 
     function _upgradeChecker() private {
         AaveRewardsAllowedCalldataChecker aaveChecker =
