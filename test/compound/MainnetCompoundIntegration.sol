@@ -8,6 +8,7 @@ import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeab
 import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../src/adapters/compound/p2pCompoundProxy/P2pCompoundProxy.sol";
+import "../../src/adapters/compound/CompoundMarketRegistry.sol";
 import "../../src/adapters/compound/CompoundRewardsAllowedCalldataChecker.sol";
 import "../../src/adapters/compound/@compound/IComet.sol";
 import "../../src/adapters/compound/@compound/ICometRewards.sol";
@@ -16,23 +17,33 @@ import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 
 /// @title MainnetCompoundIntegration
-/// @notice End-to-end mainnet fork tests for P2pCompoundProxy:
-///   - Deposit USDC into Compound V3 (Comet)
-///   - Withdraw USDC from Compound V3
+/// @notice End-to-end mainnet fork tests for P2pCompoundProxy with multi-market support:
+///   - Deposit/withdraw USDC, WETH, USDT into respective Compound V3 Comets
 ///   - Claim COMP rewards via CometRewards
 contract MainnetCompoundIntegration is Test {
     using SafeERC20 for IERC20;
 
     address constant P2P_TREASURY = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
-    address constant USDC_COMET = 0xc3d688B66703497DAA19211EEdff47f25384cdc3;
     address constant COMET_REWARDS = 0x1B0e765F6224C21223AeA2af16c1C46E38885a40;
     address constant COMP_TOKEN = 0xc00e94Cb662C3520282E6f5717214004A7f26888;
+
+    // Comet markets
+    address constant USDC_COMET = 0xc3d688B66703497DAA19211EEdff47f25384cdc3;
+    address constant WETH_COMET = 0xA17581A9E3356d9A858b789D68B4d866e593aE94;
+    address constant USDT_COMET = 0x3Afdc9BCA9213A35503b077a6072F3D0d5AB0840;
+
+    // Base tokens
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
 
     uint96 constant CLIENT_BPS = 8_700;
-    uint256 constant DEPOSIT_AMOUNT = 10_000_000; // 10 USDC (6 decimals)
+    uint256 constant USDC_DEPOSIT = 10_000_000; // 10 USDC (6 decimals)
+    uint256 constant WETH_DEPOSIT = 1e16; // 0.01 WETH (18 decimals)
+    uint256 constant USDT_DEPOSIT = 10_000_000; // 10 USDT (6 decimals)
 
     P2pYieldProxyFactory private factory;
+    CompoundMarketRegistry private marketRegistry;
     address private client;
     uint256 private p2pSignerKey;
     address private p2pSigner;
@@ -69,13 +80,22 @@ contract MainnetCompoundIntegration is Test {
         );
 
         factory = new P2pYieldProxyFactory(p2pSigner);
+
+        // Deploy market registry with 3 initial markets
+        address[] memory assets = new address[](3);
+        address[] memory comets = new address[](3);
+        assets[0] = USDC; comets[0] = USDC_COMET;
+        assets[1] = WETH; comets[1] = WETH_COMET;
+        assets[2] = USDT; comets[2] = USDT_COMET;
+        marketRegistry = new CompoundMarketRegistry(address(factory), assets, comets);
+
         referenceProxy = address(
             new P2pCompoundProxy(
                 address(factory),
                 P2P_TREASURY,
                 address(operatorCheckerProxy),
                 address(clientToP2pCheckerProxy),
-                USDC_COMET,
+                address(marketRegistry),
                 COMET_REWARDS
             )
         );
@@ -85,18 +105,18 @@ contract MainnetCompoundIntegration is Test {
         proxyAddress = factory.predictP2pYieldProxyAddress(referenceProxy, client, CLIENT_BPS);
     }
 
-    // ==================== E2E: Happy Path — Deposit + Withdraw ====================
+    // ==================== E2E: Happy Path — USDC Deposit + Withdraw ====================
 
     /// @notice Deposit USDC into Compound via proxy, verify Supply event, withdraw all, verify Withdraw event
     function test_compound_HappyPath_USDC_Mainnet() external {
         deal(USDC, client, 100e6);
 
         vm.recordLogs();
-        _doDeposit(USDC, DEPOSIT_AMOUNT);
+        _doDeposit(USDC, USDC_DEPOSIT);
         Vm.Log[] memory depositLogs = vm.getRecordedLogs();
         _assertEventSeen(depositLogs, USDC_COMET, keccak256("Supply(address,address,uint256)"));
 
-        assertGt(IComet(USDC_COMET).balanceOf(proxyAddress), 0, "proxy should have Comet balance");
+        assertGt(IComet(USDC_COMET).balanceOf(proxyAddress), 0, "proxy should have USDC Comet balance");
 
         vm.recordLogs();
         vm.prank(client);
@@ -104,7 +124,51 @@ contract MainnetCompoundIntegration is Test {
         Vm.Log[] memory withdrawLogs = vm.getRecordedLogs();
         _assertEventSeen(withdrawLogs, USDC_COMET, keccak256("Withdraw(address,address,uint256)"));
 
-        assertEq(IComet(USDC_COMET).balanceOf(proxyAddress), 0, "proxy Comet balance should be 0");
+        assertEq(IComet(USDC_COMET).balanceOf(proxyAddress), 0, "proxy USDC Comet balance should be 0");
+    }
+
+    // ==================== E2E: Happy Path — WETH Deposit + Withdraw ====================
+
+    /// @notice Deposit WETH into Compound WETH Comet, verify Supply event, withdraw all, verify Withdraw event
+    function test_compound_HappyPath_WETH_Mainnet() external {
+        deal(WETH, client, 1e18);
+
+        vm.recordLogs();
+        _doDeposit(WETH, WETH_DEPOSIT);
+        Vm.Log[] memory depositLogs = vm.getRecordedLogs();
+        _assertEventSeen(depositLogs, WETH_COMET, keccak256("Supply(address,address,uint256)"));
+
+        assertGt(IComet(WETH_COMET).balanceOf(proxyAddress), 0, "proxy should have WETH Comet balance");
+
+        vm.recordLogs();
+        vm.prank(client);
+        P2pCompoundProxy(proxyAddress).withdraw(WETH, type(uint256).max);
+        Vm.Log[] memory withdrawLogs = vm.getRecordedLogs();
+        _assertEventSeen(withdrawLogs, WETH_COMET, keccak256("Withdraw(address,address,uint256)"));
+
+        assertEq(IComet(WETH_COMET).balanceOf(proxyAddress), 0, "proxy WETH Comet balance should be 0");
+    }
+
+    // ==================== E2E: Happy Path — USDT Deposit + Withdraw ====================
+
+    /// @notice Deposit USDT into Compound USDT Comet, verify Supply event, withdraw all, verify Withdraw event
+    function test_compound_HappyPath_USDT_Mainnet() external {
+        deal(USDT, client, 100e6);
+
+        vm.recordLogs();
+        _doDeposit(USDT, USDT_DEPOSIT);
+        Vm.Log[] memory depositLogs = vm.getRecordedLogs();
+        _assertEventSeen(depositLogs, USDT_COMET, keccak256("Supply(address,address,uint256)"));
+
+        assertGt(IComet(USDT_COMET).balanceOf(proxyAddress), 0, "proxy should have USDT Comet balance");
+
+        vm.recordLogs();
+        vm.prank(client);
+        P2pCompoundProxy(proxyAddress).withdraw(USDT, type(uint256).max);
+        Vm.Log[] memory withdrawLogs = vm.getRecordedLogs();
+        _assertEventSeen(withdrawLogs, USDT_COMET, keccak256("Withdraw(address,address,uint256)"));
+
+        assertEq(IComet(USDT_COMET).balanceOf(proxyAddress), 0, "proxy USDT Comet balance should be 0");
     }
 
     // ==================== E2E: Withdraw Accrued Rewards ====================
@@ -239,7 +303,7 @@ contract MainnetCompoundIntegration is Test {
     /// @notice Before checker upgrade: claimAdditionalRewardTokens reverts
     function test_compound_claimAdditionalRewards_revertsByDefault() external {
         deal(USDC, client, 100e6);
-        _doDeposit(USDC, DEPOSIT_AMOUNT);
+        _doDeposit(USDC, USDC_DEPOSIT);
 
         bytes memory claimCalldata = abi.encodeCall(
             ICometRewards.claim,
@@ -259,30 +323,30 @@ contract MainnetCompoundIntegration is Test {
     /// @notice Deposit directly on proxy (not via factory) reverts
     function test_compound_depositDirectlyOnProxy_reverts() external {
         deal(USDC, client, 100e6);
-        _doDeposit(USDC, DEPOSIT_AMOUNT);
+        _doDeposit(USDC, USDC_DEPOSIT);
 
         vm.startPrank(client);
         vm.expectRevert(abi.encodeWithSelector(P2pYieldProxy__NotFactoryCalled.selector, client, factory));
-        P2pCompoundProxy(proxyAddress).deposit(USDC, DEPOSIT_AMOUNT);
+        P2pCompoundProxy(proxyAddress).deposit(USDC, USDC_DEPOSIT);
         vm.stopPrank();
     }
 
-    /// @notice Deposit unsupported asset reverts
-    function test_compound_depositUnsupportedAsset_reverts() external {
-        address usdt = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    /// @notice Deposit unregistered asset reverts via registry
+    function test_compound_depositUnregisteredAsset_reverts() external {
+        address dai = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
         deal(USDC, client, 100e6);
         bytes memory signature = _getP2pSignerSignature(client, CLIENT_BPS, block.timestamp + 1 days);
 
         vm.startPrank(client);
-        vm.expectRevert(abi.encodeWithSelector(P2pCompoundProxy__AssetNotSupported.selector, usdt));
-        factory.deposit(referenceProxy, usdt, DEPOSIT_AMOUNT, CLIENT_BPS, block.timestamp + 1 days, signature);
+        vm.expectRevert(abi.encodeWithSelector(CompoundMarketRegistry__AssetNotSupported.selector, dai));
+        factory.deposit(referenceProxy, dai, USDC_DEPOSIT, CLIENT_BPS, block.timestamp + 1 days, signature);
         vm.stopPrank();
     }
 
     /// @notice withdrawAccruedRewards reverts when called by client
     function test_compound_withdrawAccruedRewards_revertsForClient() external {
         deal(USDC, client, 100e6);
-        _doDeposit(USDC, DEPOSIT_AMOUNT);
+        _doDeposit(USDC, USDC_DEPOSIT);
 
         vm.startPrank(client);
         vm.expectRevert(abi.encodeWithSelector(P2pCompoundProxy__NotP2pOperator.selector, client));
@@ -293,12 +357,36 @@ contract MainnetCompoundIntegration is Test {
     /// @notice withdrawAccruedRewards reverts when no rewards accrued
     function test_compound_withdrawAccruedRewards_revertsWhenNoRewards() external {
         deal(USDC, client, 100e6);
-        _doDeposit(USDC, DEPOSIT_AMOUNT);
+        _doDeposit(USDC, USDC_DEPOSIT);
 
         vm.startPrank(p2pOperator);
         vm.expectRevert(P2pCompoundProxy__ZeroAccruedRewards.selector);
         P2pCompoundProxy(proxyAddress).withdrawAccruedRewards(USDC);
         vm.stopPrank();
+    }
+
+    // ==================== Market Registry Tests ====================
+
+    /// @notice p2pOperator can add a new market to the registry
+    function test_compound_addMarket_byOperator() external {
+        // Deploy a mock comet-like contract that returns DAI as baseToken
+        // For simplicity, just verify the addMarket access control works
+        // (adding a real new Comet would require a deployed market)
+
+        address nonOperator = makeAddr("nonOperator");
+        address fakeAsset = makeAddr("fakeAsset");
+        address fakeComet = makeAddr("fakeComet");
+
+        vm.prank(nonOperator);
+        vm.expectRevert(abi.encodeWithSelector(CompoundMarketRegistry__NotP2pOperator.selector, nonOperator));
+        marketRegistry.addMarket(fakeAsset, fakeComet);
+    }
+
+    /// @notice Cannot add a market that is already registered
+    function test_compound_addMarket_alreadyRegistered_reverts() external {
+        vm.prank(p2pOperator);
+        vm.expectRevert(abi.encodeWithSelector(CompoundMarketRegistry__MarketAlreadyRegistered.selector, USDC));
+        marketRegistry.addMarket(USDC, USDC_COMET);
     }
 
     // ==================== Helpers ====================

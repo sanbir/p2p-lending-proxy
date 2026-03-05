@@ -8,7 +8,9 @@ interface IP2pCompoundProxy {
 
     function withdrawAccruedRewards(address _asset) external;
 
-    function getComet() external view returns (address);
+    function getComet(address _asset) external view returns (address);
+
+    function getMarketRegistry() external view returns (address);
 
     function getCometRewards() external view returns (address);
 }
