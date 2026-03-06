@@ -18,4 +18,12 @@ contract MockAllowedCalldataChecker is IAllowedCalldataChecker, Initializable {
     ) external pure {
         // allow everything
     }
+
+    function checkCalldataForClaimAdditionalRewardTokens(
+        address,
+        bytes4,
+        bytes calldata
+    ) external pure {
+        // allow everything
+    }
 }

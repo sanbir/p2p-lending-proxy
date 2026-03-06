@@ -84,9 +84,9 @@ abstract contract AdditionalRewardClaimer is
 
         bytes4 selector = bytes4(_callData[:4]);
         if (msg.sender == s_client) {
-            _allowedCalldataChecker().checkCalldata(_target, selector, _callData[4:]);
+            _allowedCalldataChecker().checkCalldataForClaimAdditionalRewardTokens(_target, selector, _callData[4:]);
         } else {
-            _allowedCalldataByClientToP2pChecker().checkCalldata(_target, selector, _callData[4:]);
+            _allowedCalldataByClientToP2pChecker().checkCalldataForClaimAdditionalRewardTokens(_target, selector, _callData[4:]);
         }
 
         uint256 tokenCount = _tokens.length;
