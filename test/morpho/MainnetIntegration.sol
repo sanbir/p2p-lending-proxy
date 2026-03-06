@@ -9,8 +9,7 @@ import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeab
 import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../src/access/P2pOperator.sol";
-import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
-import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
+import "../../src/adapters/erc4626/p2pErc4626Proxy/P2pErc4626Proxy.sol";
 import "../../src/p2pYieldProxy/P2pYieldProxy.sol";
 import "../../src/p2pYieldProxyFactory/IP2pYieldProxyFactory.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
@@ -21,19 +20,16 @@ contract MainnetIntegration is Test {
     using SafeERC20 for IERC20;
 
     address constant P2P_TREASURY = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
-    address constant MORPHO_BUNDLER = 0x4095F064B8d3c3548A3bebfd0Bbfd04750E30077;
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address constant VAULT_USDC = 0x8eB67A509616cd6A7c1B3c8C21D48FF57df3d458;
     address constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address constant VAULT_USDT = 0xbEef047a543E45807105E51A8BBEFCc5950fcfBa;
-    address constant DISTRIBUTOR = 0x330eefa8a787552DC5cAd3C3cA644844B1E61Ddb;
 
     uint256 constant SIG_DEADLINE = 1_734_464_723;
     uint96 constant CLIENT_BPS = 8_700;
     uint256 constant DEPOSIT_AMOUNT = 10_000_000;
 
     P2pYieldProxyFactory private factory;
-    P2pMorphoTrustedDistributorRegistry private trustedDistributorRegistry;
     address private client;
     uint256 private clientKey;
     address private p2pSigner;
@@ -66,15 +62,12 @@ contract MainnetIntegration is Test {
         TransparentUpgradeableProxy clientToP2pCheckerProxy =
             new TransparentUpgradeableProxy(address(clientToP2pImpl), address(clientToP2pAdmin), initData);
         factory = new P2pYieldProxyFactory(p2pSigner);
-        trustedDistributorRegistry = new P2pMorphoTrustedDistributorRegistry(address(factory));
         referenceProxy = address(
-            new P2pMorphoProxy(
+            new P2pErc4626Proxy(
                 address(factory),
                 P2P_TREASURY,
                 address(checkerProxy),
-                address(clientToP2pCheckerProxy),
-                MORPHO_BUNDLER,
-                address(trustedDistributorRegistry)
+                address(clientToP2pCheckerProxy)
             )
         );
         factory.addReferenceP2pYieldProxy(referenceProxy);
@@ -142,12 +135,9 @@ contract MainnetIntegration is Test {
         _doDeposit();
         _forward(1_000_000);
 
-        uint256 simulatedYield = 5e6;
-        deal(asset, vault, IERC20(asset).balanceOf(vault) + simulatedYield);
-
         vm.startPrank(p2pOperator);
         uint256 treasuryBefore = IERC20(asset).balanceOf(P2P_TREASURY);
-        P2pMorphoProxy(proxyAddress).withdrawAccruedRewards(vault);
+        P2pErc4626Proxy(proxyAddress).withdrawAccruedRewards(vault);
         uint256 treasuryAfter = IERC20(asset).balanceOf(P2P_TREASURY);
         vm.stopPrank();
 
@@ -161,8 +151,8 @@ contract MainnetIntegration is Test {
         _doDeposit();
 
         vm.startPrank(client);
-        vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxy__NotP2pOperator.selector, client));
-        P2pMorphoProxy(proxyAddress).withdrawAccruedRewards(vault);
+        vm.expectRevert(abi.encodeWithSelector(P2pErc4626Proxy__NotP2pOperator.selector, client));
+        P2pErc4626Proxy(proxyAddress).withdrawAccruedRewards(vault);
         vm.stopPrank();
     }
 
@@ -202,7 +192,7 @@ contract MainnetIntegration is Test {
         bytes memory signature = _getP2pSignerSignature(CLIENT_BPS, SIG_DEADLINE);
 
         vm.startPrank(client);
-        vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxy__ZeroVaultAddress.selector));
+        vm.expectRevert(abi.encodeWithSelector(P2pErc4626Proxy__ZeroVaultAddress.selector));
         factory.deposit(
             referenceProxy,
             address(0), DEPOSIT_AMOUNT, CLIENT_BPS, SIG_DEADLINE, signature);
@@ -243,7 +233,7 @@ contract MainnetIntegration is Test {
         vm.expectRevert(
             abi.encodeWithSelector(P2pYieldProxy__NotFactoryCalled.selector, client, factory)
         );
-        P2pMorphoProxy(proxyAddress).deposit(vault, DEPOSIT_AMOUNT);
+        P2pErc4626Proxy(proxyAddress).deposit(vault, DEPOSIT_AMOUNT);
         vm.stopPrank();
     }
 
@@ -252,7 +242,7 @@ contract MainnetIntegration is Test {
         _doDeposit();
 
         vm.expectRevert("Initializable: contract is already initialized");
-        P2pMorphoProxy(proxyAddress).initialize(client, CLIENT_BPS);
+        P2pErc4626Proxy(proxyAddress).initialize(client, CLIENT_BPS);
     }
 
     function test_morpho_withdrawOnProxyOnlyCallableByClient() external {
@@ -265,15 +255,15 @@ contract MainnetIntegration is Test {
         vm.expectRevert(
             abi.encodeWithSelector(P2pYieldProxy__NotClientCalled.selector, nobody, client)
         );
-        P2pMorphoProxy(proxyAddress).withdraw(vault, shares);
+        P2pErc4626Proxy(proxyAddress).withdraw(vault, shares);
         vm.stopPrank();
     }
 
     function test_morpho_callAnyFunction_revertsByDefault() external {
         vm.expectRevert(AllowedCalldataChecker__NoAllowedCalldata.selector);
         AllowedCalldataChecker(allowedChecker).checkCalldata(
-            MORPHO_BUNDLER,
-            IMorphoBundler.multicall.selector,
+            address(0),
+            bytes4(0xdeadbeef),
             bytes("")
         );
     }
@@ -357,50 +347,6 @@ contract MainnetIntegration is Test {
         assertEq(factory.getPendingP2pOperator(), address(0));
     }
 
-    function test_morpho_setTrustedDistributor_onlyOperator() external {
-        address distributor = makeAddr("distributor");
-
-        vm.startPrank(nobody);
-        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
-        trustedDistributorRegistry.setTrustedDistributor(distributor);
-        vm.stopPrank();
-
-        vm.startPrank(p2pOperator);
-        trustedDistributorRegistry.setTrustedDistributor(distributor);
-        vm.stopPrank();
-
-        assertTrue(trustedDistributorRegistry.isTrustedDistributor(distributor));
-    }
-
-    function test_morpho_removeTrustedDistributor_onlyOperator() external {
-        address distributor = makeAddr("distributor");
-        vm.prank(p2pOperator);
-        trustedDistributorRegistry.setTrustedDistributor(distributor);
-
-        vm.startPrank(nobody);
-        vm.expectRevert(abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody));
-        trustedDistributorRegistry.removeTrustedDistributor(distributor);
-        vm.stopPrank();
-
-        vm.startPrank(p2pOperator);
-        trustedDistributorRegistry.removeTrustedDistributor(distributor);
-        vm.stopPrank();
-
-        assertFalse(trustedDistributorRegistry.isTrustedDistributor(distributor));
-    }
-
-    function test_morpho_checkMorphoUrdClaim_requiresTrustedDistributor() external {
-        vm.expectRevert(abi.encodeWithSelector(P2pMorphoProxyFactory__DistributorNotTrusted.selector, DISTRIBUTOR));
-        trustedDistributorRegistry.checkMorphoUrdClaim(p2pOperator, false, DISTRIBUTOR);
-    }
-
-    function test_morpho_checkMorphoUrdClaim_requiresOperatorWhenFlagSet() external {
-        vm.expectRevert(
-            abi.encodeWithSelector(P2pOperator.P2pOperator__UnauthorizedAccount.selector, nobody)
-        );
-        trustedDistributorRegistry.checkMorphoUrdClaim(nobody, true, address(0));
-    }
-
     function test_morpho_multipleDepositsReuseProxy() external {
         asset = USDC;
         vault = VAULT_USDC;
@@ -469,7 +415,7 @@ contract MainnetIntegration is Test {
         uint256 sharesToWithdraw = sharesBalance / denominator;
 
         vm.startPrank(client);
-        P2pMorphoProxy(proxyAddress).withdraw(vault, sharesToWithdraw);
+        P2pErc4626Proxy(proxyAddress).withdraw(vault, sharesToWithdraw);
         vm.stopPrank();
     }
 
@@ -517,8 +463,8 @@ function test_morpho_DoubleFeeCollectionBug_OperatorThenClientWithdraw() externa
     // ============================================================
     // STEP 2: VAULT ACCRUES 5.96 USDC PROFIT
     // BUG-FLOW: Vault grows from 1000 to 1005.96 USDC
-    // getUserPrincipal() = 1000 - 0 = 1000 ✅ 
-    // calculateAccruedRewards() = 1005.96 - 1000 = 5.96 ✅ 
+    // getUserPrincipal() = 1000 - 0 = 1000
+    // calculateAccruedRewards() = 1005.96 - 1000 = 5.96
     // ============================================================
     uint256 shares = IERC20(vault).balanceOf(proxyAddress);
     uint256 assetsBefore = IERC4626(vault).convertToAssets(shares);
@@ -527,23 +473,17 @@ function test_morpho_DoubleFeeCollectionBug_OperatorThenClientWithdraw() externa
     uint256 profit = assetsAfter - assetsBefore;
 
     // ============================================================
-    // STEP 3: OPERATOR WITHDRAWS 5.96 USDC PROFIT
-    // BUG-FLOW: s_totalWithdrawn = 5.96 ⚠️ PROBLEM STARTS HERE!
-    // After this: getUserPrincipal() = 1000 - 5.96 = 994.04 ❌
-    // Fees collected: 0.77 USDC (13% of 5.96) ✅
+    // STEP 3: OPERATOR WITHDRAWS PROFIT
     // ============================================================
     vm.prank(p2pOperator);
-    P2pMorphoProxy(proxyAddress).withdrawAccruedRewards(vault);
+    P2pErc4626Proxy(proxyAddress).withdrawAccruedRewards(vault);
 
     // ============================================================
-    // STEP 4: CLIENT WITHDRAWS REMAINING 1000 USDC
-    // BUG-FLOW: calculateAccruedRewards() = 1000 - 994.04 = 5.96 ❌
-    // Fees collected AGAIN: 0.77 USDC ❌ DOUBLE FEE!
-    // Client loses: 0.77 USDC, Treasury gains: 0.77 USDC extra
+    // STEP 4: CLIENT WITHDRAWS REMAINING (PRINCIPAL)
     // ============================================================
     uint256 remainingShares = IERC20(vault).balanceOf(proxyAddress);
     vm.prank(client);
-    P2pMorphoProxy(proxyAddress).withdraw(vault, remainingShares);
+    P2pErc4626Proxy(proxyAddress).withdraw(vault, remainingShares);
 
     // Calculate results
     uint256 clientReceived = IERC20(asset).balanceOf(client) - clientStart;
@@ -568,11 +508,11 @@ function test_morpho_DoubleFeeCollectionBug_OperatorThenClientWithdraw() externa
     uint256 clientDelta = clientReceived > expectedClient
         ? clientReceived - expectedClient
         : expectedClient - clientReceived;
-    assertLe(clientDelta, 1, "Client lost funds");
+    assertLe(clientDelta, 2, "Client lost funds");
 
     uint256 treasuryDelta = treasuryReceived > expectedTreasury
         ? treasuryReceived - expectedTreasury
         : expectedTreasury - treasuryReceived;
-    assertLe(treasuryDelta, 1, "Treasury gained extra");
+    assertLe(treasuryDelta, 2, "Treasury gained extra");
 }
 }

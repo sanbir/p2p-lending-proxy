@@ -8,8 +8,8 @@ import "../../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
-import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
+import "../../src/adapters/erc4626/p2pErc4626Proxy/P2pErc4626Proxy.sol";
+import "../../src/adapters/morpho/MorphoRewardsAllowedCalldataChecker.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/mocks/@murky/Merkle.sol";
 import "../../src/mocks/IUniversalRewardsDistributor.sol";
@@ -20,7 +20,6 @@ contract MainnetProtocolEvents is Test {
     using SafeERC20 for IERC20;
 
     address constant P2P_TREASURY = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
-    address constant MORPHO_BUNDLER = 0x4095F064B8d3c3548A3bebfd0Bbfd04750E30077;
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address constant VAULT_USDC = 0x8eB67A509616cd6A7c1B3c8C21D48FF57df3d458;
     address constant DISTRIBUTOR = 0x330eefa8a787552DC5cAd3C3cA644844B1E61Ddb;
@@ -35,7 +34,6 @@ contract MainnetProtocolEvents is Test {
     bytes32 private constant ERC20_TRANSFER_EVENT = keccak256("Transfer(address,address,uint256)");
 
     P2pYieldProxyFactory private factory;
-    P2pMorphoTrustedDistributorRegistry private trustedDistributorRegistry;
     address private client;
     address private p2pSigner;
     uint256 private p2pSignerKey;
@@ -43,6 +41,9 @@ contract MainnetProtocolEvents is Test {
     address private referenceProxy;
     address private proxyAddress;
     Merkle private merkle;
+
+    ProxyAdmin private opCheckerAdmin;
+    TransparentUpgradeableProxy private opCheckerProxy;
 
     function setUp() public {
         vm.createSelectFork("mainnet", 21_308_893);
@@ -53,29 +54,27 @@ contract MainnetProtocolEvents is Test {
         merkle = new Merkle();
 
         vm.startPrank(p2pOperator);
-        AllowedCalldataChecker implementation = new AllowedCalldataChecker();
-        ProxyAdmin admin = new ProxyAdmin();
+
+        AllowedCalldataChecker denyAll = new AllowedCalldataChecker();
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
-        TransparentUpgradeableProxy checkerProxy =
-            new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
-        AllowedCalldataChecker clientToP2pImpl = new AllowedCalldataChecker();
-        ProxyAdmin clientToP2pAdmin = new ProxyAdmin();
-        TransparentUpgradeableProxy clientToP2pCheckerProxy =
-            new TransparentUpgradeableProxy(address(clientToP2pImpl), address(clientToP2pAdmin), initData);
+
+        opCheckerAdmin = new ProxyAdmin();
+        opCheckerProxy = new TransparentUpgradeableProxy(address(denyAll), address(opCheckerAdmin), initData);
+
+        ProxyAdmin c2pAdmin = new ProxyAdmin();
+        TransparentUpgradeableProxy c2pCheckerProxy =
+            new TransparentUpgradeableProxy(address(denyAll), address(c2pAdmin), initData);
+
         factory = new P2pYieldProxyFactory(p2pSigner);
-        trustedDistributorRegistry = new P2pMorphoTrustedDistributorRegistry(address(factory));
         referenceProxy = address(
-            new P2pMorphoProxy(
+            new P2pErc4626Proxy(
                 address(factory),
                 P2P_TREASURY,
-                address(checkerProxy),
-                address(clientToP2pCheckerProxy),
-                MORPHO_BUNDLER,
-                address(trustedDistributorRegistry)
+                address(opCheckerProxy),
+                address(c2pCheckerProxy)
             )
         );
         factory.addReferenceP2pYieldProxy(referenceProxy);
-        trustedDistributorRegistry.setTrustedDistributor(DISTRIBUTOR);
         vm.stopPrank();
 
         proxyAddress = factory.predictP2pYieldProxyAddress(referenceProxy, client, CLIENT_BPS);
@@ -94,17 +93,27 @@ contract MainnetProtocolEvents is Test {
 
         vm.recordLogs();
         vm.prank(client);
-        P2pMorphoProxy(proxyAddress).withdraw(VAULT_USDC, shares / 2);
+        P2pErc4626Proxy(proxyAddress).withdraw(VAULT_USDC, shares / 2);
         Vm.Log[] memory withdrawLogs = vm.getRecordedLogs();
         _assertEventSeen(withdrawLogs, VAULT_USDC, ERC4626_WITHDRAW_EVENT);
+
+        // URD claim via claimAdditionalRewardTokens
+        _upgradeOpChecker();
 
         uint256 claimable = 1 ether;
         bytes32[] memory tree = _setupRewards(claimable);
         bytes32[] memory proof = merkle.getProof(tree, 0);
 
+        bytes memory claimCalldata = abi.encodeCall(
+            IUniversalRewardsDistributorBase.claim,
+            (proxyAddress, MORPHO_TOKEN, claimable, proof)
+        );
+        address[] memory tokens = new address[](1);
+        tokens[0] = MORPHO_TOKEN;
+
         vm.recordLogs();
         vm.prank(client);
-        P2pMorphoProxy(proxyAddress).morphoUrdClaim(DISTRIBUTOR, MORPHO_TOKEN, claimable, proof);
+        P2pErc4626Proxy(proxyAddress).claimAdditionalRewardTokens(DISTRIBUTOR, claimCalldata, tokens);
         Vm.Log[] memory claimLogs = vm.getRecordedLogs();
         _assertEventSeen(claimLogs, MORPHO_TOKEN, ERC20_TRANSFER_EVENT);
     }
@@ -145,5 +154,11 @@ contract MainnetProtocolEvents is Test {
             }
         }
         revert("EVENT_NOT_FOUND");
+    }
+
+    function _upgradeOpChecker() private {
+        MorphoRewardsAllowedCalldataChecker impl = new MorphoRewardsAllowedCalldataChecker();
+        vm.prank(p2pOperator);
+        opCheckerAdmin.upgrade(ITransparentUpgradeableProxy(address(opCheckerProxy)), address(impl));
     }
 }

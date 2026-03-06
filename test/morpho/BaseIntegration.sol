@@ -8,9 +8,8 @@ import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
+import "../../src/adapters/erc4626/p2pErc4626Proxy/P2pErc4626Proxy.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
-import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 
@@ -18,7 +17,6 @@ contract BaseIntegration is Test {
     using SafeERC20 for IERC20;
 
     address constant P2P_TREASURY = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
-    address constant MORPHO_BUNDLER = 0x23055618898e202386e6c13955a58D3C68200BFB;
     address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address constant VAULT_USDC = 0xeE8F4eC5672F09119b96Ab6fB59C27E1b7e44b61;
 
@@ -55,16 +53,12 @@ contract BaseIntegration is Test {
         TransparentUpgradeableProxy clientToP2pCheckerProxy =
             new TransparentUpgradeableProxy(address(clientToP2pImpl), address(clientToP2pAdmin), initData);
         factory = new P2pYieldProxyFactory(p2pSigner);
-        P2pMorphoTrustedDistributorRegistry trustedDistributorRegistry =
-            new P2pMorphoTrustedDistributorRegistry(address(factory));
         referenceProxy = address(
-            new P2pMorphoProxy(
+            new P2pErc4626Proxy(
                 address(factory),
                 P2P_TREASURY,
                 address(checkerProxy),
-                address(clientToP2pCheckerProxy),
-                MORPHO_BUNDLER,
-                address(trustedDistributorRegistry)
+                address(clientToP2pCheckerProxy)
             )
         );
         factory.addReferenceP2pYieldProxy(referenceProxy);
@@ -80,7 +74,7 @@ contract BaseIntegration is Test {
         assertGt(shares, 0);
 
         vm.startPrank(client);
-        P2pMorphoProxy(proxyAddress).withdraw(VAULT_USDC, shares);
+        P2pErc4626Proxy(proxyAddress).withdraw(VAULT_USDC, shares);
         vm.stopPrank();
 
         assertEq(IERC20(VAULT_USDC).balanceOf(proxyAddress), 0);
