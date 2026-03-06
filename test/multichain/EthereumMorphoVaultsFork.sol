@@ -9,20 +9,18 @@ import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeab
 import "../../src/@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
-import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
+import "../../src/adapters/erc4626/p2pErc4626Proxy/P2pErc4626Proxy.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 
 /// @title EthereumMorphoVaultsFork
-/// @notice Ethereum mainnet fork tests for P2pMorphoProxy across all MetaMorpho vault
+/// @notice Ethereum mainnet fork tests for P2pErc4626Proxy across all MetaMorpho vault
 ///   variants that Kiln DeFi uses: Steakhouse, Gauntlet, Re7.
 contract EthereumMorphoVaultsFork is Test {
     using SafeERC20 for IERC20;
 
     address constant P2P_TREASURY = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
-    address constant MORPHO_BUNDLER = 0x4095F064B8d3c3548A3bebfd0Bbfd04750E30077;
 
     // --- Tokens ---
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -46,7 +44,6 @@ contract EthereumMorphoVaultsFork is Test {
     uint256 constant WETH_DEPOSIT = 5e18;
 
     P2pYieldProxyFactory private factory;
-    P2pMorphoTrustedDistributorRegistry private trustedDistributorRegistry;
     address private referenceProxy;
 
     address private client;
@@ -73,14 +70,11 @@ contract EthereumMorphoVaultsFork is Test {
         TransparentUpgradeableProxy c2pChecker = new TransparentUpgradeableProxy(address(impl), address(a2), initData);
 
         factory = new P2pYieldProxyFactory(p2pSigner);
-        trustedDistributorRegistry = new P2pMorphoTrustedDistributorRegistry(address(factory));
 
         referenceProxy = address(
-            new P2pMorphoProxy(
+            new P2pErc4626Proxy(
                 address(factory), P2P_TREASURY,
-                address(opChecker), address(c2pChecker),
-                MORPHO_BUNDLER,
-                address(trustedDistributorRegistry)
+                address(opChecker), address(c2pChecker)
             )
         );
         factory.addReferenceP2pYieldProxy(referenceProxy);
@@ -128,7 +122,7 @@ contract EthereumMorphoVaultsFork is Test {
         assertGt(shares, 0, "should hold vault shares");
 
         vm.prank(client);
-        P2pMorphoProxy(proxyAddress).withdraw(GAUNTLET_LBTC_CORE, shares);
+        P2pErc4626Proxy(proxyAddress).withdraw(GAUNTLET_LBTC_CORE, shares);
 
         uint256 clientBal = IERC20(lbtc).balanceOf(client);
         assertGe(clientBal, depositAmt - 2, "client should recover LBTC");
@@ -140,16 +134,12 @@ contract EthereumMorphoVaultsFork is Test {
         deal(USDC, client, USDC_DEPOSIT);
         _doDeposit(STEAKHOUSE_USDC, USDC, USDC_DEPOSIT);
 
-        // Warp to accrue yield
-        vm.roll(block.number + 1_000_000);
-        vm.warp(block.timestamp + 1_000_000);
-
-        // Simulate extra yield by dealing USDC into vault
-        deal(USDC, STEAKHOUSE_USDC, IERC20(USDC).balanceOf(STEAKHOUSE_USDC) + 5_000e6);
+        // Warp to accrue yield (Morpho Blue interest accrues based on timestamp)
+        vm.warp(block.timestamp + 365 days);
 
         uint256 treasuryBefore = IERC20(USDC).balanceOf(P2P_TREASURY);
         vm.prank(p2pOperator);
-        P2pMorphoProxy(proxyAddress).withdrawAccruedRewards(STEAKHOUSE_USDC);
+        P2pErc4626Proxy(proxyAddress).withdrawAccruedRewards(STEAKHOUSE_USDC);
 
         assertGt(IERC20(USDC).balanceOf(P2P_TREASURY), treasuryBefore, "treasury should receive fee");
     }
@@ -164,7 +154,7 @@ contract EthereumMorphoVaultsFork is Test {
         assertGt(shares, 0, "should hold vault shares");
 
         vm.prank(client);
-        P2pMorphoProxy(proxyAddress).withdraw(_vault, shares);
+        P2pErc4626Proxy(proxyAddress).withdraw(_vault, shares);
 
         uint256 clientBal = IERC20(_asset).balanceOf(client);
         assertGe(clientBal, _amount - 2, "client should recover funds");

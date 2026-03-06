@@ -14,14 +14,13 @@ import "../../src/adapters/aave/@aave/IAaveV3Pool.sol";
 import "../../src/adapters/compound/p2pCompoundProxy/P2pCompoundProxy.sol";
 import "../../src/adapters/compound/CompoundMarketRegistry.sol";
 import "../../src/adapters/compound/@compound/IComet.sol";
-import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
-import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
+import "../../src/adapters/erc4626/p2pErc4626Proxy/P2pErc4626Proxy.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 
 /// @title BaseForkIntegration
-/// @notice Base fork tests for P2pAaveProxy, P2pCompoundProxy, and P2pMorphoProxy.
+/// @notice Base fork tests for P2pAaveProxy, P2pCompoundProxy, and P2pErc4626Proxy.
 ///   Verifies deposit/withdraw for assets Kiln DeFi uses on Base.
 contract BaseForkIntegration is Test {
     using SafeERC20 for IERC20;
@@ -34,8 +33,7 @@ contract BaseForkIntegration is Test {
     address constant USDC_COMET = 0xb125E6687d4313864e53df431d5425969c15Eb2F;
     address constant COMET_REWARDS = 0x123964802e6ABabBE1Bc9547D72Ef1B69B00A6b1;
 
-    // --- Base Morpho ---
-    address constant MORPHO_BUNDLER = 0x23055618898e202386e6c13955a58D3C68200BFB;
+    // --- Base MetaMorpho (via generic ERC-4626) ---
     // MetaMorpho vaults on Base
     address constant STEAKHOUSE_USDC = 0xbeeF010f9cb27031ad51e3333f9aF9C6B1228183;
     address constant MOONWELL_USDC   = 0xc1256Ae5FF1cf2719D4937adb3bbCCab2E00A2Ca;
@@ -51,8 +49,6 @@ contract BaseForkIntegration is Test {
     address private referenceAave;
     address private referenceCompound;
     address private referenceMorpho;
-
-    P2pMorphoTrustedDistributorRegistry private trustedDistributorRegistry;
 
     address private client;
     uint256 private p2pSignerKey;
@@ -107,14 +103,11 @@ contract BaseForkIntegration is Test {
         );
         factory.addReferenceP2pYieldProxy(referenceCompound);
 
-        // Morpho (MetaMorpho vaults)
-        trustedDistributorRegistry = new P2pMorphoTrustedDistributorRegistry(address(factory));
+        // Morpho (MetaMorpho vaults via generic ERC-4626)
         referenceMorpho = address(
-            new P2pMorphoProxy(
+            new P2pErc4626Proxy(
                 address(factory), P2P_TREASURY,
-                address(opChecker), address(c2pChecker),
-                MORPHO_BUNDLER,
-                address(trustedDistributorRegistry)
+                address(opChecker), address(c2pChecker)
             )
         );
         factory.addReferenceP2pYieldProxy(referenceMorpho);
@@ -217,7 +210,7 @@ contract BaseForkIntegration is Test {
         assertGt(shares, 0, "should hold vault shares");
 
         vm.prank(client);
-        P2pMorphoProxy(morphoProxyAddress).withdraw(_vault, shares);
+        P2pErc4626Proxy(morphoProxyAddress).withdraw(_vault, shares);
 
         uint256 clientBal = IERC20(_asset).balanceOf(client);
         assertGe(clientBal, _amount - 2, "client should recover funds");
