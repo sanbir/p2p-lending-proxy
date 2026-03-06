@@ -392,56 +392,15 @@ contract MainnetSparkAdditionalRewards is Test {
         return keccak256(abi.encodePacked(_b, _a));
     }
 
+    /// @dev SparkRewards storage layout (inherits AccessControl):
+    ///   slot 0: AccessControl._roles mapping base
+    ///   slot 1: wallet (address)
+    ///   slot 2: merkleRoot (bytes32)
+    uint256 private constant MERKLE_ROOT_SLOT = 2;
+
     function _plantMerkleRoot(address _rewardsContract, bytes32 _root) private {
-        // SparkRewards: merkleRoot is at storage slot 2 (after wallet at slot 1, which is after AccessControl)
-        // AccessControl uses slot 0 for _roles mapping. wallet is slot 1. merkleRoot is slot 2.
-        // But with AccessControl inheritance, the actual slot depends on the layout.
-        // Let's find the correct slot by reading current merkleRoot.
-        bytes32 currentRoot = ISparkRewards(_rewardsContract).merkleRoot();
-
-        // Use vm.store on the merkle root admin role to set merkle root
-        // Simpler: just prank as MERKLE_ROOT_ROLE holder and call setMerkleRoot
-        bytes32 merkleRootRole = keccak256("MERKLE_ROOT_ROLE");
-        bytes32 adminRole = 0x00; // DEFAULT_ADMIN_ROLE
-
-        // Grant MERKLE_ROOT_ROLE to ourselves
-        address admin;
-        // Get an admin — check if p2pOperator or deployer has DEFAULT_ADMIN_ROLE
-        // For simplicity, use vm.store to set the merkle root directly by finding the slot
-        // Actually, the easiest approach: find who has admin role and prank as them
-
-        // SparkRewards Multisig has admin for SparkRewards
-        address sparkRewardsMultisig = 0xF649956f43825d4d7295a50EDdBe1EDC814A3a83;
-        // Ignition/PFL3 multisig
-        address spkCompanyMultisig = 0x6FE588FDCC6A34207485cc6e47673F59cCEDF92B;
-
-        // Try granting role and setting root via the admin
-        // First check who is the admin for the MERKLE_ROOT_ROLE
-        // For simplicity: prank as admin, grant role, then set root
-
-        if (_rewardsContract == SPARK_REWARDS) {
-            admin = sparkRewardsMultisig;
-        } else {
-            admin = spkCompanyMultisig;
-        }
-
-        vm.startPrank(admin);
-        // Grant MERKLE_ROOT_ROLE to admin itself (if not already)
-        // AccessControl.grantRole(bytes32 role, address account)
-        (bool success,) = _rewardsContract.call(
-            abi.encodeWithSignature("grantRole(bytes32,address)", merkleRootRole, admin)
-        );
-        require(success, "grantRole failed");
-        // Set the merkle root
-        (success,) = _rewardsContract.call(
-            abi.encodeWithSignature("setMerkleRoot(bytes32)", _root)
-        );
-        require(success, "setMerkleRoot failed");
-        vm.stopPrank();
-
-        // Verify
-        bytes32 newRoot = ISparkRewards(_rewardsContract).merkleRoot();
-        assertEq(newRoot, _root, "merkle root not set");
+        vm.store(_rewardsContract, bytes32(MERKLE_ROOT_SLOT), _root);
+        assertEq(ISparkRewards(_rewardsContract).merkleRoot(), _root, "merkle root not set");
     }
 
     function _upgradeOperatorChecker() private {
