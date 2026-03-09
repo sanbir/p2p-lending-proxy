@@ -5,11 +5,16 @@ A single **P2pYieldProxyFactory** supports multiple protocol adapters simultaneo
 
 | Adapter | Protocols / Vaults | Assets |
 |---------|--------------------|--------|
+| **P2pErc4626Proxy** | Any standard ERC-4626 vault: MetaMorpho, Fluid fTokens, etc. | USDC, USDT, WETH, ... |
 | **P2pAaveProxy** | Aave V3 Pool | USDC, USDT, WETH, ... (any Aave-listed asset) |
+| **P2pSparkProxy** | SparkLend (Aave V3 fork) | USDC, USDT, WETH, ... (any Spark-listed asset) |
 | **P2pCompoundProxy** | Compound V3 Comets | USDC, WETH, USDT (via CompoundMarketRegistry) |
-| **P2pMorphoProxy** | Morpho ERC-4626 Vaults | USDC, USDT, ... (any Morpho vault) |
 | **P2pEthenaProxy** | sUSDe, sENA (StakedUSDeV2) | USDe, ENA |
+| **P2pEulerProxy** | Euler V2 EVaults (via EVC) | USDC, USDT, WETH, ... |
+| **P2pMapleProxy** | Maple Finance pools (FIFO queue) | USDC, USDT |
 | **P2pResolvProxy** | stUSR, ResolvStaking | USR, RESOLV |
+
+P2pAaveProxy and P2pSparkProxy share a common base class **P2pAaveLikeProxy** that contains all deposit/withdraw/accrual logic for Aave V3 and its forks.
 
 New protocol adapters can be deployed and added to the factory at any time via `addReferenceP2pYieldProxy()` without redeploying existing infrastructure.
 
@@ -33,9 +38,11 @@ New protocol adapters can be deployed and added to the factory at any time via `
 - [Protocol-Specific Details](#protocol-specific-details)
   - [Resolv (USR / RESOLV)](#resolv-usr--resolv)
   - [Ethena (USDe / ENA)](#ethena-usde--ena)
-  - [Aave V3](#aave-v3)
+  - [Aave V3 / SparkLend](#aave-v3--sparklend)
   - [Compound V3](#compound-v3)
-  - [Morpho](#morpho)
+  - [ERC-4626 (MetaMorpho, Fluid, etc.)](#erc-4626-metamorpho-fluid-etc)
+  - [Euler V2](#euler-v2)
+  - [Maple Finance](#maple-finance)
 - [Invariants and Assumptions](#invariants-and-assumptions)
 - [Edge Cases](#edge-cases)
 - [Running Tests](#running-tests)
@@ -58,10 +65,13 @@ graph TB
     end
 
     subgraph "On-chain — Reference Proxies (templates)"
+        REF_ERC4626["P2pErc4626Proxy (ref)"]
         REF_AAVE["P2pAaveProxy (ref)"]
+        REF_SPARK["P2pSparkProxy (ref)"]
         REF_COMPOUND["P2pCompoundProxy (ref)"]
-        REF_MORPHO["P2pMorphoProxy (ref)"]
         REF_ETHENA["P2pEthenaProxy (ref)"]
+        REF_EULER["P2pEulerProxy (ref)"]
+        REF_MAPLE["P2pMapleProxy (ref)"]
         REF_RESOLV["P2pResolvProxy (ref)"]
         REF_FUTURE["Future Adapter (ref)"]
     end
@@ -73,10 +83,13 @@ graph TB
     end
 
     subgraph "On-chain — Yield Protocols"
+        ERC4626_VAULT["MetaMorpho / Fluid / etc."]
         AAVE["Aave V3 Pool"]
+        SPARK["SparkLend Pool"]
         COMPOUND["Compound V3 Comet"]
-        MORPHO["Morpho Vault"]
         ETHENA["sUSDe / sENA"]
+        EULER["Euler V2 EVault"]
+        MAPLE["Maple Pool"]
         RESOLV["stUSR / ResolvStaking"]
     end
 
@@ -95,10 +108,13 @@ graph TB
     CLONE2 -->|"8. Deposit"| ETHENA
     CLONE3 -->|"8. Deposit"| RESOLV
 
+    FACTORY -.->|"addReferenceP2pYieldProxy()"| REF_ERC4626
     FACTORY -.->|"addReferenceP2pYieldProxy()"| REF_AAVE
+    FACTORY -.->|"addReferenceP2pYieldProxy()"| REF_SPARK
     FACTORY -.->|"addReferenceP2pYieldProxy()"| REF_COMPOUND
-    FACTORY -.->|"addReferenceP2pYieldProxy()"| REF_MORPHO
     FACTORY -.->|"addReferenceP2pYieldProxy()"| REF_ETHENA
+    FACTORY -.->|"addReferenceP2pYieldProxy()"| REF_EULER
+    FACTORY -.->|"addReferenceP2pYieldProxy()"| REF_MAPLE
     FACTORY -.->|"addReferenceP2pYieldProxy()"| REF_RESOLV
     FACTORY -.->|"addReferenceP2pYieldProxy()"| REF_FUTURE
 
@@ -213,7 +229,7 @@ classDiagram
 **Key behaviors:**
 - Validates the P2P signer signature on every `deposit()` call
 - Creates a new ERC-1167 clone on first deposit, reuses on subsequent deposits
-- The same factory instance handles Aave, Compound, Morpho, Ethena, Resolv, and any future adapter
+- The same factory instance handles all protocol adapters simultaneously
 - Only `p2pOperator` can add new reference proxies or transfer the signer
 
 ### P2pYieldProxy (Base)
@@ -272,17 +288,28 @@ classDiagram
     P2pYieldProxy --|> ProxyInitializer
 ```
 
-**Inheritance chain for each adapter:**
+**Inheritance chains:**
 
 ```
-P2pAaveProxy → P2pYieldProxy → Withdrawable → Depositable → FeeMath
-                              → AdditionalRewardClaimer
-                              → AnyFunctionWithCalldataChecker
-                              → AllowedCalldataByClientToP2pCheckerImmutable
-                              → ProxyInitializer
-                              → FactoryImmutable
-                              → AccruedRewardsWithTreasury
-                              → ERC165
+P2pErc4626Proxy → P2pYieldProxy → ...
+
+P2pAaveProxy  → P2pAaveLikeProxy → P2pYieldProxy → ...
+P2pSparkProxy → P2pAaveLikeProxy → P2pYieldProxy → ...
+
+P2pCompoundProxy → P2pYieldProxy → ...
+P2pEthenaProxy   → P2pYieldProxy → ...
+P2pEulerProxy    → P2pYieldProxy → ...
+P2pMapleProxy    → P2pYieldProxy → ...
+P2pResolvProxy   → P2pYieldProxy → ...
+
+P2pYieldProxy → Withdrawable → Depositable → FeeMath
+              → AdditionalRewardClaimer
+              → AnyFunctionWithCalldataChecker
+              → AllowedCalldataByClientToP2pCheckerImmutable
+              → ProxyInitializer
+              → FactoryImmutable
+              → AccruedRewardsWithTreasury
+              → ERC165
 ```
 
 ### AllowedCalldataChecker (Dual-Checker Pattern)
@@ -293,7 +320,7 @@ Each proxy has **two** calldata checkers, both upgradeable proxies themselves:
 graph LR
     subgraph "Operator's Checker (i_allowedCalldataChecker)"
         OC["AllowedCalldataChecker proxy"]
-        OC_IMPL["Protocol-specific rules\n(e.g. AaveCalldataChecker)"]
+        OC_IMPL["Protocol-specific rules\n(e.g. MorphoRewardsAllowedCalldataChecker)"]
         OC -->|"delegatecall"| OC_IMPL
     end
 
@@ -312,7 +339,7 @@ graph LR
 | `i_allowedCalldataChecker` | What the **client** can call via `callAnyFunction` and `claimAdditionalRewardTokens` | P2P Operator | Whitelist safe protocol interactions for clients |
 | `i_allowedCalldataByClientToP2pChecker` | What the **operator** can call via `callAnyFunctionByP2pOperator` and `claimAdditionalRewardTokens` | Client (or operator on their behalf) | Allow operator to claim rewards, sweep tokens, etc. |
 
-Both start as deny-all (`AllowedCalldataChecker` base with no rules). The operator upgrades the operator's checker implementation to protocol-specific rules during deployment. The client's checker can be upgraded to allow operator reward claiming.
+Both start as deny-all (`AllowedCalldataChecker` base with no rules). The operator upgrades the checker implementation to protocol-specific rules (e.g., `MorphoRewardsAllowedCalldataChecker` for Morpho URD/Merkl claims).
 
 ### Protocol Adapters
 
@@ -324,13 +351,38 @@ classDiagram
         <<abstract>>
     }
 
+    class P2pErc4626Proxy {
+        +deposit(vault, amount)
+        +withdraw(vault, shares)
+        +withdrawAccruedRewards(vault)
+        +calculateAccruedRewards(vault, asset) int256
+    }
+
+    class P2pAaveLikeProxy {
+        <<abstract>>
+        #i_pool : IAaveV3Pool
+        #i_dataProvider : IAaveProtocolDataProvider
+        #_depositToPool(asset, amount)
+        #_withdrawFromPool(asset, amount)
+        #_withdrawAccruedFromPool(asset, accrued)
+        +calculateAccruedRewards(_, asset) int256
+        +getYieldToken(asset) address
+    }
+
     class P2pAaveProxy {
-        +i_aavePool : address
-        +i_aaveDataProvider : address
         +deposit(asset, amount)
         +withdraw(asset, amount)
         +withdrawAccruedRewards(asset)
         +getAToken(asset) address
+        +getAavePool() address
+    }
+
+    class P2pSparkProxy {
+        +deposit(asset, amount)
+        +withdraw(asset, amount)
+        +withdrawAccruedRewards(asset)
+        +getSpToken(asset) address
+        +getSparkPool() address
     }
 
     class P2pCompoundProxy {
@@ -340,14 +392,6 @@ classDiagram
         +withdraw(asset, amount)
         +withdrawAccruedRewards(asset)
         +getComet(asset) address
-    }
-
-    class P2pMorphoProxy {
-        +deposit(vault, amount)
-        +withdraw(vault, shares)
-        +withdrawAccruedRewards(vault)
-        +morphoUrdClaim(distributor, reward, amount, proof)
-        +morphoMerklClaim(distributor, tokens, payoutTokens, amounts, proofs)
     }
 
     class P2pEthenaProxy {
@@ -361,6 +405,25 @@ classDiagram
         +withdrawAfterCooldownAccruedRewards()
         +withdrawWithoutCooldown(assets)
         +redeemWithoutCooldown(shares)
+    }
+
+    class P2pEulerProxy {
+        +i_evc : IEVC
+        +deposit(vault, amount)
+        +withdraw(vault, shares)
+        +withdrawAccruedRewards(vault)
+        +claimRewardStreams(vault, reward)
+        +enableBalanceForwarder(vault)
+        +enableReward(vault, reward)
+    }
+
+    class P2pMapleProxy {
+        +deposit(pool, amount)
+        +withdraw(pool, shares)
+        +withdrawAccruedRewards(pool)
+        +requestRedeem(pool, shares)
+        +requestRedeemAccruedRewards(pool)
+        +removeShares(pool, shares)
     }
 
     class P2pResolvProxy {
@@ -377,10 +440,14 @@ classDiagram
         +sweepRewardToken(token)
     }
 
-    P2pYieldProxy <|-- P2pAaveProxy
+    P2pYieldProxy <|-- P2pErc4626Proxy
+    P2pYieldProxy <|-- P2pAaveLikeProxy
+    P2pAaveLikeProxy <|-- P2pAaveProxy
+    P2pAaveLikeProxy <|-- P2pSparkProxy
     P2pYieldProxy <|-- P2pCompoundProxy
-    P2pYieldProxy <|-- P2pMorphoProxy
     P2pYieldProxy <|-- P2pEthenaProxy
+    P2pYieldProxy <|-- P2pEulerProxy
+    P2pYieldProxy <|-- P2pMapleProxy
     P2pYieldProxy <|-- P2pResolvProxy
 ```
 
@@ -409,7 +476,7 @@ The operator periodically calls `withdrawAccruedRewards(asset)` to collect the P
 
 ### UC4: Claiming additional reward tokens (airdrops, incentives)
 
-Both client and operator can call `claimAdditionalRewardTokens()` to claim external rewards (e.g., COMP from Compound, Merkl airdrops from Morpho). The claimed tokens are split per `clientBasisPoints`.
+Both client and operator can call `claimAdditionalRewardTokens()` to claim external rewards (e.g., COMP from Compound, Morpho URD/Merkl rewards). The claimed tokens are split per `clientBasisPoints`. The calldata is validated by the appropriate `AllowedCalldataChecker`.
 
 ### UC5: Adding a new protocol adapter
 
@@ -765,16 +832,24 @@ sequenceDiagram
 
 **When cooldown is disabled** (hypothetical future state), `withdrawWithoutCooldown()` and `redeemWithoutCooldown()` become available as instant alternatives.
 
-### Aave V3
+### Aave V3 / SparkLend
 
-Deposits go into the Aave V3 Pool; the proxy holds aTokens that accrue yield via rebasing.
+Both P2pAaveProxy and P2pSparkProxy inherit from **P2pAaveLikeProxy**, which contains all shared deposit/withdraw/accrual logic. SparkLend is an Aave V3 fork with an identical `IAaveV3Pool` interface.
+
+Deposits go into the lending pool; the proxy holds yield-bearing tokens (aTokens for Aave, spTokens for Spark) that accrue yield via rebasing.
 
 | Method | Caller | Description |
 |--------|--------|-------------|
-| `withdraw(asset, amount)` | Client | Withdraw from Aave, profit split |
+| `withdraw(asset, amount)` | Client | Withdraw from pool, profit split |
 | `withdrawAccruedRewards(asset)` | Operator | Sweep accrued yield |
 
-Additional rewards (e.g., Umbrella Safety Module, Merkl airdrops) are claimed via `claimAdditionalRewardTokens()`.
+Additional rewards (e.g., Aave Umbrella Safety Module, SparkLend Incentives, Merkl airdrops) are claimed via `claimAdditionalRewardTokens()`.
+
+**Accessors:**
+- Aave: `getAToken(asset)`, `getAavePool()`, `getAaveDataProvider()`
+- Spark: `getSpToken(asset)`, `getSparkPool()`, `getSparkDataProvider()`
+
+Both delegate to the shared `getYieldToken(asset)` in `P2pAaveLikeProxy`.
 
 ### Compound V3
 
@@ -787,19 +862,47 @@ Uses `CompoundMarketRegistry` to map assets to their Comet market addresses. The
 
 COMP rewards are claimed via `claimAdditionalRewardTokens()` targeting the CometRewards contract.
 
-### Morpho
+### ERC-4626 (MetaMorpho, Fluid, etc.)
 
-Deposits go into Morpho ERC-4626 vaults. The proxy holds vault shares.
+**P2pErc4626Proxy** is the generic adapter for any standard ERC-4626 vault. It works with any vault implementing `deposit(assets, receiver)`, `redeem(shares, receiver, owner)`, and `convertToAssets(shares)`.
+
+Confirmed compatible protocols:
+- **MetaMorpho vaults** (Steakhouse, Gauntlet, Moonwell, etc.) — direct deposit, no bundler needed
+- **Fluid fTokens** (fUSDC, fUSDT, fWETH) — lending vaults with exchange-price-based yield
 
 | Method | Caller | Description |
 |--------|--------|-------------|
-| `deposit(vault, amount)` | Factory | Deposit into Morpho vault |
+| `deposit(vault, amount)` | Factory | Deposit underlying into ERC-4626 vault |
 | `withdraw(vault, shares)` | Client | Redeem shares, profit split |
 | `withdrawAccruedRewards(vault)` | Operator | Sweep accrued yield |
-| `morphoUrdClaim(distributor, reward, amount, proof)` | Client or Operator | Claim URD rewards |
-| `morphoMerklClaim(distributor, tokens, payoutTokens, amounts, proofs)` | Client or Operator | Claim Merkl rewards |
 
-Both URD and Merkl claims are built into the adapter with automatic fee splitting.
+Protocol-specific reward claiming (e.g., Morpho URD/Merkl) is handled via `claimAdditionalRewardTokens()` with an appropriate `AllowedCalldataChecker` implementation (e.g., `MorphoRewardsAllowedCalldataChecker` whitelists URD `claim` and Merkl `claim` selectors).
+
+### Euler V2
+
+Euler V2 EVaults are ERC-4626 vaults, but all state-changing operations must be routed through the **Ethereum Vault Connector (EVC)**. The EVC authenticates the caller and sets the on-behalf-of context.
+
+| Method | Caller | Description |
+|--------|--------|-------------|
+| `deposit(vault, amount)` | Factory | Deposit via EVC → EVault.deposit |
+| `withdraw(vault, shares)` | Client | Redeem via EVC → EVault.redeem, profit split |
+| `withdrawAccruedRewards(vault)` | Operator | Sweep accrued yield via EVC |
+| `claimRewardStreams(vault, reward)` | Client or Operator | Claim Reward Streams tokens, fee split |
+| `enableBalanceForwarder(vault)` | Client or Operator | Enable balance tracking for Reward Streams |
+| `enableReward(vault, reward)` | Client or Operator | Enable a specific reward token |
+
+### Maple Finance
+
+Maple pools are ERC-4626 vaults with a **FIFO withdrawal queue**. Deposits are instant but withdrawals require a request/process/redeem flow.
+
+| Method | Caller | Description |
+|--------|--------|-------------|
+| `deposit(pool, amount)` | Factory | Standard ERC-4626 deposit |
+| `requestRedeem(pool, shares)` | Client | Submit shares to withdrawal queue |
+| `requestRedeemAccruedRewards(pool)` | Operator | Queue only the accrued rewards shares |
+| `withdraw(pool, shares)` | Client | Redeem processed shares, profit split |
+| `withdrawAccruedRewards(pool)` | Operator | Redeem processed accrued shares, fee split |
+| `removeShares(pool, shares)` | Client | Cancel pending withdrawal request |
 
 ---
 
@@ -851,6 +954,8 @@ Both URD and Merkl claims are built into the adapter with automatic fee splittin
 
 7. **Compound multi-market:** `CompoundMarketRegistry` maps asset → comet. If an asset is not registered, operations revert. Only `p2pOperator` can add mappings, and mappings are permanent (add-only).
 
+8. **Maple withdrawal queue:** Shares must be requested via `requestRedeem`, then processed by the pool delegate before they can be redeemed. `removeShares` cancels a pending request.
+
 ---
 
 ## Running Tests
@@ -864,9 +969,17 @@ forge test
 
 Run specific protocol tests:
 ```shell
+forge test --match-contract MainnetAaveIntegration -vvv
 forge test --match-contract MainnetAaveAdditionalRewards -vvv
+forge test --match-contract MainnetSparkIntegration -vvv
+forge test --match-contract MainnetSparkAdditionalRewards -vvv
 forge test --match-contract MainnetCompoundIntegration -vvv
+forge test --match-contract MainnetErc4626Integration -vvv
+forge test --match-contract MainnetErc4626MorphoRewards -vvv
 forge test --match-contract MainnetEthenaIntegration -vvv
+forge test --match-contract MainnetEulerIntegration -vvv
+forge test --match-contract MainnetMapleIntegration -vvv
+forge test --match-contract MainnetFluidIntegration -vvv
 forge test --match-contract RESOLVIntegration -vvv
 ```
 
