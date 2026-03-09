@@ -10,7 +10,7 @@ import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../src/adapters/erc4626/p2pErc4626Proxy/P2pErc4626Proxy.sol";
-import "../../src/adapters/fluid/@fluid/IFToken.sol";
+import "../../src/mocks/IFToken.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";

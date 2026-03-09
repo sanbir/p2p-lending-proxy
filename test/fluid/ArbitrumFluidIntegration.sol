@@ -9,14 +9,14 @@ import "../../src/@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "../../src/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "../../src/adapters/fluid/@fluid/IFToken.sol";
-import "../../src/adapters/fluid/p2pFluidProxy/P2pFluidProxy.sol";
+import "../../src/mocks/IFToken.sol";
+import "../../src/adapters/erc4626/p2pErc4626Proxy/P2pErc4626Proxy.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 
 /// @title ArbitrumFluidIntegration
-/// @notice Arbitrum fork tests for P2pFluidProxy with fUSDC and fUSDT.
+/// @notice Arbitrum fork tests for P2pErc4626Proxy (replacing P2pFluidProxy) with fUSDC and fUSDT.
 contract ArbitrumFluidIntegration is Test {
     using SafeERC20 for IERC20;
 
@@ -65,7 +65,7 @@ contract ArbitrumFluidIntegration is Test {
         factory = new P2pYieldProxyFactory(p2pSigner);
 
         referenceFluid = address(
-            new P2pFluidProxy(
+            new P2pErc4626Proxy(
                 address(factory), P2P_TREASURY,
                 address(opChecker), address(c2pChecker)
             )
@@ -90,7 +90,7 @@ contract ArbitrumFluidIntegration is Test {
 
         _simulateYield(F_USDC);
 
-        P2pFluidProxy proxy = P2pFluidProxy(proxyAddress);
+        P2pErc4626Proxy proxy = P2pErc4626Proxy(proxyAddress);
         int256 accrued = proxy.calculateAccruedRewards(F_USDC, USDC);
         assertGt(accrued, 0, "should have accrued rewards");
 
@@ -114,13 +114,13 @@ contract ArbitrumFluidIntegration is Test {
         _simulateYield(F_USDC);
 
         vm.prank(p2pOperator);
-        P2pFluidProxy(proxyAddress).withdrawAccruedRewards(F_USDC);
+        P2pErc4626Proxy(proxyAddress).withdrawAccruedRewards(F_USDC);
 
         uint256 remainingShares = IERC20(F_USDC).balanceOf(proxyAddress);
         uint256 clientBefore = IERC20(USDC).balanceOf(client);
 
         vm.prank(client);
-        P2pFluidProxy(proxyAddress).withdraw(F_USDC, remainingShares);
+        P2pErc4626Proxy(proxyAddress).withdraw(F_USDC, remainingShares);
 
         uint256 clientPrincipal = IERC20(USDC).balanceOf(client) - clientBefore;
         assertGe(clientPrincipal, depositAmt - 2, "client should recover principal");
@@ -139,7 +139,7 @@ contract ArbitrumFluidIntegration is Test {
 
         _simulateYield(F_USDT);
 
-        P2pFluidProxy proxy = P2pFluidProxy(proxyAddress);
+        P2pErc4626Proxy proxy = P2pErc4626Proxy(proxyAddress);
         int256 accrued = proxy.calculateAccruedRewards(F_USDT, USDT);
         assertGt(accrued, 0, "should have accrued rewards");
 
@@ -161,11 +161,11 @@ contract ArbitrumFluidIntegration is Test {
 
         vm.prank(p2pOperator);
         vm.expectRevert();
-        P2pFluidProxy(proxyAddress).withdraw(F_USDC, shares);
+        P2pErc4626Proxy(proxyAddress).withdraw(F_USDC, shares);
 
         vm.prank(nobody);
         vm.expectRevert();
-        P2pFluidProxy(proxyAddress).withdraw(F_USDC, shares);
+        P2pErc4626Proxy(proxyAddress).withdraw(F_USDC, shares);
     }
 
     function test_arb_fluid_onlyOperator_canWithdrawAccrued() external {
@@ -176,11 +176,11 @@ contract ArbitrumFluidIntegration is Test {
 
         vm.prank(client);
         vm.expectRevert();
-        P2pFluidProxy(proxyAddress).withdrawAccruedRewards(F_USDC);
+        P2pErc4626Proxy(proxyAddress).withdrawAccruedRewards(F_USDC);
 
         vm.prank(nobody);
         vm.expectRevert();
-        P2pFluidProxy(proxyAddress).withdrawAccruedRewards(F_USDC);
+        P2pErc4626Proxy(proxyAddress).withdrawAccruedRewards(F_USDC);
     }
 
     // ==================== Zero Accrued Reverts ====================
@@ -190,8 +190,8 @@ contract ArbitrumFluidIntegration is Test {
         _doDeposit(F_USDC, 10_000e6);
 
         vm.prank(p2pOperator);
-        vm.expectRevert(P2pFluidProxy__ZeroAccruedRewards.selector);
-        P2pFluidProxy(proxyAddress).withdrawAccruedRewards(F_USDC);
+        vm.expectRevert(P2pErc4626Proxy__ZeroAccruedRewards.selector);
+        P2pErc4626Proxy(proxyAddress).withdrawAccruedRewards(F_USDC);
     }
 
     // ==================== Helpers ====================
@@ -204,7 +204,7 @@ contract ArbitrumFluidIntegration is Test {
         assertGt(shares, 0, "should hold fToken shares");
 
         vm.prank(client);
-        P2pFluidProxy(proxyAddress).withdraw(_fToken, shares);
+        P2pErc4626Proxy(proxyAddress).withdraw(_fToken, shares);
 
         uint256 clientBal = IERC20(_asset).balanceOf(client);
         assertGe(clientBal, _amount - 2, "client should recover funds");

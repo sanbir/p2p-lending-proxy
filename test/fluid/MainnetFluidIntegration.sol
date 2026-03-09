@@ -8,14 +8,14 @@ import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeab
 import "../../src/@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../../src/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../src/@openzeppelin/contracts/interfaces/IERC4626.sol";
-import "../../src/adapters/fluid/@fluid/IFToken.sol";
-import "../../src/adapters/fluid/p2pFluidProxy/P2pFluidProxy.sol";
+import "../../src/mocks/IFToken.sol";
+import "../../src/adapters/erc4626/p2pErc4626Proxy/P2pErc4626Proxy.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
 import "forge-std/Test.sol";
 
 /// @title MainnetFluidIntegration
-/// @notice End-to-end mainnet fork tests for P2pFluidProxy covering fUSDC, fUSDT, and fWETH.
+/// @notice End-to-end mainnet fork tests for P2pErc4626Proxy (replacing P2pFluidProxy) covering fUSDC, fUSDT, and fWETH.
 ///   Fluid fTokens are standard ERC-4626 lending vaults with instant deposit/withdrawal.
 ///   Yield comes from lending interest + rewards rate model (reflected in exchange price).
 contract MainnetFluidIntegration is Test {
@@ -76,7 +76,7 @@ contract MainnetFluidIntegration is Test {
         factory = new P2pYieldProxyFactory(p2pSigner);
 
         referenceFluid = address(
-            new P2pFluidProxy(
+            new P2pErc4626Proxy(
                 address(factory), P2P_TREASURY,
                 address(operatorChecker), address(clientToP2pChecker)
             )
@@ -98,7 +98,7 @@ contract MainnetFluidIntegration is Test {
         uint256 shares = IERC20(F_USDC).balanceOf(proxyAddress);
         assertGt(shares, 0, "proxy should hold fUSDC shares");
 
-        P2pFluidProxy proxy = P2pFluidProxy(proxyAddress);
+        P2pErc4626Proxy proxy = P2pErc4626Proxy(proxyAddress);
         assertEq(proxy.getTotalDeposited(USDC), USDC_DEPOSIT, "totalDeposited should match");
     }
 
@@ -117,7 +117,7 @@ contract MainnetFluidIntegration is Test {
         uint256 treasuryBalBefore = IERC20(USDC).balanceOf(P2P_TREASURY);
 
         vm.prank(client);
-        P2pFluidProxy(proxyAddress).withdraw(F_USDC, shares);
+        P2pErc4626Proxy(proxyAddress).withdraw(F_USDC, shares);
 
         uint256 clientReceived = IERC20(USDC).balanceOf(client) - clientBalBefore;
         uint256 treasuryReceived = IERC20(USDC).balanceOf(P2P_TREASURY) - treasuryBalBefore;
@@ -136,7 +136,7 @@ contract MainnetFluidIntegration is Test {
         // Simulate yield: warp time to let lending interest accrue
         _simulateYield(F_USDC);
 
-        P2pFluidProxy proxy = P2pFluidProxy(proxyAddress);
+        P2pErc4626Proxy proxy = P2pErc4626Proxy(proxyAddress);
         int256 accrued = proxy.calculateAccruedRewards(F_USDC, USDC);
         assertGt(accrued, 0, "should have accrued rewards after yield");
 
@@ -170,7 +170,7 @@ contract MainnetFluidIntegration is Test {
         // Simulate yield: warp time to let lending interest accrue
         _simulateYield(F_USDC);
 
-        P2pFluidProxy proxy = P2pFluidProxy(proxyAddress);
+        P2pErc4626Proxy proxy = P2pErc4626Proxy(proxyAddress);
 
         // Operator takes accrued rewards
         vm.prank(p2pOperator);
@@ -199,11 +199,11 @@ contract MainnetFluidIntegration is Test {
 
         vm.prank(p2pOperator);
         vm.expectRevert();
-        P2pFluidProxy(proxyAddress).withdraw(F_USDC, shares);
+        P2pErc4626Proxy(proxyAddress).withdraw(F_USDC, shares);
 
         vm.prank(nobody);
         vm.expectRevert();
-        P2pFluidProxy(proxyAddress).withdraw(F_USDC, shares);
+        P2pErc4626Proxy(proxyAddress).withdraw(F_USDC, shares);
     }
 
     function test_fluid_onlyOperator_canWithdrawAccrued() external {
@@ -215,11 +215,11 @@ contract MainnetFluidIntegration is Test {
 
         vm.prank(client);
         vm.expectRevert();
-        P2pFluidProxy(proxyAddress).withdrawAccruedRewards(F_USDC);
+        P2pErc4626Proxy(proxyAddress).withdrawAccruedRewards(F_USDC);
 
         vm.prank(nobody);
         vm.expectRevert();
-        P2pFluidProxy(proxyAddress).withdrawAccruedRewards(F_USDC);
+        P2pErc4626Proxy(proxyAddress).withdrawAccruedRewards(F_USDC);
     }
 
     // ==================== fUSDT: Deposit + Withdraw ====================
@@ -258,7 +258,7 @@ contract MainnetFluidIntegration is Test {
         uint256 clientBefore = IERC20(WETH).balanceOf(client);
 
         vm.prank(client);
-        P2pFluidProxy(proxyAddress).withdraw(F_WETH, shares);
+        P2pErc4626Proxy(proxyAddress).withdraw(F_WETH, shares);
 
         uint256 clientReceived = IERC20(WETH).balanceOf(client) - clientBefore;
         assertGe(clientReceived, WETH_DEPOSIT - 2, "client should recover WETH");
@@ -279,7 +279,7 @@ contract MainnetFluidIntegration is Test {
         uint256 sharesAfterSecond = IERC20(F_USDC).balanceOf(proxyAddress);
         assertGt(sharesAfterSecond, sharesAfterFirst);
 
-        P2pFluidProxy proxy = P2pFluidProxy(proxyAddress);
+        P2pErc4626Proxy proxy = P2pErc4626Proxy(proxyAddress);
         assertEq(proxy.getTotalDeposited(USDC), firstDeposit + secondDeposit, "totalDeposited should sum both");
     }
 
@@ -291,8 +291,8 @@ contract MainnetFluidIntegration is Test {
         _doDeposit(F_USDC, USDC_DEPOSIT);
 
         vm.prank(p2pOperator);
-        vm.expectRevert(P2pFluidProxy__ZeroAccruedRewards.selector);
-        P2pFluidProxy(proxyAddress).withdrawAccruedRewards(F_USDC);
+        vm.expectRevert(P2pErc4626Proxy__ZeroAccruedRewards.selector);
+        P2pErc4626Proxy(proxyAddress).withdrawAccruedRewards(F_USDC);
     }
 
     // ==================== fToken Data View ====================
