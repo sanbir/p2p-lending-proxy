@@ -26,4 +26,13 @@ contract AllowedCalldataChecker is IAllowedCalldataChecker, Initializable {
     ) public pure {
         revert AllowedCalldataChecker__NoAllowedCalldata();
     }
+
+    /// @inheritdoc IAllowedCalldataChecker
+    function checkCalldataForClaimAdditionalRewardTokens(
+        address,
+        bytes4,
+        bytes calldata
+    ) public pure {
+        revert AllowedCalldataChecker__NoAllowedCalldata();
+    }
 }

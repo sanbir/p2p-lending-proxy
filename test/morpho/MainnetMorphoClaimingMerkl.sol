@@ -6,8 +6,8 @@ pragma solidity 0.8.30;
 import "../../src/@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../../src/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../../src/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import "../../src/adapters/morpho/p2pMorphoProxy/P2pMorphoProxy.sol";
-import "../../src/adapters/morpho/p2pMorphoTrustedDistributorRegistry/P2pMorphoTrustedDistributorRegistry.sol";
+import "../../src/adapters/erc4626/p2pErc4626Proxy/P2pErc4626Proxy.sol";
+import "../../src/adapters/morpho/MorphoRewardsAllowedCalldataChecker.sol";
 import "../../src/common/AllowedCalldataChecker.sol";
 import "../../src/adapters/morpho/@morpho/IDistributor.sol";
 import "../../src/p2pYieldProxyFactory/P2pYieldProxyFactory.sol";
@@ -16,7 +16,6 @@ import "forge-std/Test.sol";
 contract MainnetMorphoClaimingMerkl is Test {
 
     address constant P2P_TREASURY = 0x6Bb8b45a1C6eA816B70d76f83f7dC4f0f87365Ff;
-    address constant MORPHO_BUNDLER = 0x4095F064B8d3c3548A3bebfd0Bbfd04750E30077;
     address constant MERKL_DISTRIBUTOR = 0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae;
     address constant MERKL_REWARD_TOKEN = 0xfb48aAf5c2D5F1722C6A7910115811e7C094C9B3;
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -27,11 +26,16 @@ contract MainnetMorphoClaimingMerkl is Test {
     uint96 constant CLIENT_BASIS_POINTS = 8700;
 
     P2pYieldProxyFactory private factory;
-    P2pMorphoTrustedDistributorRegistry private trustedDistributorRegistry;
     address private client;
     address private p2pSigner;
     address private p2pOperator;
     address private referenceProxy;
+
+    // Checker proxies + admins for upgrades
+    ProxyAdmin private opCheckerAdmin;
+    TransparentUpgradeableProxy private opCheckerProxy;
+    ProxyAdmin private c2pCheckerAdmin;
+    TransparentUpgradeableProxy private c2pCheckerProxy;
 
     function setUp() public {
         vm.createSelectFork("mainnet", FORK_BLOCK);
@@ -41,42 +45,36 @@ contract MainnetMorphoClaimingMerkl is Test {
         p2pSigner = makeAddr("p2pSigner");
         p2pOperator = makeAddr("p2pOperator");
 
-        AllowedCalldataChecker implementation = new AllowedCalldataChecker();
-        ProxyAdmin admin = new ProxyAdmin();
+        vm.startPrank(p2pOperator);
+
+        AllowedCalldataChecker denyAll = new AllowedCalldataChecker();
         bytes memory initData = abi.encodeWithSelector(AllowedCalldataChecker.initialize.selector);
-        TransparentUpgradeableProxy checkerProxy =
-            new TransparentUpgradeableProxy(address(implementation), address(admin), initData);
-        AllowedCalldataChecker clientToP2pImpl = new AllowedCalldataChecker();
-        ProxyAdmin clientToP2pAdmin = new ProxyAdmin();
-        TransparentUpgradeableProxy clientToP2pCheckerProxy =
-            new TransparentUpgradeableProxy(address(clientToP2pImpl), address(clientToP2pAdmin), initData);
+
+        opCheckerAdmin = new ProxyAdmin();
+        opCheckerProxy = new TransparentUpgradeableProxy(address(denyAll), address(opCheckerAdmin), initData);
+
+        c2pCheckerAdmin = new ProxyAdmin();
+        c2pCheckerProxy = new TransparentUpgradeableProxy(address(denyAll), address(c2pCheckerAdmin), initData);
 
         factory = new P2pYieldProxyFactory(p2pSigner);
-        trustedDistributorRegistry = new P2pMorphoTrustedDistributorRegistry(address(factory));
         referenceProxy = address(
-            new P2pMorphoProxy(
+            new P2pErc4626Proxy(
                 address(factory),
                 P2P_TREASURY,
-                address(checkerProxy),
-                address(clientToP2pCheckerProxy),
-                MORPHO_BUNDLER,
-                address(trustedDistributorRegistry)
+                address(opCheckerProxy),
+                address(c2pCheckerProxy)
             )
         );
         factory.addReferenceP2pYieldProxy(referenceProxy);
 
-        factory.transferP2pOperator(p2pOperator);
-        vm.prank(p2pOperator);
-        factory.acceptP2pOperator();
-
-        vm.prank(p2pOperator);
-        trustedDistributorRegistry.setTrustedDistributor(MERKL_DISTRIBUTOR);
+        vm.stopPrank();
 
         vm.deal(PROXY_ADDRESS, 10 ether);
         vm.deal(client, 10 ether);
         vm.deal(p2pOperator, 10 ether);
     }
 
+    /// @dev Direct EOA Merkl claim — verifies the distributor works at this block
     function test_morpho_MorphoClaimingMerklEOA() external {
         (
             address[] memory users,
@@ -98,17 +96,30 @@ contract MainnetMorphoClaimingMerkl is Test {
         assertEq(claimedAfter - claimedBefore, MERKL_CLAIM_AMOUNT);
     }
 
+    /// @dev Client claims Merkl rewards via claimAdditionalRewardTokens
     function test_morpho_MorphoClaimingMerklByClient() external {
         _deployProxy();
+        _upgradeOpChecker(); // client calls → validated by operator's checker
 
-        (address[] memory tokens, address[] memory payoutTokens, uint256[] memory amounts, bytes32[][] memory proofs) =
-            _getProxyClaimData();
+        // Build IDistributor.claim calldata with users[0] = PROXY_ADDRESS
+        (
+            address[] memory users,
+            address[] memory claimTokens,
+            uint256[] memory amounts,
+            bytes32[][] memory proofs
+        ) = _getMerklClaimInputs();
+
+        bytes memory claimCalldata = abi.encodeCall(IDistributor.claim, (users, claimTokens, amounts, proofs));
+
+        // Track USDC as payout token (Merkl converts MERKL_REWARD_TOKEN → USDC)
+        address[] memory deltaTokens = new address[](1);
+        deltaTokens[0] = USDC;
 
         uint256 clientBalanceBefore = IERC20(USDC).balanceOf(client);
         uint256 treasuryBalanceBefore = IERC20(USDC).balanceOf(P2P_TREASURY);
 
         vm.prank(client);
-        P2pMorphoProxy(PROXY_ADDRESS).morphoMerklClaim(MERKL_DISTRIBUTOR, tokens, payoutTokens, amounts, proofs);
+        P2pErc4626Proxy(PROXY_ADDRESS).claimAdditionalRewardTokens(MERKL_DISTRIBUTOR, claimCalldata, deltaTokens);
 
         uint256 clientBalanceAfter = IERC20(USDC).balanceOf(client);
         uint256 treasuryBalanceAfter = IERC20(USDC).balanceOf(P2P_TREASURY);
@@ -122,17 +133,28 @@ contract MainnetMorphoClaimingMerkl is Test {
         assertEq(treasuryBalanceAfter - treasuryBalanceBefore, expectedP2pAmount);
     }
 
+    /// @dev Operator claims Merkl rewards via claimAdditionalRewardTokens
     function test_morpho_MorphoClaimingMerklByOperator() external {
         _deployProxy();
+        _upgradeC2pChecker(); // operator calls → validated by client's checker
 
-        (address[] memory tokens, address[] memory payoutTokens, uint256[] memory amounts, bytes32[][] memory proofs) =
-            _getProxyClaimData();
+        (
+            address[] memory users,
+            address[] memory claimTokens,
+            uint256[] memory amounts,
+            bytes32[][] memory proofs
+        ) = _getMerklClaimInputs();
+
+        bytes memory claimCalldata = abi.encodeCall(IDistributor.claim, (users, claimTokens, amounts, proofs));
+
+        address[] memory deltaTokens = new address[](1);
+        deltaTokens[0] = USDC;
 
         uint256 clientBalanceBefore = IERC20(USDC).balanceOf(client);
         uint256 treasuryBalanceBefore = IERC20(USDC).balanceOf(P2P_TREASURY);
 
         vm.prank(p2pOperator);
-        P2pMorphoProxy(PROXY_ADDRESS).morphoMerklClaim(MERKL_DISTRIBUTOR, tokens, payoutTokens, amounts, proofs);
+        P2pErc4626Proxy(PROXY_ADDRESS).claimAdditionalRewardTokens(MERKL_DISTRIBUTOR, claimCalldata, deltaTokens);
 
         uint256 clientBalanceAfter = IERC20(USDC).balanceOf(client);
         uint256 treasuryBalanceAfter = IERC20(USDC).balanceOf(P2P_TREASURY);
@@ -152,7 +174,7 @@ contract MainnetMorphoClaimingMerkl is Test {
         vm.etch(PROXY_ADDRESS, referenceProxy.code);
 
         vm.prank(address(factory));
-        P2pMorphoProxy(PROXY_ADDRESS).initialize(client, CLIENT_BASIS_POINTS);
+        P2pErc4626Proxy(PROXY_ADDRESS).initialize(client, CLIENT_BASIS_POINTS);
     }
 
     function _getMerklClaimInputs()
@@ -163,19 +185,8 @@ contract MainnetMorphoClaimingMerkl is Test {
         users = new address[](1);
         users[0] = PROXY_ADDRESS;
 
-        (tokens,, amounts, proofs) = _getProxyClaimData();
-    }
-
-    function _getProxyClaimData()
-        internal
-        pure
-        returns (address[] memory tokens, address[] memory payoutTokens, uint256[] memory amounts, bytes32[][] memory proofs)
-    {
         tokens = new address[](1);
         tokens[0] = MERKL_REWARD_TOKEN;
-
-        payoutTokens = new address[](1);
-        payoutTokens[0] = USDC;
 
         amounts = new uint256[](1);
         amounts[0] = MERKL_CLAIM_AMOUNT;
@@ -217,5 +228,17 @@ contract MainnetMorphoClaimingMerkl is Test {
         require(success, "claimed read failed");
         (uint208 amount,,) = abi.decode(data, (uint208, uint48, bytes32));
         return uint256(amount);
+    }
+
+    function _upgradeOpChecker() private {
+        MorphoRewardsAllowedCalldataChecker impl = new MorphoRewardsAllowedCalldataChecker();
+        vm.prank(p2pOperator);
+        opCheckerAdmin.upgrade(ITransparentUpgradeableProxy(address(opCheckerProxy)), address(impl));
+    }
+
+    function _upgradeC2pChecker() private {
+        MorphoRewardsAllowedCalldataChecker impl = new MorphoRewardsAllowedCalldataChecker();
+        vm.prank(p2pOperator);
+        c2pCheckerAdmin.upgrade(ITransparentUpgradeableProxy(address(c2pCheckerProxy)), address(impl));
     }
 }

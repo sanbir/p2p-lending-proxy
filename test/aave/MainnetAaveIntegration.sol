@@ -212,7 +212,7 @@ contract MainnetAaveIntegration is Test {
         bytes memory signature = _getP2pSignerSignature(client, CLIENT_BPS, block.timestamp + 1 days);
 
         vm.startPrank(client);
-        vm.expectRevert(abi.encodeWithSelector(P2pAaveProxy__AssetNotSupported.selector, unsupportedAsset));
+        vm.expectRevert(abi.encodeWithSelector(P2pAaveLikeProxy__AssetNotSupported.selector, unsupportedAsset));
         factory.deposit(referenceProxy, unsupportedAsset, DEPOSIT_AMOUNT, CLIENT_BPS, block.timestamp + 1 days, signature);
         vm.stopPrank();
     }

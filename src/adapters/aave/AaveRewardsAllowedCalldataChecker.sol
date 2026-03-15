@@ -39,6 +39,15 @@ contract AaveRewardsAllowedCalldataChecker is IAllowedCalldataChecker, Initializ
 
     /// @inheritdoc IAllowedCalldataChecker
     function checkCalldata(
+        address,
+        bytes4,
+        bytes calldata
+    ) external pure {
+        revert AllowedCalldataChecker__NoAllowedCalldata();
+    }
+
+    /// @inheritdoc IAllowedCalldataChecker
+    function checkCalldataForClaimAdditionalRewardTokens(
         address _target,
         bytes4 _selector,
         bytes calldata
